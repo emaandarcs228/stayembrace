@@ -1,0 +1,79 @@
+<%- include('student-header') %>
+
+<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;padding:2rem">
+  <div style="background:white;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,.1);border:1px solid var(--border);max-width:440px;width:100%;text-align:center;padding:2.5rem 2rem">
+
+    <% if (status === 'success') { %>
+
+      <div style="width:72px;height:72px;border-radius:50%;background:#E8F5E9;color:#2E7D32;display:flex;align-items:center;justify-content:center;margin:0 auto 1.2rem;font-size:2rem">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <h2 style="font-size:1.2rem;font-weight:700;color:#2E7D32;margin-bottom:.4rem">Payment Successful!</h2>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:1.2rem">
+        Your <%= payment ? payment.paymentMethod : 'gateway' %> payment has been verified and your dues have been updated.
+      </p>
+
+      <% if (payment) { %>
+      <div style="background:var(--green-light);border:1px solid #b8d9c0;border-radius:8px;padding:1rem;margin-bottom:1.4rem;text-align:left">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
+          <div>
+            <div style="font-size:.62rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Amount</div>
+            <div style="font-size:.85rem;font-weight:600;color:var(--green-dark)">Rs <%= payment.amount.toLocaleString() %></div>
+          </div>
+          <div>
+            <div style="font-size:.62rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Type</div>
+            <div style="font-size:.85rem;font-weight:600;color:var(--text-primary)"><%= payment.paymentType %></div>
+          </div>
+          <div>
+            <div style="font-size:.62rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Method</div>
+            <div style="font-size:.85rem;font-weight:600;color:var(--text-primary)"><%= payment.paymentMethod %></div>
+          </div>
+          <div>
+            <div style="font-size:.62rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Date</div>
+            <div style="font-size:.85rem;font-weight:600;color:var(--text-primary)"><%= new Date(payment.verifiedAt || payment.updatedAt).toLocaleDateString() %></div>
+          </div>
+          <% if (payment.transactionId) { %>
+          <div style="grid-column:1/-1">
+            <div style="font-size:.62rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Transaction Ref</div>
+            <div style="font-size:.72rem;font-weight:500;color:var(--text-primary);font-family:monospace"><%= payment.transactionId %></div>
+          </div>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
+
+      <a href="/student/pending-payments" class="btn-primary" style="display:inline-flex;align-items:center;gap:.4rem;text-decoration:none;padding:.55rem 1.4rem;border-radius:8px;font-size:.82rem">
+        <i class="fas fa-arrow-left"></i> Back to Payments
+      </a>
+
+    <% } else { %>
+
+      <div style="width:72px;height:72px;border-radius:50%;background:#FFEBEE;color:#C62828;display:flex;align-items:center;justify-content:center;margin:0 auto 1.2rem;font-size:2rem">
+        <i class="fas fa-times-circle"></i>
+      </div>
+      <h2 style="font-size:1.2rem;font-weight:700;color:#C62828;margin-bottom:.4rem">Payment Failed</h2>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:1.2rem">
+        <%= codeMsg || 'Your payment could not be completed. Your dues remain unchanged — please try again.' %>
+      </p>
+
+      <% if (reason === 'invalid_hash') { %>
+      <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;padding:.8rem 1rem;margin-bottom:1.2rem;font-size:.75rem;color:#5D4037;text-align:left">
+        <i class="fas fa-shield-alt"></i> Security check failed. If you believe this is an error, contact support.
+      </div>
+      <% } %>
+
+      <div style="display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap">
+        <a href="/student/pending-payments" class="btn-modal-cancel" style="display:inline-flex;align-items:center;gap:.4rem;text-decoration:none;padding:.5rem 1.2rem;border-radius:8px;font-size:.82rem">
+          Back to Payments
+        </a>
+        <a href="/student/pending-payments" class="btn-primary" style="display:inline-flex;align-items:center;gap:.4rem;text-decoration:none;padding:.5rem 1.2rem;border-radius:8px;font-size:.82rem;background:#C8102E">
+          <i class="fas fa-redo"></i> Try Again
+        </a>
+      </div>
+
+    <% } %>
+
+  </div>
+</div>
+
+<%- include('student-footer') %>

@@ -1,0 +1,322 @@
+<%
+  const activePage   = 'pending-payments';
+  const pageTitle    = 'Pending Payments';
+  const pageSubtitle = 'Pay your outstanding dues';
+%>
+<%- include('student-header') %>
+
+<!-- ── Sub-nav ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
+  <button class="act-btn btn-view" id="btn-pending" onclick="showPage('pending', this)">
+    <i class="ti ti-wallet"></i> Pending
+    <% if (pendingDues.length > 0) { %>
+    <span style="background:white;color:var(--green-dark);font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= pendingDues.length %></span>
+    <% } %>
+  </button>
+  <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-history" onclick="showPage('history', this)">
+    <i class="ti ti-history"></i> Payment History
+  </button>
+</div>
+
+<!-- ══ PENDING PAGE ══ -->
+<div class="page active" id="page-pending">
+
+  <% if (pendingDues.length === 0) { %>
+  <div class="card">
+    <div class="empty-state" style="padding:3rem">
+      <i class="ti ti-check" style="font-size:3rem;color:var(--green);opacity:.6;display:block;margin-bottom:.8rem"></i>
+      <h4 style="color:var(--green-dark)">All clear! No pending dues.</h4>
+      <p>You have no outstanding payments at the moment.</p>
+    </div>
+  </div>
+  <% } else { %>
+
+  <!-- Total outstanding banner -->
+  <%
+    const grandTotal = pendingDues.reduce(function(s,d){ return s + d.amount; }, 0);
+    const overdueCnt = pendingDues.filter(function(d){ return d.status === 'Overdue'; }).length;
+  %>
+  <div style="background:linear-gradient(135deg,#C62828,#E53935);color:white;border-radius:var(--radius-lg);padding:1.2rem 1.5rem;margin-bottom:1.2rem;display:flex;align-items:center;justify-content:space-between;gap:1rem">
+    <div>
+      <div style="font-size:.72rem;opacity:.8;margin-bottom:.2rem">Total Outstanding</div>
+      <div style="font-size:1.6rem;font-weight:800;letter-spacing:-.5px">Rs <%= grandTotal.toLocaleString() %></div>
+      <% if (overdueCnt > 0) { %>
+      <div style="font-size:.7rem;opacity:.85;margin-top:.2rem"><i class="fas fa-exclamation-triangle"></i> <%= overdueCnt %> overdue due(s)</div>
+      <% } %>
+    </div>
+    <i class="ti ti-wallet" style="font-size:2.5rem;opacity:.25"></i>
+  </div>
+
+  <!-- Select all / pay button bar -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:.6rem">
+    <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.78rem;font-weight:500;color:var(--text-secondary)">
+      <input type="checkbox" id="selectAll" onchange="toggleAll(this.checked)"> Select All
+    </label>
+    <div style="display:flex;align-items:center;gap:.8rem">
+      <span style="font-size:.78rem;color:var(--text-muted)">Selected: <strong id="selectedLabel">Rs 0</strong></span>
+      <button class="btn-primary" onclick="openPayModal()" id="payBtn" disabled>
+        <i class="ti ti-credit-card"></i> Pay Selected
+      </button>
+    </div>
+  </div>
+
+  <!-- Due cards -->
+  <div style="display:flex;flex-direction:column;gap:.7rem" id="duesList">
+    <% pendingDues.forEach(function(d) {
+         const typeIconMap = {
+           'Hostel Fee'  : { icon: 'ti ti-home',          bg: '#E8F5E9', color: '#2E7D32' },
+           'Mess Order'  : { icon: 'ti ti-tools-kitchen-2', bg: '#FFF8E1', color: '#E65100' },
+           'Mobile Load' : { icon: 'ti ti-device-mobile',  bg: '#E3F2FD', color: '#1565C0' },
+           'Fine'        : { icon: 'ti ti-alert-triangle', bg: '#FFEBEE', color: '#C62828' },
+           'Laundry'     : { icon: 'ti ti-wash',           bg: '#F3E5F5', color: '#7B1FA2' },
+           'Guest Room'  : { icon: 'ti ti-home-2',         bg: '#F3E5F5', color: '#8E24AA' }
+         };
+         const ti    = typeIconMap[d.dueType] || { icon: 'ti ti-receipt', bg: '#f5f5f5', color: '#888' };
+         const dDate = new Date(d.dueDate);
+         const isOverdue = dDate < new Date() && d.status !== 'Paid';
+    %>
+    <div class="due-card" style="background:white;border:1px solid <%= isOverdue ? '#FFCDD2' : 'var(--border)' %>;border-radius:var(--radius-lg);padding:1rem 1.2rem;display:flex;align-items:center;gap:1rem;transition:var(--transition)">
+      <input type="checkbox" class="due-check" data-id="<%= d._id %>" data-amount="<%= d.amount %>" onchange="updateSelected()">
+      <div style="width:40px;height:40px;border-radius:var(--radius-md);background:<%= ti.bg %>;color:<%= ti.color %>;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0">
+        <i class="<%= ti.icon %>"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.8rem;font-weight:600;color:var(--text-primary)"><%= d.description || d.dueType %></div>
+        <div style="font-size:.68rem;color:var(--text-muted);margin-top:.1rem">
+          Due: <span style="color:<%= isOverdue ? '#C62828' : 'inherit' %>">
+            <%= isOverdue ? '⚠ OVERDUE — ' : '' %><%= dDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+          </span>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:1rem;font-weight:700;color:<%= isOverdue ? '#C62828' : 'var(--text-primary)' %>">Rs <%= d.amount.toLocaleString() %></div>
+        <span class="badge <%= d.status === 'Overdue' ? 'badge-danger' : d.status === 'Partially Paid' ? 'badge-warning' : 'badge-neutral' %>"><%= d.status %></span>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+
+  <% } %>
+</div><!-- /page-pending -->
+
+<!-- ══ PAYMENT HISTORY PAGE ══ -->
+<div class="page" id="page-history">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-history"></i> Payment History</h3>
+      <span class="count-pill"><%= paymentHistory.length %> records</span>
+    </div>
+
+    <% if (paymentHistory.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Method</th>
+            <th>Status</th>
+            <th>Date</th>
+            <th>Transaction ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% paymentHistory.forEach(function(p, i) {
+               const statusMap = {
+                 'Pending'       : 'badge-warning',
+                 'Cash Received' : 'badge-info',
+                 'Verified'      : 'badge-success',
+                 'Rejected'      : 'badge-danger'
+               };
+               const methodIcons = { 'Cash':'💵', 'JazzCash':'📱', 'Easypaisa':'📲' };
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td>
+              <span class="badge badge-neutral"><%= p.paymentType %></span>
+            </td>
+            <td style="font-weight:700">Rs <%= p.amount.toLocaleString() %></td>
+            <td style="font-size:.75rem"><%= methodIcons[p.paymentMethod] || '' %> <%= p.paymentMethod %></td>
+            <td><span class="badge <%= statusMap[p.status] || 'badge-neutral' %>"><%= p.status %></span></td>
+            <td style="font-size:.7rem;color:var(--text-muted)"><%= new Date(p.paymentDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td>
+              <% if (p.transactionId) { %>
+              <code class="uid-code"><%= p.transactionId %></code>
+              <% } else { %>
+              <span style="color:#ccc">—</span>
+              <% } %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-history"></i>
+      <h4>No payment history</h4>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /page-history -->
+
+<!-- ── Payment Modal ── -->
+<div class="modal-overlay" id="payModal" onclick="if(event.target===this)closeModal('payModal')">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="ti ti-credit-card"></i> Make Payment</h3>
+      <button class="modal-close" onclick="closeModal('payModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <form action="/student/pending-payments/pay" method="POST" enctype="multipart/form-data" id="payForm">
+      <div id="payFormDueInputs"></div>
+      <div class="modal-body">
+
+        <!-- Selected dues summary -->
+        <div style="background:var(--green-light);border-radius:var(--radius-md);padding:.8rem 1rem;margin-bottom:1rem">
+          <div style="font-size:.68rem;color:var(--text-muted);margin-bottom:.3rem">Paying for</div>
+          <div id="payingSummary" style="font-size:.78rem;font-weight:500;color:var(--green-dark)"></div>
+          <div style="margin-top:.5rem;border-top:1px solid #b8d9c0;padding-top:.5rem;font-size:.9rem;font-weight:700;color:var(--green-dark)">
+            Total: Rs <span id="payingTotal">0</span>
+          </div>
+        </div>
+
+        <!-- Method -->
+        <div class="form-group" style="margin-bottom:.8rem">
+          <label style="font-size:.72rem;font-weight:500;color:var(--text-secondary);margin-bottom:.3rem;display:block">Payment Method <span class="req">*</span></label>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem">
+            <% [
+                { val:'Cash',      label:'Cash',       icon:'💵', hint:'Pay at admin office' },
+                { val:'JazzCash',  label:'JazzCash',   icon:'📱', hint:'Instant via MPIN' },
+                { val:'Easypaisa', label:'Easypaisa',  icon:'📲', hint:'Instant via app approval' }
+              ].forEach(function(m) { %>
+            <label style="cursor:pointer">
+              <input type="radio" name="paymentMethod" value="<%= m.val %>" required style="display:none" onchange="handleMethodChange('<%= m.val %>')">
+              <div class="pay-method-tile" data-method="<%= m.val %>"
+                   style="border:2px solid var(--border);border-radius:var(--radius-md);padding:.6rem;text-align:center;transition:var(--transition)">
+                <div style="font-size:1.3rem"><%= m.icon %></div>
+                <div style="font-size:.68rem;font-weight:600;color:var(--text-primary)"><%= m.label %></div>
+                <div style="font-size:.6rem;color:var(--text-muted)"><%= m.hint %></div>
+              </div>
+            </label>
+            <% }); %>
+          </div>
+        </div>
+
+        <!-- Cash note -->
+        <div id="cashNote" style="display:none;background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);padding:.7rem .9rem;font-size:.72rem;color:#5D4037">
+          <i class="fas fa-info-circle"></i>
+          After submitting, visit the <strong>admin office</strong> to hand over the cash. Your payment will be marked confirmed by the admin.
+        </div>
+
+      </div>
+      <div class="modal-foot">
+        <div class="mf-left">
+          <button type="submit" class="btn-modal-save"><i class="ti ti-send"></i> Submit Payment</button>
+          <button type="button" class="btn-modal-cancel" onclick="closeModal('payModal')">Cancel</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.getElementById('btn-pending').classList.add('active');
+
+let selectedIds = [], selectedTotal = 0;
+
+function updateSelected() {
+  const checks = document.querySelectorAll('.due-check:checked');
+  selectedIds   = [];
+  selectedTotal = 0;
+  checks.forEach(function(c) {
+    selectedIds.push(c.dataset.id);
+    selectedTotal += parseFloat(c.dataset.amount);
+  });
+  document.getElementById('selectedLabel').textContent = 'Rs ' + selectedTotal.toLocaleString();
+  document.getElementById('payBtn').disabled = (selectedIds.length === 0);
+
+  // Update select-all checkbox
+  const all = document.querySelectorAll('.due-check');
+  document.getElementById('selectAll').indeterminate = checks.length > 0 && checks.length < all.length;
+  document.getElementById('selectAll').checked = checks.length === all.length && all.length > 0;
+}
+
+function toggleAll(checked) {
+  document.querySelectorAll('.due-check').forEach(function(c) { c.checked = checked; });
+  updateSelected();
+}
+
+function openPayModal() {
+  if (selectedIds.length === 0) return;
+
+  // Build hidden inputs
+  let inputsHtml = '';
+  selectedIds.forEach(function(id) {
+    inputsHtml += '<input type="hidden" name="dueIds" value="' + id + '">';
+  });
+  document.getElementById('payFormDueInputs').innerHTML = inputsHtml;
+
+  // Summary
+  const checks = document.querySelectorAll('.due-check:checked');
+  let summaryParts = [];
+  checks.forEach(function(c) {
+    const card = c.closest('.due-card');
+    if (card) {
+      const desc = card.querySelector('[style*="font-weight:600"]');
+      summaryParts.push(desc ? desc.textContent.trim() : 'Due');
+    }
+  });
+  document.getElementById('payingSummary').textContent = summaryParts.join(', ');
+  document.getElementById('payingTotal').textContent   = selectedTotal.toLocaleString();
+
+  // Reset method
+  document.querySelectorAll('.pay-method-tile').forEach(function(el) {
+    el.style.borderColor = 'var(--border)';
+    el.style.background  = 'white';
+  });
+  document.getElementById('cashNote').style.display     = 'none';
+  document.querySelectorAll('[name="paymentMethod"]').forEach(function(r) { r.checked = false; });
+
+  openModal('payModal');
+}
+
+function handleMethodChange(method) {
+  document.querySelectorAll('.pay-method-tile').forEach(function(el) {
+    el.style.borderColor = 'var(--border)';
+    el.style.background  = 'white';
+  });
+  const tile = document.querySelector('.pay-method-tile[data-method="' + method + '"]');
+  if (tile) {
+    tile.style.borderColor = 'var(--green)';
+    tile.style.background  = 'var(--green-light)';
+  }
+
+  if (method === 'JazzCash') {
+    closeModal('payModal');
+    openJazzCashModal({
+      dueIds     : selectedIds,
+      amount     : selectedTotal,
+      description: 'Hostel Payment'
+    });
+    return;
+  }
+
+  if (method === 'Easypaisa') {
+    closeModal('payModal');
+    openEasypaisaModal({
+      dueIds     : selectedIds,
+      amount     : selectedTotal,
+      description: 'Hostel Payment'
+    });
+    return;
+  }
+
+  document.getElementById('cashNote').style.display = method === 'Cash' ? 'block' : 'none';
+}
+</script>
+
+<%- include('jazzcash-modal') %>
+<%- include('easypaisa-modal') %>
+
+<%- include('student-footer') %>

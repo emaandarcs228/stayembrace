@@ -1,0 +1,365 @@
+<!-- ══════════════════════════════════════════════════════════════
+     easypaisa-modal.ejs
+     Place in: views/student/easypaisa-modal.ejs
+
+     Included at the bottom of pending-payments.ejs.
+     Triggered automatically when the student picks the Easypaisa
+     tile in the existing pay modal (see handleMethodChange() in
+     pending-payments.ejs) — no manual call needed elsewhere.
+══════════════════════════════════════════════════════════════ -->
+
+<!-- ── Easypaisa Payment Modal ── -->
+<div class="modal-overlay" id="easypaisaModal">
+  <div class="modal-box" style="max-width:440px">
+
+    <!-- Head -->
+    <div class="modal-head">
+      <h3>
+        <span style="display:flex;align-items:center;gap:.5rem">
+          <span style="background:#00A651;color:white;font-size:.65rem;font-weight:700;padding:.2rem .55rem;border-radius:4px;letter-spacing:.5px">EASY</span>
+          <span style="color:#00A651;font-weight:700;font-size:.65rem;letter-spacing:.5px">PAISA</span>
+          &nbsp;Pay via Easypaisa
+        </span>
+      </h3>
+      <button class="modal-close" onclick="closeEasypaisaModal()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <!-- Step 1: Enter details -->
+    <div id="ep-step-enter">
+      <div style="padding:1.2rem">
+
+        <!-- Amount summary -->
+        <div style="background:var(--green-light);border:1px solid #b8d9c0;border-radius:8px;padding:.9rem 1rem;margin-bottom:1.1rem;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.15rem">Amount to Pay</div>
+            <div style="font-size:1.3rem;font-weight:700;color:var(--green-dark)" id="ep-display-amount">Rs 0</div>
+            <div style="font-size:.68rem;color:var(--text-muted)" id="ep-display-desc"></div>
+          </div>
+          <i class="fas fa-wallet" style="font-size:1.8rem;color:var(--green);opacity:.4"></i>
+        </div>
+
+        <!-- Mobile number input -->
+        <div class="form-group" style="margin-bottom:.9rem">
+          <label style="font-size:.75rem;font-weight:500;color:var(--text-secondary)">
+            Easypaisa Mobile Number <span style="color:#C62828">*</span>
+          </label>
+          <div style="position:relative">
+            <span style="position:absolute;left:.7rem;top:50%;transform:translateY(-50%);font-size:.78rem;color:var(--text-muted);font-weight:500">+92</span>
+            <input
+              type="tel"
+              id="ep-mobile"
+              placeholder="3001234567"
+              maxlength="10"
+              style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.48rem .7rem .48rem 2.8rem;font-size:.82rem;font-family:inherit;outline:none;width:100%;color:var(--text-primary);transition:border-color .2s"
+              oninput="validateEPMobile(this)"
+              onfocus="this.style.borderColor='var(--green)'"
+              onblur="this.style.borderColor='var(--border-mid)'"
+            >
+          </div>
+          <div id="ep-mobile-error" style="font-size:.65rem;color:#C62828;margin-top:.2rem;display:none">
+            <i class="fas fa-exclamation-circle"></i> Please enter a valid Easypaisa number
+          </div>
+          <div style="font-size:.65rem;color:var(--text-muted);margin-top:.2rem">
+            <i class="fas fa-info-circle"></i> Enter without leading 0 — e.g. 3001234567 for 03001234567
+          </div>
+        </div>
+
+        <!-- How it works -->
+        <div style="background:#f9f9f9;border-radius:8px;padding:.8rem 1rem;margin-bottom:.4rem">
+          <div style="font-size:.68rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem">How it works</div>
+          <div style="display:flex;flex-direction:column;gap:.4rem">
+            <div style="display:flex;align-items:center;gap:.6rem;font-size:.72rem;color:var(--text-secondary)">
+              <span style="width:18px;height:18px;border-radius:50%;background:var(--green);color:white;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:700;flex-shrink:0">1</span>
+              Click "Pay Now" below
+            </div>
+            <div style="display:flex;align-items:center;gap:.6rem;font-size:.72rem;color:var(--text-secondary)">
+              <span style="width:18px;height:18px;border-radius:50%;background:var(--green);color:white;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:700;flex-shrink:0">2</span>
+              You'll receive a payment request in your Easypaisa app
+            </div>
+            <div style="display:flex;align-items:center;gap:.6rem;font-size:.72rem;color:var(--text-secondary)">
+              <span style="width:18px;height:18px;border-radius:50%;background:var(--green);color:white;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:700;flex-shrink:0">3</span>
+              Approve it in the app to confirm
+            </div>
+            <div style="display:flex;align-items:center;gap:.6rem;font-size:.72rem;color:var(--text-secondary)">
+              <span style="width:18px;height:18px;border-radius:50%;background:var(--green);color:white;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:700;flex-shrink:0">4</span>
+              Payment confirmed automatically
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-foot" style="justify-content:flex-end">
+        <button class="btn-modal-cancel" onclick="closeEasypaisaModal()">Cancel</button>
+        <button onclick="submitEasypaisaPayment()" id="ep-pay-btn"
+          style="background:#00A651;color:white;border:none;padding:.48rem 1.3rem;border-radius:var(--radius-md);font-size:.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.4rem;font-family:inherit;transition:background .2s">
+          <i class="fas fa-mobile-alt"></i> Pay Now
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: Waiting for app approval -->
+    <div id="ep-step-waiting" style="display:none">
+      <div style="padding:2rem 1.5rem;text-align:center">
+        <div style="width:64px;height:64px;border-radius:50%;background:#E8F5E9;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:1.6rem">
+          📲
+        </div>
+        <h4 style="font-size:1rem;font-weight:600;color:var(--text-primary);margin-bottom:.4rem">Check your Easypaisa app!</h4>
+        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:1.2rem">
+          A payment request has been sent to<br>
+          <strong id="ep-sent-to" style="color:var(--text-primary)">your Easypaisa number</strong>
+        </p>
+        <div style="display:flex;align-items:center;justify-content:center;gap:.5rem;font-size:.78rem;color:var(--text-muted);margin-bottom:1.2rem">
+          <i class="fas fa-spinner fa-spin" style="color:var(--green)"></i>
+          Waiting for your approval…
+        </div>
+        <div style="background:#f9f9f9;border-radius:8px;padding:.8rem 1rem;text-align:left;font-size:.72rem;color:var(--text-muted)">
+          <strong style="color:var(--text-secondary)">Note:</strong> The request expires in 5 minutes.
+          If you don't receive the prompt, check your Easypaisa app or try again.
+        </div>
+      </div>
+      <div class="modal-foot" style="justify-content:space-between">
+        <button onclick="cancelEPWaiting()" style="background:none;border:none;font-size:.78rem;color:var(--text-muted);cursor:pointer;font-family:inherit">
+          Cancel payment
+        </button>
+        <span id="ep-countdown" style="font-size:.72rem;color:var(--text-muted)"></span>
+      </div>
+    </div>
+
+    <!-- Step 3: Success -->
+    <div id="ep-step-success" style="display:none">
+      <div style="padding:2rem 1.5rem;text-align:center">
+        <div style="width:64px;height:64px;border-radius:50%;background:#E8F5E9;color:#2E7D32;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:1.6rem">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <h4 style="font-size:1rem;font-weight:600;color:#2E7D32;margin-bottom:.4rem">Payment Successful!</h4>
+        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:.8rem">
+          Your payment of <strong id="ep-success-amount" style="color:var(--text-primary)"></strong> has been verified.
+        </p>
+        <div style="font-size:.72rem;color:#888" id="ep-success-ref"></div>
+      </div>
+      <div class="modal-foot" style="justify-content:center">
+        <button onclick="location.reload()" class="btn-modal-save">
+          <i class="fas fa-refresh"></i> Done
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 4: Failed -->
+    <div id="ep-step-failed" style="display:none">
+      <div style="padding:2rem 1.5rem;text-align:center">
+        <div style="width:64px;height:64px;border-radius:50%;background:#FFEBEE;color:#C62828;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:1.6rem">
+          <i class="fas fa-times-circle"></i>
+        </div>
+        <h4 style="font-size:1rem;font-weight:600;color:#C62828;margin-bottom:.4rem">Payment Failed</h4>
+        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:.8rem" id="ep-fail-msg">
+          Your payment could not be processed. Please try again.
+        </p>
+      </div>
+      <div class="modal-foot" style="justify-content:space-between">
+        <button class="btn-modal-cancel" onclick="closeEasypaisaModal()">Close</button>
+        <button onclick="epRetry()" class="btn-modal-save">
+          <i class="fas fa-redo"></i> Try Again
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ── Easypaisa Modal Script ── -->
+<script>
+(function() {
+  'use strict';
+
+  // State
+  let _epDueIds      = [];
+  let _epAmount      = 0;
+  let _epDesc        = '';
+  let _epPayType     = 'Hostel Fee';
+  let _epOrderId     = null;
+  let _epPollTimer   = null;
+  let _epCountTimer  = null;
+  let _epSecondsLeft = 300; // 5 min expiry
+
+  // ── Open modal ──────────────────────────────────────────────────
+  window.openEasypaisaModal = function({ dueIds, amount, paymentType, description }) {
+    _epDueIds  = dueIds  || [];
+    _epAmount  = amount  || 0;
+    _epDesc    = description || 'Hostel Payment';
+    _epPayType = paymentType || 'Hostel Fee';
+
+    document.getElementById('ep-display-amount').textContent = 'Rs ' + Number(_epAmount).toLocaleString();
+    document.getElementById('ep-display-desc').textContent   = _epDesc;
+    document.getElementById('ep-mobile').value = '';
+
+    showEPStep('enter');
+    document.getElementById('easypaisaModal').classList.add('open');
+    setTimeout(() => document.getElementById('ep-mobile').focus(), 100);
+  };
+
+  // ── Close modal ─────────────────────────────────────────────────
+  window.closeEasypaisaModal = function() {
+    clearEPTimers();
+    document.getElementById('easypaisaModal').classList.remove('open');
+    _epOrderId = null;
+  };
+
+  // ── Step switcher ───────────────────────────────────────────────
+  function showEPStep(step) {
+    ['enter','waiting','success','failed'].forEach(function(s) {
+      var el = document.getElementById('ep-step-' + s);
+      if (el) el.style.display = s === step ? 'block' : 'none';
+    });
+  }
+
+  // ── Mobile validation ───────────────────────────────────────────
+  window.validateEPMobile = function(input) {
+    var val = input.value.replace(/\D/g, '').replace(/^0/, '');
+    input.value = val;
+    var err = document.getElementById('ep-mobile-error');
+    if (val.length > 0 && (val.length !== 10 || !/^3\d{9}$/.test(val))) {
+      err.style.display = 'block';
+    } else {
+      err.style.display = 'none';
+    }
+  };
+
+  // ── Submit payment ──────────────────────────────────────────────
+  window.submitEasypaisaPayment = async function() {
+    var mobileInput = document.getElementById('ep-mobile');
+    var rawVal      = mobileInput.value.replace(/\D/g, '').replace(/^0/, '');
+
+    if (!rawVal || !/^3\d{9}$/.test(rawVal)) {
+      document.getElementById('ep-mobile-error').style.display = 'block';
+      mobileInput.focus();
+      return;
+    }
+
+    var mobileNumber = '0' + rawVal; // back to 03XXXXXXXXX
+
+    var btn = document.getElementById('ep-pay-btn');
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing…';
+
+    try {
+      var body = {
+        mobileNumber: mobileNumber,
+        amount      : _epAmount,
+        paymentType : _epPayType,
+        description : _epDesc
+      };
+      if (_epDueIds.length > 0) body.dueIds = _epDueIds;
+
+      var res  = await fetch('/student/payments/easypaisa/initiate', {
+        method : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify(body)
+      });
+      var data = await res.json();
+
+      if (!res.ok || !data.success) {
+        showEPFailed(data.error || 'Payment initiation failed. Please try again.');
+        return;
+      }
+
+      _epOrderId = data.orderId;
+
+      document.getElementById('ep-sent-to').textContent = mobileNumber;
+      showEPStep('waiting');
+      startCountdown();
+      startPolling(data.orderId);
+
+    } catch (err) {
+      console.error('Easypaisa submit error:', err);
+      showEPFailed('Network error. Please check your connection and try again.');
+    } finally {
+      btn.disabled  = false;
+      btn.innerHTML = '<i class="fas fa-mobile-alt"></i> Pay Now';
+    }
+  };
+
+  // ── Polling — check payment status every 4 seconds ──────────────
+  function startPolling(orderId) {
+    clearEPTimers();
+    _epPollTimer = setInterval(async function() {
+      try {
+        var res  = await fetch('/student/payments/easypaisa/status/' + orderId);
+        var data = await res.json();
+
+        if (data.status === 'Verified') {
+          clearEPTimers();
+          showEPSuccess(data.amount, orderId);
+        } else if (data.status === 'Rejected') {
+          clearEPTimers();
+          showEPFailed('Payment was rejected or cancelled. Please try again.');
+        }
+        // still Pending — keep polling
+      } catch (err) {
+        // Network hiccup — keep polling silently
+      }
+    }, 4000);
+  }
+
+  // ── Countdown timer ──────────────────────────────────────────────
+  function startCountdown() {
+    _epSecondsLeft = 300;
+    updateCountdown();
+    _epCountTimer = setInterval(function() {
+      _epSecondsLeft--;
+      updateCountdown();
+      if (_epSecondsLeft <= 0) {
+        clearEPTimers();
+        showEPFailed('The payment request has expired. Please try again.');
+      }
+    }, 1000);
+  }
+
+  function updateCountdown() {
+    var el = document.getElementById('ep-countdown');
+    if (!el) return;
+    var m = Math.floor(_epSecondsLeft / 60);
+    var s = _epSecondsLeft % 60;
+    el.textContent = 'Expires in ' + m + ':' + String(s).padStart(2, '0');
+  }
+
+  function clearEPTimers() {
+    if (_epPollTimer)  { clearInterval(_epPollTimer);  _epPollTimer  = null; }
+    if (_epCountTimer) { clearInterval(_epCountTimer); _epCountTimer = null; }
+  }
+
+  // ── Success state ────────────────────────────────────────────────
+  function showEPSuccess(amount, orderId) {
+    document.getElementById('ep-success-amount').textContent = 'Rs ' + Number(amount || _epAmount).toLocaleString();
+    document.getElementById('ep-success-ref').textContent    = 'Order Ref: ' + (orderId || _epOrderId || '');
+    showEPStep('success');
+  }
+
+  // ── Failed state ─────────────────────────────────────────────────
+  function showEPFailed(message) {
+    document.getElementById('ep-fail-msg').textContent = message;
+    showEPStep('failed');
+  }
+
+  // ── Cancel while waiting ─────────────────────────────────────────
+  window.cancelEPWaiting = function() {
+    clearEPTimers();
+    showEPFailed('You cancelled the payment. The request has been abandoned.');
+  };
+
+  // ── Retry ────────────────────────────────────────────────────────
+  window.epRetry = function() {
+    clearEPTimers();
+    _epOrderId = null;
+    document.getElementById('ep-mobile').value = '';
+    showEPStep('enter');
+  };
+
+  // ── Overlay click to close ───────────────────────────────────────
+  document.getElementById('easypaisaModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEasypaisaModal();
+  });
+
+})();
+</script>

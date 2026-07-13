@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Login – STAY EMBRACE</title>
+    <link rel="icon"  href="/images/logo-brow.png">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="/css/auth.css">
+</head>
+<body>
+
+<div class="auth-container" style="background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.45)), url('/images/hostel.jpg') center/cover no-repeat;">
+    <div class="auth-card">
+        
+        <a href="/login" class="auth-logo-link">
+            <img src="/images/logo-head.png" alt="EMBRACE" class="auth-logo-img">
+            <span class="auth-logo-text">STAY EMBRACE</span>
+        </a>
+        
+        <div class="auth-header">
+            <div class="role-badge student-badge">STUDENT</div>
+            <h2>Welcome back</h2>
+            <p>Enter your credentials to continue</p>
+        </div>
+
+        <% if (locals.error) { %>
+            <div class="error-message"><%= error %></div>
+        <% } %>
+
+        <form class="auth-form" action="/login/student" method="POST">
+            <input type="text" name="userId" placeholder="Enter Registration no" required>
+            <div class="password-field">
+    <input type="password" name="password" placeholder="Enter Password" required>
+    <button type="button" class="password-toggle" onclick="togglePassword(this)">
+        <i class="fas fa-eye"></i>
+    </button>
+</div>
+            <div class="forgot-link"><a href="#">Forgot password?</a></div>
+            <button type="submit" class="btn-auth">Login</button>
+        </form>
+
+        <div class="auth-footer">
+            Don't have an account? <a href="/register/student">Sign up</a>
+        </div>
+
+    </div>
+</div>
+<script>
+function togglePassword(button) {
+    const input = button.parentElement.querySelector('input');
+    const icon = button.querySelector('i');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+</script>
+</body>
+</html>

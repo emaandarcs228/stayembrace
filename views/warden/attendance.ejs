@@ -1,0 +1,705 @@
+
+<%
+  const activePage   = 'attendance';
+  const pageTitle    = 'Attendance';
+  const pageSubtitle = 'Mark attendance & resolve disputes';
+
+  // Determine which tab should be active on load (server-side, no JS flicker)
+  const _activeTab = (viewMode || searchStudent) ? 'monthly' : 'mark';
+
+  // Today's disputed records (for log tab badge + banner)
+  const _todayDisputed = todayLog.filter(function(r) {
+    return r.notes && r.notes.startsWith('[DISPUTE]');
+  });
+%>
+<%- include('warden-header') %>
+
+<!-- ── Sub-nav tabs ── -->
+<div class="page-tabs" style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
+  <button class="act-btn btn-view <%= _activeTab === 'mark' ? 'active' : '' %>" id="btn-mark" onclick="showPage('mark', this)">
+    <i class="ti ti-calendar-check"></i> Mark Attendance
+  </button>
+
+  <button class="act-btn" style="background:#FFF8E1;color:#E65100" id="btn-log" onclick="showPage('log', this)">
+    <i class="ti ti-list-details"></i> Today's Log
+    <% if (todayLog.length > 0) { %>
+      <span style="background:#E65100;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= todayLog.length %></span>
+    <% } %>
+    <% if (_todayDisputed.length > 0) { %>
+      <span style="background:#C62828;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem" title="<%= _todayDisputed.length %> dispute(s) on today's records">
+        <i class="ti ti-flag" style="font-size:.6rem"></i> <%= _todayDisputed.length %>
+      </span>
+    <% } %>
+  </button>
+
+  <button class="act-btn" id="btn-unmarked" onclick="showPage('unmarked', this)"
+          style="background:<%= notMarked.length > 0 ? '#FFEBEE' : '#f5f5f5' %>;color:<%= notMarked.length > 0 ? '#C62828' : '#555' %>">
+    <i class="ti ti-user-off"></i> Not Marked
+    <span style="background:<%= notMarked.length > 0 ? '#C62828' : '#bbb' %>;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= notMarked.length %></span>
+  </button>
+
+  <button class="act-btn" style="background:#FFEBEE;color:#C62828" id="btn-disputes" onclick="showPage('disputes', this)">
+    <i class="ti ti-flag"></i> Disputes
+    <% if (disputes.length > 0) { %>
+      <span style="background:#C62828;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= disputes.length %></span>
+    <% } %>
+  </button>
+
+  <button class="act-btn <%= _activeTab === 'monthly' ? 'active' : '' %>" style="background:#E8EAF6;color:#3949AB" id="btn-monthly" onclick="showPage('monthly', this)">
+    <i class="ti ti-chart-bar"></i> Monthly Overview
+  </button>
+</div>
+
+<!-- ══════════════════════════════════════
+     PAGE: MARK ATTENDANCE
+══════════════════════════════════════ -->
+<div class="page <%= _activeTab === 'mark' ? 'active' : '' %>" id="page-mark">
+
+  <!-- Date banner -->
+  <div class="welcome-banner" style="padding:1rem 1.4rem;margin-bottom:1.2rem">
+    <div class="wb-text">
+      <h2 style="font-size:.95rem"><i class="ti ti-calendar" style="margin-right:.4rem"></i><%= todayDate %></h2>
+      <p>Search a student by name or ID, then mark their attendance.</p>
+    </div>
+    <i class="ti ti-calendar-check wb-icon"></i>
+  </div>
+
+  <!-- Search card -->
+  <div class="student-search-card">
+    <div style="display:flex;gap:.7rem;align-items:center;flex-wrap:wrap">
+      <div class="search-bar" style="flex:1;min-width:200px">
+        <i class="ti ti-search"></i>
+        <input type="text" id="studentSearch" placeholder="Search by name or student ID…" autocomplete="off">
+      </div>
+      <button class="add-btn" onclick="clearTimeout(searchTimer);doSearch(document.getElementById('studentSearch').value)">
+        <i class="ti ti-search"></i> Search
+      </button>
+    </div>
+
+    <!-- Search result card -->
+    <div id="searchResult" style="display:none;margin-top:1rem">
+      <div class="student-result-card">
+        <div class="student-result-avatar" id="resultAvatar">?</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.88rem;font-weight:600;color:var(--text-primary)" id="resultName">—</div>
+          <div style="font-size:.7rem;color:var(--text-muted);margin-top:.1rem">
+            <span id="resultId" style="font-family:monospace;background:#f5f5f5;padding:.1rem .4rem;border-radius:4px"></span>
+            &nbsp;·&nbsp;
+            <span id="resultRoom"></span>
+          </div>
+          <div id="alreadyMarked" style="display:none;margin-top:.5rem">
+            <span class="badge badge-warning"><i class="ti ti-alert-circle"></i> Already marked today as: <strong id="markedStatus"></strong></span>
+            <span style="font-size:.68rem;color:var(--text-muted);margin-left:.5rem">Same-day edit allowed.</span>
+          </div>
+        </div>
+
+        <form method="POST" action="/warden/attendance/mark" id="markForm" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+          <input type="hidden" name="studentId" id="markStudentId">
+          <input type="hidden" name="status"    id="markStatus">
+          <button type="button" class="act-btn btn-approve" onclick="submitMark('In')">
+            <i class="ti ti-login"></i> Mark In
+          </button>
+          <button type="button" class="act-btn btn-edit" onclick="submitMark('Late')">
+            <i class="ti ti-clock"></i> Mark Late
+          </button>
+          <button type="button" class="act-btn btn-view" onclick="submitMark('Out')">
+            <i class="ti ti-logout"></i> Mark Out
+          </button>
+          <button type="button" class="act-btn btn-reject" onclick="submitMark('Missed')">
+            <i class="ti ti-x"></i> Mark Missed
+          </button>
+        </form>
+
+      </div>
+    </div>
+
+    <!-- No result message -->
+    <div id="noResult" style="display:none;margin-top:1rem;padding:.8rem 1rem;background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);font-size:.78rem;color:#5D4037">
+      <i class="fas fa-exclamation-triangle"></i> No student found with that name or ID.
+    </div>
+  </div>
+
+  <!-- Today quick stats -->
+  <div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:0">
+    <%
+      var inCount     = 0;
+      var lateCount   = 0;
+      var outCount    = 0;
+      var missedCount = 0;
+      todayLog.forEach(function(r) {
+        if (r.status === 'In')          inCount++;
+        else if (r.status === 'Late')   lateCount++;
+        else if (r.status === 'Out')    outCount++;
+        else if (r.status === 'Missed') missedCount++;
+      });
+    %>
+    <div class="stat-card">
+      <div class="s-icon green"><i class="ti ti-login"></i></div>
+      <div class="s-info"><h4>In</h4><h3><%= inCount %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon orange"><i class="ti ti-clock"></i></div>
+      <div class="s-info"><h4>Late</h4><h3><%= lateCount %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon blue"><i class="ti ti-logout"></i></div>
+      <div class="s-info"><h4>Out</h4><h3><%= outCount %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon red"><i class="ti ti-x"></i></div>
+      <div class="s-info"><h4>Missed</h4><h3><%= missedCount %></h3></div>
+    </div>
+  </div>
+
+</div><!-- /page-mark -->
+
+<!-- ══════════════════════════════════════
+     PAGE: TODAY'S LOG
+══════════════════════════════════════ -->
+<div class="page" id="page-log">
+
+  <!-- Banner if any of today's records have a dispute -->
+  <% if (_todayDisputed.length > 0) { %>
+  <div style="background:#FFF3E0;border:1px solid #FFE0B2;border-radius:var(--radius-md);padding:.75rem 1rem;font-size:.75rem;color:#E65100;margin-bottom:1rem;display:flex;align-items:center;gap:.6rem">
+    <i class="ti ti-flag" style="flex-shrink:0;font-size:1rem"></i>
+    <span>
+      <strong><%= _todayDisputed.length %></strong>
+      student<%= _todayDisputed.length !== 1 ? 's have' : ' has' %> disputed their attendance for today.
+      Review the flagged rows below and correct if needed.
+    </span>
+  </div>
+  <% } %>
+
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-list-details"></i> Today's Attendance Log</h3>
+      <span class="count-pill"><%= todayLog.length %> records</span>
+    </div>
+
+    <% if (todayLog.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Student</th>
+            <th>Status</th>
+            <th>Entry Time</th>
+            <th>Exit Time</th>
+            <th>Notes / Dispute</th>
+            <th class="actions-th">Edit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% todayLog.forEach(function(r, i) {
+               var statusMap = {
+                 'In'     : 'badge-success',
+                 'Out'    : 'badge-info',
+                 'Late'   : 'badge-warning',
+                 'Missed' : 'badge-danger',
+                 'Leave'  : 'badge-purple'
+               };
+               var isDisputed = r.notes && r.notes.startsWith('[DISPUTE]');
+          %>
+          <tr style="<%= isDisputed ? 'background:#FFF8E1;' : '' %>">
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= r.student && r.student.user ? r.student.user.fullname.charAt(0) : '?' %></div>
+                <div>
+                  <div class="u-name"><%= r.student && r.student.user ? r.student.user.fullname : '—' %></div>
+                  <div class="u-sub"><%= r.student && r.student.user ? r.student.user.userId : '—' %></div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="badge <%= statusMap[r.status] || 'badge-neutral' %>"><%= r.status %></span>
+              <% if (isDisputed) { %>
+                <span class="badge badge-warning" style="margin-left:.3rem;font-size:.62rem">
+                  <i class="ti ti-flag"></i> Disputed
+                </span>
+              <% } %>
+            </td>
+            <td style="font-size:.75rem">
+              <%= r.entryTime ? new Date(r.entryTime).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' }) : '—' %>
+            </td>
+            <td style="font-size:.75rem">
+              <%= r.exitTime ? new Date(r.exitTime).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' }) : '—' %>
+            </td>
+            <td>
+              <% if (isDisputed) { %>
+                <span style="font-size:.72rem;color:#E65100;display:flex;align-items:flex-start;gap:.3rem">
+                  <i class="ti ti-message-circle" style="flex-shrink:0;margin-top:.1rem"></i>
+                  <%= r.notes.replace('[DISPUTE] ', '') %>
+                </span>
+              <% } else { %>
+                <span class="remarks-text" title="<%= r.notes || '' %>"><%= r.notes || '—' %></span>
+              <% } %>
+            </td>
+            <td>
+              <form method="POST" action="/warden/attendance/mark" style="display:inline-flex;gap:.3rem;align-items:center">
+                <input type="hidden" name="studentId" value="<%= r.student ? r.student._id : '' %>">
+                <select name="status" class="filter-sel" style="font-size:.68rem;padding:.2rem .4rem">
+                  <% ['In','Late','Out','Missed'].forEach(function(s) { %>
+                    <option value="<%= s %>" <%= r.status === s ? 'selected' : '' %>><%= s %></option>
+                  <% }); %>
+                </select>
+                <button type="submit" class="act-btn btn-edit" style="padding:.22rem .5rem;font-size:.65rem">
+                  <i class="ti ti-check"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-calendar-off"></i>
+      <h4>No records yet today</h4>
+      <p>Use the Mark Attendance tab to log student check-ins.</p>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /page-log -->
+
+<!-- ══════════════════════════════════════
+     PAGE: NOT MARKED YET
+══════════════════════════════════════ -->
+<div class="page" id="page-unmarked">
+
+  <% if (notMarked.length === 0) { %>
+  <div class="card">
+    <div class="empty-state" style="padding:3rem">
+      <i class="ti ti-circle-check" style="color:var(--green);opacity:.5"></i>
+      <h4>All students marked</h4>
+      <p>Every active student has an attendance record for today.</p>
+    </div>
+  </div>
+  <% } else { %>
+
+  <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);padding:.7rem 1rem;font-size:.75rem;color:#5D4037;margin-bottom:1rem;display:flex;align-items:center;gap:.6rem">
+    <i class="fas fa-info-circle" style="flex-shrink:0"></i>
+    <span><strong><%= notMarked.length %></strong> student<%= notMarked.length !== 1 ? 's have' : ' has' %> no attendance record for today. Click <strong>Mark</strong> on any row to jump to the search bar with that student pre-filled.</span>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-user-off"></i> Not Marked Yet</h3>
+      <span class="count-pill"><%= notMarked.length %> student<%= notMarked.length !== 1 ? 's' : '' %></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Student</th>
+            <th>Room</th>
+            <th>Mark Now</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% notMarked.forEach(function(s, i) { %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= s.user ? s.user.fullname.charAt(0) : '?' %></div>
+                <div>
+                  <div class="u-name"><%= s.user ? s.user.fullname : '—' %></div>
+                  <div class="u-sub"><%= s.user ? s.user.userId : '—' %></div>
+                </div>
+              </div>
+            </td>
+            <td style="font-size:.78rem">
+              <% if (s.room) { %>
+                <span class="uid-code"><%= s.room.roomNo %></span>
+                <span style="color:var(--text-muted);font-size:.68rem"> Block <%= s.room.block %></span>
+              <% } else { %>
+                <span style="color:#ccc;font-size:.7rem">Not assigned</span>
+              <% } %>
+            </td>
+            <td>
+              <button class="act-btn btn-approve"
+                      onclick="jumpToMark('<%= s.user ? s.user.userId : ',' %>')">
+                <i class="ti ti-calendar-check"></i> Mark
+              </button>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <% } %>
+
+</div><!-- /page-unmarked -->
+
+<!-- ══════════════════════════════════════
+     PAGE: DISPUTES
+══════════════════════════════════════ -->
+<div class="page" id="page-disputes">
+
+  <% if (disputes.length > 0) { %>
+
+  <div class="card" style="margin-bottom:.6rem;background:#FFF8E1;border-color:#FFE082">
+    <div class="card-body" style="padding:.75rem 1.2rem;font-size:.75rem;color:#5D4037">
+      <i class="fas fa-info-circle"></i>
+      Disputes are raised by students for their attendance records. Review each one and either correct the status or reject the dispute with a reason.
+      When you act, the student will receive a notification automatically.
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:1rem">
+    <% disputes.forEach(function(d) {
+         var statusMap = {
+           'In'     : 'badge-success',
+           'Out'    : 'badge-info',
+           'Late'   : 'badge-warning',
+           'Missed' : 'badge-danger',
+           'Leave'  : 'badge-purple'
+         };
+         var isToday = false;
+         if (d.date) {
+           var dDate = new Date(d.date);
+           var now   = new Date();
+           isToday   = dDate.getFullYear() === now.getFullYear() &&
+                       dDate.getMonth()    === now.getMonth()    &&
+                       dDate.getDate()     === now.getDate();
+         }
+    %>
+    <div class="card" style="margin-bottom:0;<%= isToday ? 'border-color:#FFE082;' : '' %>">
+      <div class="card-head">
+        <div style="display:flex;align-items:center;gap:.8rem">
+          <div class="u-av s"><%= d.student && d.student.user ? d.student.user.fullname.charAt(0) : '?' %></div>
+          <div>
+            <div style="font-size:.82rem;font-weight:600">
+              <%= d.student && d.student.user ? d.student.user.fullname : '—' %>
+              <% if (isToday) { %>
+                <span style="font-size:.62rem;background:#FFF8E1;color:#E65100;border:1px solid #FFE082;padding:.1rem .4rem;border-radius:99px;margin-left:.4rem;font-weight:600">Today</span>
+              <% } %>
+            </div>
+            <div style="font-size:.68rem;color:var(--text-muted)">
+              <span class="uid-code"><%= d.student && d.student.user ? d.student.user.userId : '—' %></span>
+              &nbsp;·&nbsp;
+              <%= new Date(d.date).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+            </div>
+          </div>
+        </div>
+        <span class="badge <%= statusMap[d.status] || 'badge-neutral' %>">
+          Current: <%= d.status %>
+        </span>
+      </div>
+
+      <div class="card-body" style="padding:.9rem 1.2rem">
+        <div style="background:#FFF3E0;border:1px solid #FFE0B2;border-radius:var(--radius-md);padding:.65rem 1rem;font-size:.75rem;color:#4E342E;margin-bottom:1rem">
+          <strong><i class="ti ti-message-circle"></i> Student's Reason:</strong>
+          <p style="margin-top:.3rem"><%= d._disputeReason %></p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+
+          <form method="POST" action="/warden/attendance/dispute/<%= d._id %>">
+            <input type="hidden" name="action" value="correct">
+            <div style="margin-bottom:.6rem">
+              <label style="font-size:.72rem;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:.25rem">
+                Correct Status To
+              </label>
+              <select name="newStatus" class="filter-sel" style="width:100%">
+                <option value="">— Select —</option>
+                <% ['In','Late','Out','Missed','Leave'].forEach(function(s) { %>
+                  <option value="<%= s %>" <%= d.status === s ? 'disabled' : '' %>><%= s %></option>
+                <% }); %>
+              </select>
+            </div>
+            <button type="submit" class="btn-primary" style="width:100%;justify-content:center;display:flex;align-items:center;gap:.35rem">
+              <i class="ti ti-check"></i> Correct & Notify Student
+            </button>
+          </form>
+
+          <form method="POST" action="/warden/attendance/dispute/<%= d._id %>">
+            <input type="hidden" name="action" value="reject">
+            <div style="margin-bottom:.6rem">
+              <label style="font-size:.72rem;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:.25rem">
+                Rejection Reason
+              </label>
+              <input type="text" name="reason" placeholder="e.g. Record is correct" style="width:100%;border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+            </div>
+            <button type="submit" style="width:100%;justify-content:center;background:#FFEBEE;color:#C62828;border:none;padding:.45rem 1rem;border-radius:var(--radius-md);font-size:.78rem;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:.35rem;font-family:inherit">
+              <i class="ti ti-x"></i> Reject & Notify Student
+            </button>
+          </form>
+
+        </div>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+
+  <% } else { %>
+  <div class="card">
+    <div class="empty-state" style="padding:3rem">
+      <i class="ti ti-check"></i>
+      <h4>No pending disputes</h4>
+      <p>All attendance records are accepted by students.</p>
+    </div>
+  </div>
+  <% } %>
+
+</div><!-- /page-disputes -->
+
+<!-- ══════════════════════════════════════
+     PAGE: MONTHLY OVERVIEW
+══════════════════════════════════════ -->
+<div class="page <%= _activeTab === 'monthly' ? 'active' : '' %>" id="page-monthly">
+
+  <form method="GET" action="/warden/attendance" style="display:flex;gap:.6rem;align-items:center;margin-bottom:1.2rem;flex-wrap:wrap">
+    <input type="hidden" name="page" value="monthly">
+
+    <!-- View mode toggle -->
+    <div style="display:flex;border:1px solid var(--border-mid);border-radius:var(--radius-md);overflow:hidden;flex-shrink:0">
+      <button type="submit" name="viewMode" value="monthly"
+              style="padding:.3rem .8rem;font-size:.73rem;font-weight:500;border:none;cursor:pointer;font-family:inherit;background:<%= viewMode === 'monthly' ? 'var(--green)' : 'white' %>;color:<%= viewMode === 'monthly' ? 'white' : 'var(--text-secondary)' %>">
+        Monthly
+      </button>
+      <button type="submit" name="viewMode" value="yearly"
+              style="padding:.3rem .8rem;font-size:.73rem;font-weight:500;border:none;border-left:1px solid var(--border-mid);cursor:pointer;font-family:inherit;background:<%= viewMode === 'yearly' ? 'var(--green)' : 'white' %>;color:<%= viewMode === 'yearly' ? 'white' : 'var(--text-secondary)' %>">
+        Yearly
+      </button>
+    </div>
+
+    <!-- Month selector (hidden in yearly mode) -->
+    <% if (viewMode !== 'yearly') { %>
+    <select name="month" class="filter-sel">
+      <% var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+         for (var m = 1; m <= 12; m++) { %>
+        <option value="<%= m %>" <%= selectedMonth === m ? 'selected' : '' %>><%= monthNames[m - 1] %></option>
+      <% } %>
+    </select>
+    <% } %>
+
+    <!-- Year selector -->
+    <select name="year" class="filter-sel">
+      <% for (var y = new Date().getFullYear(); y >= new Date().getFullYear() - 3; y--) { %>
+        <option value="<%= y %>" <%= selectedYear === y ? 'selected' : '' %>><%= y %></option>
+      <% } %>
+    </select>
+
+    <!-- Student search filter (live client-side) -->
+    <div class="search-bar" style="flex:1;min-width:180px">
+      <i class="ti ti-search"></i>
+      <input type="text" id="monthlyStudentSearch" name="student" value="<%= searchStudent %>" placeholder="Filter by student name or ID…" autocomplete="off">
+    </div>
+
+    <button type="submit" class="add-btn"><i class="ti ti-search"></i> View</button>
+
+    <% if (searchStudent) { %>
+    <a href="/warden/attendance?page=monthly&viewMode=<%= viewMode %>&year=<%= selectedYear %>&month=<%= selectedMonth %>"
+       class="act-btn btn-cancel" style="text-decoration:none">
+      <i class="ti ti-x"></i> Clear
+    </a>
+    <% } %>
+  </form>
+
+  <% if (monthlyStudents.length === 0) { %>
+  <div class="card">
+    <div class="empty-state">
+      <i class="ti ti-calendar-off"></i>
+      <% if (searchStudent) { %>
+        <h4>No student found</h4>
+        <p>No student matching <strong>"<%= searchStudent %>"</strong> has attendance records for this period.</p>
+      <% } else { %>
+        <h4>No records for this period</h4>
+        <p>No attendance was marked in the selected period.</p>
+      <% } %>
+    </div>
+  </div>
+  <% } else { %>
+
+  <%
+    var atRisk = monthlyStudents.filter(function(s) { return s.pct < 75; });
+  %>
+  <% if (atRisk.length > 0 && !searchStudent) { %>
+  <div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:var(--radius-md);padding:.75rem 1rem;font-size:.75rem;color:#B71C1C;margin-bottom:1rem;display:flex;align-items:center;gap:.6rem">
+    <i class="fas fa-exclamation-triangle" style="flex-shrink:0"></i>
+    <span><strong><%= atRisk.length %></strong> student<%= atRisk.length !== 1 ? 's are' : ' is' %> below 75% attendance this <%= viewMode === 'yearly' ? 'year' : 'month' %> and may need follow-up.</span>
+  </div>
+  <% } %>
+
+  <% if (searchStudent) { %>
+  <div style="background:#E3F2FD;border:1px solid #90CAF9;border-radius:var(--radius-md);padding:.65rem 1rem;font-size:.75rem;color:#1565C0;margin-bottom:1rem;display:flex;align-items:center;gap:.6rem">
+    <i class="ti ti-filter" style="flex-shrink:0"></i>
+    Showing results for <strong>"<%= searchStudent %>"</strong> — <%= monthlyStudents.length %> student<%= monthlyStudents.length !== 1 ? 's' : '' %> found.
+  </div>
+  <% } %>
+
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-chart-bar"></i>
+        <% if (viewMode === 'yearly') { %>
+          <%= selectedYear %> — Yearly Attendance Summary
+        <% } else { %>
+          <%= monthNames[selectedMonth - 1] %> <%= selectedYear %> — Monthly Attendance Summary
+        <% } %>
+      </h3>
+      <span class="count-pill" id="monthlyCountPill"><%= monthlyStudents.length %> student<%= monthlyStudents.length !== 1 ? 's' : '' %></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Student</th>
+            <th>Present</th>
+            <th>Late</th>
+            <th>Missed</th>
+            <th>On Leave</th>
+            <th>Total Days</th>
+            <th>Attendance %</th>
+          </tr>
+        </thead>
+        <tbody id="monthlyTableBody">
+          <% monthlyStudents.forEach(function(entry, i) {
+               var _name = entry.student && entry.student.user ? entry.student.user.fullname.toLowerCase() : '';
+               var _uid  = entry.student && entry.student.user ? entry.student.user.userId.toLowerCase() : '';
+          %>
+          <tr data-search="<%= _name %>|<%= _uid %>">
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= entry.student && entry.student.user ? entry.student.user.fullname.charAt(0) : '?' %></div>
+                <div>
+                  <div class="u-name"><%= entry.student && entry.student.user ? entry.student.user.fullname : '—' %></div>
+                  <div class="u-sub"><%= entry.student && entry.student.user ? entry.student.user.userId : '—' %></div>
+                </div>
+              </div>
+            </td>
+            <td><span style="font-weight:600;color:#2E7D32"><%= entry.In %></span></td>
+            <td><span style="font-weight:600;color:#E65100"><%= entry.Late %></span></td>
+            <td><span style="font-weight:600;color:#C62828"><%= entry.Missed %></span></td>
+            <td><span style="font-weight:600;color:#7B1FA2"><%= entry.Leave %></span></td>
+            <td style="font-size:.78rem;color:var(--text-muted)"><%= entry.total %></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:.6rem">
+                <div style="flex:1;height:6px;background:#eee;border-radius:99px;overflow:hidden;min-width:60px">
+                  <div style="height:100%;width:<%= entry.pct %>%;background:<%= entry.pct >= 75 ? 'var(--green)' : entry.pct >= 50 ? '#E65100' : '#C62828' %>;border-radius:99px"></div>
+                </div>
+                <span style="font-size:.78rem;font-weight:700;color:<%= entry.pct >= 75 ? 'var(--green)' : entry.pct >= 50 ? '#E65100' : '#C62828' %>;min-width:36px;text-align:right"><%= entry.pct %>%</span>
+              </div>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <% } %>
+
+</div><!-- /page-monthly -->
+
+<script>
+var searchTimer = null;
+
+/* ── Monthly overview: live client-side filter ── */
+(function() {
+  var input     = document.getElementById('monthlyStudentSearch');
+  var tbody     = document.getElementById('monthlyTableBody');
+  var countPill = document.getElementById('monthlyCountPill');
+  if (!input) return;
+
+  function filterMonthly() {
+    var q = input.value.trim().toLowerCase();
+    if (!tbody) return;
+    var rows    = tbody.querySelectorAll('tr');
+    var visible = 0;
+    rows.forEach(function(row) {
+      var val  = (row.getAttribute('data-search') || '').toLowerCase();
+      var show = !q || val.indexOf(q) !== -1;
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    if (countPill) {
+      countPill.textContent = visible + ' student' + (visible !== 1 ? 's' : '');
+    }
+  }
+
+  input.addEventListener('input', filterMonthly);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') e.preventDefault();
+  });
+})();
+
+/* ── Mark attendance search ── */
+function doSearch(q) {
+  q = (q || '').trim();
+  var resultBox  = document.getElementById('searchResult');
+  var noResult   = document.getElementById('noResult');
+  var alreadyBox = document.getElementById('alreadyMarked');
+
+  if (q.length < 2) {
+    resultBox.style.display = 'none';
+    noResult.style.display  = 'none';
+    document.getElementById('markStudentId').value = '';
+    return;
+  }
+
+  fetch('/warden/attendance/search?q=' + encodeURIComponent(q))
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (!data.student) {
+        resultBox.style.display = 'none';
+        noResult.style.display  = 'block';
+        document.getElementById('markStudentId').value = '';
+        return;
+      }
+      noResult.style.display  = 'none';
+      resultBox.style.display = 'block';
+      document.getElementById('markStudentId').value      = data.student._id;
+      document.getElementById('resultAvatar').textContent = data.student.fullname.charAt(0).toUpperCase();
+      document.getElementById('resultName').textContent   = data.student.fullname;
+      document.getElementById('resultId').textContent     = data.student.userId;
+      document.getElementById('resultRoom').textContent   = 'Room: ' + data.student.room;
+      if (data.todayRecord) {
+        alreadyBox.style.display = 'block';
+        document.getElementById('markedStatus').textContent = data.todayRecord.status;
+      } else {
+        alreadyBox.style.display = 'none';
+      }
+    })
+    .catch(function() {});
+}
+
+document.getElementById('studentSearch').addEventListener('input', function() {
+  var q = this.value;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(function() { doSearch(q); }, 300);
+});
+
+document.getElementById('studentSearch').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    clearTimeout(searchTimer);
+    doSearch(this.value);
+  }
+});
+
+function submitMark(status) {
+  var studentId = document.getElementById('markStudentId').value;
+  if (!studentId) { alert('Please search for a student first.'); return; }
+  document.getElementById('markStatus').value = status;
+  document.getElementById('markForm').submit();
+}
+
+function jumpToMark(userId) {
+  var input = document.getElementById('studentSearch');
+  input.value = userId;
+  showPage('mark', document.getElementById('btn-mark'));
+  clearTimeout(searchTimer);
+  doSearch(userId);
+}
+</script>
+
+<%- include('warden-footer') %>

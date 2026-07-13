@@ -1,0 +1,204 @@
+<%
+  const activePage   = 'mobile-load';
+  const pageTitle    = 'Mobile Load';
+  const pageSubtitle = 'Request mobile balance top-up';
+%>
+<%- include('student-header') %>
+
+<!-- ── Sub-nav ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
+  <button class="act-btn btn-view" id="btn-request" onclick="showPage('request', this)">
+    <i class="ti ti-device-mobile"></i> Request Load
+  </button>
+  <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-list" onclick="showPage('list', this)">
+    <i class="ti ti-list"></i> My Requests
+  </button>
+</div>
+
+<!-- ══ REQUEST PAGE ══ -->
+<div class="page active" id="page-request">
+  <div class="card" style="max-width:520px">
+    <div class="card-head">
+      <h3><i class="ti ti-device-mobile"></i> Request Mobile Load</h3>
+    </div>
+
+    <form action="/student/mobile-load/request" method="POST" id="mobileForm">
+      <div class="form-section">
+        <div class="form-grid cols-1">
+
+          <!-- Network Selection -->
+          <div class="form-group">
+            <label>Network <span class="req">*</span></label>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-top:.3rem">
+              <% const networks = [
+                { name: 'Jazz',    color: '#E53935', icon: 'J' },
+                { name: 'Zong',    color: '#1565C0', icon: 'Z' },
+                { name: 'Ufone',   color: '#2E7D32', icon: 'U' },
+                { name: 'Telenor', color: '#1565C0', icon: 'T' }
+              ]; %>
+              <% networks.forEach(function(net) { %>
+              <label style="cursor:pointer">
+                <input type="radio" name="network" value="<%= net.name %>" required style="display:none" onchange="selectNetwork(this)">
+                <div class="network-tile" data-net="<%= net.name %>"
+                     style="border:2px solid var(--border);border-radius:var(--radius-md);padding:.7rem .4rem;text-align:center;transition:var(--transition)">
+                  <div style="width:32px;height:32px;border-radius:50%;background:<%= net.color %>;color:white;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;margin:0 auto .3rem"><%= net.icon %></div>
+                  <div style="font-size:.68rem;font-weight:600;color:var(--text-secondary)"><%= net.name %></div>
+                </div>
+              </label>
+              <% }); %>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Mobile Number <span class="req">*</span></label>
+            <input type="text" name="mobileNumber" placeholder="03XX-XXXXXXX" required pattern="0[0-9]{10}" maxlength="11">
+            <span class="field-hint">Enter the 11-digit number without dashes.</span>
+          </div>
+
+          <!-- Amount Quick Select -->
+          <div class="form-group">
+            <label>Amount (Rs) <span class="req">*</span></label>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
+              <button type="button" class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" onclick="setAmount(50)" id="amtBtn-50">
+                Rs 50
+              </button>
+              <button type="button" class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" onclick="setAmount(100)" id="amtBtn-100">
+                Rs 100
+              </button>
+              <button type="button" class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" onclick="setAmount(200)" id="amtBtn-200">
+                Rs 200
+              </button>
+              <button type="button" class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" onclick="setAmount(500)" id="amtBtn-500">
+                Rs 500
+              </button>
+            </div>
+              <input type="number" name="amount" id="amountInput" placeholder="Or enter custom amount" required min="10" max="1000" onchange="clearAmtBtns()">
+            </div>
+
+        </div>
+      </div>
+
+      <!-- Info banner -->
+      <div style="margin:0 1.2rem .8rem;background:var(--green-light);border:1px solid #b8d9c0;border-radius:var(--radius-md);padding:.75rem 1rem;font-size:.72rem;color:var(--green-dark)">
+        <i class="fas fa-info-circle"></i>
+        After submitting, go to <strong>Pending Payments</strong> to pay. Load is sent once payment is confirmed.
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" class="btn-primary"><i class="ti ti-send"></i> Submit Request</button>
+        <button type="button" class="btn-sec" onclick="showPage('list')">View Requests</button>
+      </div>
+    </form>
+  </div>
+</div><!-- /page-request -->
+
+<!-- ══ MY REQUESTS PAGE ══ -->
+<div class="page" id="page-list">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-list"></i> My Requests</h3>
+      <span class="count-pill"><%= requests.length %> total</span>
+    </div>
+
+    <% if (requests.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Network</th>
+            <th>Mobile Number</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% requests.forEach(function(r, i) {
+               const statusMap = {
+                 'Pending'      : 'badge-warning',
+                 'Payment Done' : 'badge-info',
+                 'Completed'    : 'badge-success',
+                 'Rejected'     : 'badge-danger'
+               };
+               const netColors = {
+                 'Jazz'    : '#E53935',
+                 'Zong'    : '#1565C0',
+                 'Ufone'   : '#2E7D32',
+                 'Telenor' : '#1565C0'
+               };
+               const netInitial = r.network ? r.network.charAt(0) : '?';
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:.5rem">
+                <div style="width:26px;height:26px;border-radius:50%;background:<%= netColors[r.network] || '#888' %>;color:white;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0"><%= netInitial %></div>
+                <span style="font-size:.75rem;font-weight:500"><%= r.network || '—' %></span>
+              </div>
+            </td>
+            <td style="font-family:monospace;font-size:.78rem"><%= r.mobileNumber %></td>
+            <td style="font-weight:600">Rs <%= r.amount %></td>
+            <td><span class="badge <%= statusMap[r.requestStatus] || 'badge-neutral' %>"><%= r.requestStatus %></span></td>
+            <td style="font-size:.7rem;color:var(--text-muted)"><%= new Date(r.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-device-mobile-off"></i>
+      <h4>No requests yet</h4>
+      <p>Submit a request to top up your mobile balance.</p>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /page-list -->
+
+<script>
+document.getElementById('btn-request').classList.add('active');
+
+(function() {
+  const p = new URLSearchParams(window.location.search).get('page');
+  if (p === 'list') {
+    showPage('list');
+    document.getElementById('btn-list').classList.add('active');
+    document.getElementById('btn-request').classList.remove('active');
+  }
+})();
+
+function selectNetwork(input) {
+  document.querySelectorAll('.network-tile').forEach(function(el) {
+    el.style.borderColor = 'var(--border)';
+    el.style.background  = 'white';
+  });
+  const tile = document.querySelector('.network-tile[data-net="' + input.value + '"]');
+  if (tile) {
+    tile.style.borderColor = 'var(--green)';
+    tile.style.background  = 'var(--green-light)';
+  }
+}
+
+function setAmount(amt) {
+  document.getElementById('amountInput').value = amt;
+  document.querySelectorAll('[id^="amtBtn-"]').forEach(function(btn) {
+    btn.style.background = '#f5f5f5';
+    btn.style.color      = 'var(--text-secondary)';
+  });
+  const btn = document.getElementById('amtBtn-' + amt);
+  if (btn) {
+    btn.style.background = 'var(--green-light)';
+    btn.style.color      = 'var(--green-dark)';
+  }
+}
+
+function clearAmtBtns() {
+  document.querySelectorAll('[id^="amtBtn-"]').forEach(function(btn) {
+    btn.style.background = '#f5f5f5';
+    btn.style.color      = 'var(--text-secondary)';
+  });
+}
+</script>
+
+<%- include('student-footer') %>

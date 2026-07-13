@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Registration – STAY EMBRACE</title>
+    <link rel="icon" href="/images/logo-brow.png">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/css/auth.css">
+</head>
+<body>
+
+<div class="auth-container" style="background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.45)), url('/images/pic2.jpg') center/cover no-repeat;">
+    <div class="auth-card">
+
+        <a href="/register" class="auth-logo-link">
+            <img src="/images/logo-head.png" alt="EMBRACE" class="auth-logo-img">
+            <span class="auth-logo-text">STAY EMBRACE</span>
+        </a>
+
+        <div class="auth-header">
+            <div class="role-badge student-badge">STUDENT</div>
+            <h2>Create account</h2>
+            <p>Fill in your details to get started</p>
+        </div>
+
+        <% if (locals.error) { %>
+            <div class="error-message"><%= error %></div>
+        <% } %>
+
+        <form class="auth-form" action="/register/student" method="POST" enctype="multipart/form-data" id="registerForm">
+
+            <input type="text" name="fullname" placeholder="Full Name" required autocomplete="name">
+            <input type="email" name="email" placeholder="Email Address" required autocomplete="email">
+            <input type="tel" name="phoneNumber" placeholder="Phone Number" required>
+
+            <!-- CUSTOM GENDER SELECT -->
+            <div class="custom-select-wrapper">
+                <div class="custom-select-trigger" id="genderTrigger">
+                    <span id="genderLabel">Select Gender</span>
+                    <i class="fas fa-chevron-down arrow"></i>
+                </div>
+                <div class="custom-select-options" id="genderOptions">
+                    <div class="custom-select-option" data-value="male">
+                        <i class="fas fa-mars"></i> Male
+                    </div>
+                    <div class="custom-select-option" data-value="female">
+                        <i class="fas fa-venus"></i> Female
+                    </div>
+                </div>
+                <input type="hidden" name="gender" id="genderInput" required>
+            </div>
+
+            <!-- CUSTOM DATE PICKER -->
+            <div class="custom-date-wrapper">
+                <div class="custom-date-trigger" id="dobTrigger">
+                    <span id="dobLabel">Date of Birth</span>
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <div class="custom-date-panel" id="dobPanel">
+                    <div class="date-nav">
+                        <button type="button" id="prevMonth"><i class="fas fa-chevron-left"></i></button>
+                        <div class="date-nav-selects">
+                            <select id="monthSelect"></select>
+                            <select id="yearSelect"></select>
+                        </div>
+                        <button type="button" id="nextMonth"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                    <div class="date-grid-header">
+                        <span>Su</span><span>Mo</span><span>Tu</span>
+                        <span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+                    </div>
+                    <div class="date-grid" id="dateGrid"></div>
+                </div>
+                <input type="hidden" name="dateOfBirth" id="dobInput" required>
+            </div>
+
+            <!-- ID UPLOAD -->
+            <div class="upload-label">Identity Document &nbsp;·&nbsp; CNIC or Student ID</div>
+            <span class="upload-note">Upload a clear photo or scan &nbsp;·&nbsp; JPG, PNG, PDF &nbsp;·&nbsp; Max 5 MB</span>
+
+            <input type="file" id="idImage" name="idImage" accept=".jpg,.jpeg,.png,.webp,.pdf" required class="file-input-hidden">
+
+            <div class="file-upload-box" id="fileUploadBox" onclick="document.getElementById('idImage').click()">
+                <div id="fileUploadIcon"><i class="fas fa-cloud-upload-alt"></i></div>
+                <div id="fileUploadText">
+                    <span class="file-upload-main">Click to upload or drag &amp; drop</span>
+                    <span class="file-upload-sub">JPG · PNG · PDF · Max 5 MB</span>
+                </div>
+                <img id="filePreview" class="file-preview-img" src="" alt="ID Preview" style="display:none;">
+                <div id="fileNameDisplay" class="file-name-display" style="display:none;"></div>
+            </div>
+
+            <button type="button" class="file-remove-btn" id="fileRemoveBtn" style="display:none;" onclick="clearFileInput()">
+                <i class="fas fa-times"></i> Remove
+            </button>
+
+            <!-- PASSWORD -->
+            <div class="password-field">
+                <input id="password" type="password" name="password" placeholder="Password" required autocomplete="new-password">
+                <button type="button" class="password-toggle" onclick="togglePassword('password', this)">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </div>
+
+            <div class="password-field">
+                <input id="confirm_password" type="password" name="confirm_password" placeholder="Confirm Password" required autocomplete="new-password">
+                <button type="button" class="password-toggle" onclick="togglePassword('confirm_password', this)">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </div>
+            <span id="confirm-match" class="match-text"></span>
+
+            <button type="submit" class="btn-auth" id="submitBtn">Sign Up</button>
+
+        </form>
+
+        <p class="terms-text">By continuing, you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.</p>
+
+        <div class="auth-footer">
+            Already have an account? <a href="/login/student">Login</a>
+        </div>
+
+    </div>
+</div>
+
+<script>
+// ── GENDER DROPDOWN ──
+const genderTrigger = document.getElementById('genderTrigger');
+const genderOptions = document.getElementById('genderOptions');
+const genderLabel   = document.getElementById('genderLabel');
+const genderInput   = document.getElementById('genderInput');
+
+genderTrigger.addEventListener('click', () => {
+    const isOpen = genderOptions.classList.toggle('open');
+    genderTrigger.classList.toggle('open', isOpen);
+});
+
+genderOptions.querySelectorAll('.custom-select-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+        genderInput.value       = opt.dataset.value;
+        genderLabel.textContent = opt.textContent.trim();
+        genderTrigger.classList.add('selected');
+        genderTrigger.classList.remove('open');
+        genderOptions.classList.remove('open');
+        genderOptions.querySelectorAll('.custom-select-option')
+            .forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+    });
+});
+
+document.addEventListener('click', e => {
+    if (!genderTrigger.contains(e.target) && !genderOptions.contains(e.target)) {
+        genderTrigger.classList.remove('open');
+        genderOptions.classList.remove('open');
+    }
+});
+
+// ── DATE PICKER ──
+const dobTrigger  = document.getElementById('dobTrigger');
+const dobPanel    = document.getElementById('dobPanel');
+const dobLabel    = document.getElementById('dobLabel');
+const dobInput    = document.getElementById('dobInput');
+const dateGrid    = document.getElementById('dateGrid');
+const monthSelect = document.getElementById('monthSelect');
+const yearSelect  = document.getElementById('yearSelect');
+
+const months = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
+const today      = new Date();
+let viewYear     = 2004;
+let viewMonth    = 0;
+let selectedDate = null;
+
+months.forEach((m, i) => {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = m;
+    monthSelect.appendChild(o);
+});
+
+for (let y = today.getFullYear(); y >= 1950; y--) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y;
+    yearSelect.appendChild(o);
+}
+
+function syncSelects() {
+    monthSelect.value = viewMonth;
+    yearSelect.value  = viewYear;
+}
+
+function renderCalendar() {
+    syncSelects();
+    dateGrid.innerHTML = '';
+    const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+    for (let i = 0; i < firstDay; i++) {
+        const el = document.createElement('div');
+        el.className = 'date-cell empty';
+        dateGrid.appendChild(el);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+        const el = document.createElement('div');
+        el.className = 'date-cell';
+        el.textContent = d;
+        const thisDate = new Date(viewYear, viewMonth, d);
+
+        if (thisDate > today) el.classList.add('disabled');
+
+        if (d === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear())
+            el.classList.add('today');
+
+        if (selectedDate &&
+            d === selectedDate.getDate() &&
+            viewMonth === selectedDate.getMonth() &&
+            viewYear === selectedDate.getFullYear())
+            el.classList.add('selected');
+
+        el.addEventListener('click', () => {
+            selectedDate         = new Date(viewYear, viewMonth, d);
+            dobLabel.textContent = `${d} ${months[viewMonth]} ${viewYear}`;
+            dobTrigger.classList.add('selected');
+            const mm   = String(viewMonth + 1).padStart(2, '0');
+            const dd   = String(d).padStart(2, '0');
+            dobInput.value = `${viewYear}-${mm}-${dd}`;
+            dobPanel.classList.remove('open');
+            dobTrigger.classList.remove('open');
+            renderCalendar();
+        });
+
+        dateGrid.appendChild(el);
+    }
+}
+
+dobTrigger.addEventListener('click', () => {
+    const isOpen = dobPanel.classList.toggle('open');
+    dobTrigger.classList.toggle('open', isOpen);
+    if (isOpen) renderCalendar();
+});
+
+document.getElementById('prevMonth').addEventListener('click', () => {
+    viewMonth--;
+    if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+    renderCalendar();
+});
+
+document.getElementById('nextMonth').addEventListener('click', () => {
+    viewMonth++;
+    if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    renderCalendar();
+});
+
+monthSelect.addEventListener('change', () => { viewMonth = parseInt(monthSelect.value); renderCalendar(); });
+yearSelect.addEventListener('change',  () => { viewYear  = parseInt(yearSelect.value);  renderCalendar(); });
+
+document.addEventListener('click', e => {
+    const wrapper = document.querySelector('.custom-date-wrapper');
+    if (!wrapper.contains(e.target)) {
+        dobPanel.classList.remove('open');
+        dobTrigger.classList.remove('open');
+    }
+});
+
+renderCalendar();
+
+// ── PASSWORD TOGGLE ──
+function togglePassword(fieldId, btn) {
+    const input = document.getElementById(fieldId);
+    const icon  = btn.querySelector('i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.replace('fa-eye', 'fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.replace('fa-eye-slash', 'fa-eye');
+    }
+}
+
+// ── PASSWORD MATCH ──
+const confirmInput = document.getElementById('confirm_password');
+const matchText    = document.getElementById('confirm-match');
+confirmInput.addEventListener('input', () => {
+    const pw = document.getElementById('password').value;
+    if (!confirmInput.value) { matchText.textContent = ''; return; }
+    if (confirmInput.value === pw) {
+        matchText.textContent  = 'Passwords match';
+        matchText.style.color  = 'rgba(150,255,150,0.9)';
+    } else {
+        matchText.textContent  = 'Passwords do not match';
+        matchText.style.color  = 'rgba(255,150,150,0.9)';
+    }
+});
+
+// ── FILE UPLOAD ──
+const fileInput    = document.getElementById('idImage');
+const uploadBox    = document.getElementById('fileUploadBox');
+const uploadIcon   = document.getElementById('fileUploadIcon');
+const uploadText   = document.getElementById('fileUploadText');
+const filePreview  = document.getElementById('filePreview');
+const fileNameDisp = document.getElementById('fileNameDisplay');
+const removeBtn    = document.getElementById('fileRemoveBtn');
+
+fileInput.addEventListener('change', handleFileSelect);
+
+uploadBox.addEventListener('dragover',  e => { e.preventDefault(); uploadBox.classList.add('drag-over'); });
+uploadBox.addEventListener('dragleave', ()  => uploadBox.classList.remove('drag-over'));
+uploadBox.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadBox.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        handleFileSelect();
+    }
+});
+
+function handleFileSelect() {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const isPdf = file.type === 'application/pdf' || file.name.endsWith('.pdf');
+    uploadBox.classList.add('has-file');
+    removeBtn.style.display = 'inline-flex';
+    if (isPdf) {
+        filePreview.style.display  = 'none';
+        uploadIcon.innerHTML       = '<i class="fas fa-file-pdf" style="color:rgba(255,120,120,0.9);font-size:2rem;"></i>';
+        uploadText.style.display   = 'none';
+        fileNameDisp.textContent   = file.name;
+        fileNameDisp.style.display = 'block';
+    } else {
+        const reader = new FileReader();
+        reader.onload = ev => {
+            filePreview.src           = ev.target.result;
+            filePreview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+        uploadText.style.display   = 'none';
+        uploadIcon.style.display   = 'none';
+        fileNameDisp.textContent   = file.name;
+        fileNameDisp.style.display = 'block';
+    }
+}
+
+function clearFileInput() {
+    fileInput.value            = '';
+    filePreview.style.display  = 'none';
+    filePreview.src            = '';
+    fileNameDisp.style.display = 'none';
+    fileNameDisp.textContent   = '';
+    uploadText.style.display   = '';
+    uploadIcon.innerHTML       = '<i class="fas fa-cloud-upload-alt"></i>';
+    uploadIcon.style.display   = '';
+    uploadBox.classList.remove('has-file', 'drag-over');
+    removeBtn.style.display    = 'none';
+}
+
+// ── SUBMIT SPINNER ──
+document.getElementById('registerForm').addEventListener('submit', function() {
+    const btn     = document.getElementById('submitBtn');
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting…';
+});
+</script>
+
+</body>
+</html>

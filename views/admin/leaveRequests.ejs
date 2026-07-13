@@ -1,0 +1,250 @@
+<%
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const statusBadge = s => ({
+    'Pending' : 'badge-warning',
+    'Approved': 'badge-success',
+    'Rejected': 'badge-danger',
+    'Cancelled': 'badge-neutral'
+  }[s] || 'badge-neutral');
+%>
+<%- include('admin-header') %>
+
+<!-- ── Filter tabs ── -->
+<div class="page-tabs">
+  <a href="/admin/operations/leave?filter=all" class="act-btn <%= activeFilter==='all' ? 'active' : '' %>" style="background:#E8EAF6;color:#3949AB;text-decoration:none">
+    <i class="ti ti-list"></i> All <span class="badge badge-neutral" style="margin-left:.3rem"><%= counts.all %></span>
+  </a>
+  <a href="/admin/operations/leave?filter=pending" class="act-btn <%= activeFilter==='pending' ? 'active' : '' %>" style="background:#FFF8E1;color:#E65100;text-decoration:none">
+    <i class="ti ti-phone-outgoing"></i> Awaiting Guardian Call <span class="badge badge-warning" style="margin-left:.3rem"><%= counts.pending %></span>
+  </a>
+  <a href="/admin/operations/leave?filter=guardian" class="act-btn <%= activeFilter==='guardian' ? 'active' : '' %>" style="background:#E3F2FD;color:#1565C0;text-decoration:none">
+    <i class="ti ti-phone-check"></i> Ready for Decision <span class="badge badge-info" style="margin-left:.3rem"><%= counts.guardian %></span>
+  </a>
+  <a href="/admin/operations/leave?filter=escalated" class="act-btn <%= activeFilter==='escalated' ? 'active' : '' %>" style="background:#FFEBEE;color:#C62828;text-decoration:none">
+    <i class="ti ti-alert-triangle"></i> Escalated <span class="badge badge-danger" style="margin-left:.3rem"><%= counts.escalated %></span>
+  </a>
+  <a href="/admin/operations/leave?filter=approved" class="act-btn <%= activeFilter==='approved' ? 'active' : '' %>" style="background:#E8F5E9;color:#2E7D32;text-decoration:none">
+    <i class="ti ti-check"></i> Approved <span class="badge badge-success" style="margin-left:.3rem"><%= counts.approved %></span>
+  </a>
+  <a href="/admin/operations/leave?filter=rejected" class="act-btn <%= activeFilter==='rejected' ? 'active' : '' %>" style="background:#f5f5f5;color:#666;text-decoration:none">
+    <i class="ti ti-x"></i> Rejected <span class="badge badge-neutral" style="margin-left:.3rem"><%= counts.rejected %></span>
+  </a>
+</div>
+
+<% if (activeFilter === 'escalated') { %>
+<div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:var(--radius-md);padding:.8rem 1rem;margin-bottom:1rem;font-size:.78rem;color:#C62828">
+  <i class="ti ti-alert-triangle"></i> These requests either have an unreachable guardian or have been pending over 24 hours — they need admin attention now.
+</div>
+<% } %>
+
+<!-- ── Leave cards ── -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="ti ti-calendar-off"></i> Leave Requests</h3>
+    <span class="count-pill"><%= leaves.length %> shown</span>
+  </div>
+
+  <% if (leaves.length === 0) { %>
+  <div class="empty-state" style="padding:3rem">
+    <i class="ti ti-calendar-off" style="font-size:2.5rem;opacity:.3;display:block;margin-bottom:.6rem"></i>
+    <h4>No requests in this view</h4>
+  </div>
+  <% } else { %>
+  <div style="display:flex;flex-direction:column;gap:.8rem;padding:1rem 1.2rem">
+    <% leaves.forEach(function(l) {
+         const stu = l.student && l.student.user ? l.student.user : null;
+         const actor = l.approvedBy || null; // populated { fullname, role }
+    %>
+    <div style="border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.2rem">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+          <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.3rem">
+            <div class="u-av s"><%= stu ? stu.fullname.charAt(0).toUpperCase() : '?' %></div>
+            <div>
+              <div class="u-name"><%= stu ? stu.fullname : 'Unknown student' %></div>
+              <div style="font-size:.68rem;color:var(--text-muted)"><%= stu ? stu.userId : '' %></div>
+            </div>
+            <span class="badge <%= statusBadge(l.status) %>"><%= l.status %></span>
+            <% if (l.guardianVerified) { %><span class="badge badge-info"><i class="ti ti-phone-check"></i> Guardian Verified</span><% } %>
+            <% if (!l.guardianVerified && l.guardianVerificationNotes && /unreachable/i.test(l.guardianVerificationNotes)) { %>
+              <span class="badge badge-danger"><i class="ti ti-phone-x"></i> Guardian Unreachable</span>
+            <% } %>
+          </div>
+
+          <div style="font-size:.78rem;color:var(--text-secondary);margin-top:.4rem">
+            <strong><%= l.leaveType %></strong> leave &middot; <%= fmtDate(l.fromDate) %> → <%= fmtDate(l.toDate) %> &middot; Destination: <%= l.destination || '—' %>
+          </div>
+          <div style="font-size:.75rem;color:var(--text-muted);margin-top:.3rem">"<%= l.reason %>"</div>
+
+          <% if (l.student) { %>
+          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.4rem">
+            Guardian: <%= l.student.guardianName || '—' %> (<%= l.student.guardianRelation || '—' %>) — <%= l.student.guardianContact || '—' %>
+            &nbsp;|&nbsp; Emergency contact: <%= l.emergencyContact %>
+          </div>
+          <% } %>
+
+          <% if (l.guardianVerificationNotes) { %>
+          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.3rem;font-style:italic">Note: <%= l.guardianVerificationNotes %></div>
+          <% } %>
+
+          <% if (actor && (l.status === 'Approved' || l.status === 'Rejected')) { %>
+          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.4rem">
+            <i class="ti ti-user-check"></i>
+            <%= l.status %> by <strong><%= actor.fullname %></strong>
+            <span class="badge <%= actor.role === 'admin' ? 'badge-purple' : 'badge-teal' %>" style="margin-left:.2rem"><%= actor.role %></span>
+            on <%= fmtDate(l.approvedAt) %>
+            <% if (l.status === 'Rejected' && l.rejectionReason) { %> — Reason: <%= l.rejectionReason %><% } %>
+            <% if (l.remarks) { %> — Note: <%= l.remarks %><% } %>
+          </div>
+          <% } %>
+        </div>
+
+        <!-- Actions -->
+        <div style="display:flex;flex-direction:column;gap:.4rem;min-width:170px">
+          <% if (l.status === 'Pending' && !l.guardianVerified) { %>
+          <button class="act-btn btn-approve" data-id="<%= l._id %>" data-name="<%= stu ? stu.fullname : 'student' %>" onclick="openGuardianModal(this.dataset.id, this.dataset.name)">
+            <i class="ti ti-phone"></i> Verify Guardian
+          </button>
+          <% } %>
+
+          <% if (l.status !== 'Approved') { %>
+          <button class="act-btn btn-approve" data-id="<%= l._id %>" data-name="<%= stu ? stu.fullname : 'student' %>" data-guardian-verified="<%= l.guardianVerified ? 'true' : 'false' %>" onclick="openApproveModal(this.dataset.id, this.dataset.name, this.dataset.guardianVerified === 'true')">
+            <i class="ti ti-check"></i> <%= l.status === 'Rejected' ? 'Override → Approve' : 'Approve' %>
+          </button>
+          <% } %>
+
+          <% if (l.status !== 'Rejected') { %>
+          <button class="act-btn btn-reject" data-id="<%= l._id %>" data-name="<%= stu ? stu.fullname : 'student' %>" onclick="openRejectLeaveModal(this.dataset.id, this.dataset.name)">
+            <i class="ti ti-x"></i> <%= l.status === 'Approved' ? 'Override → Reject' : 'Reject' %>
+          </button>
+          <% } %>
+        </div>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══ GUARDIAN VERIFICATION MODAL ══ -->
+<div class="modal-overlay" id="guardianModal" onclick="if(event.target===this) closeGuardianModal()">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-phone"></i> Guardian Verification</h3>
+      <button class="modal-close" onclick="closeGuardianModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="guardian-form" method="POST">
+      <div class="form-section">
+        <p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:.8rem">
+          Verifying guardian for <strong id="gm-student">—</strong>'s leave request.
+        </p>
+        <div class="form-grid cols-1">
+          <div class="form-group">
+            <label>Outcome <span class="req">*</span></label>
+            <select name="verificationStatus" required>
+              <option value="verified">Guardian contacted &amp; confirmed</option>
+              <option value="unreachable">Guardian unreachable</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea name="notes" rows="2" placeholder="e.g. Confirmed via call at 4:30pm"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-sec" onclick="closeGuardianModal()">Cancel</button>
+        <button type="submit" class="btn-modal-save"><i class="ti ti-check"></i> Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══ APPROVE MODAL ══ -->
+<div class="modal-overlay" id="approveModal" onclick="if(event.target===this) closeApproveModal()">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-check"></i> Approve Leave</h3>
+      <button class="modal-close" onclick="closeApproveModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="approve-form" method="POST">
+      <div class="form-section">
+        <p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:.8rem">
+          Approving <strong id="am-student">—</strong>'s leave request.
+        </p>
+        <div id="am-guardian-warning" style="display:none;background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);padding:.7rem .9rem;margin-bottom:.8rem;font-size:.75rem;color:#5D4037">
+          <i class="ti ti-alert-triangle"></i> Guardian has not been verified yet.
+          <label style="display:flex;align-items:center;gap:.4rem;margin-top:.5rem;cursor:pointer;font-weight:600">
+            <input type="checkbox" name="overrideGuardian" id="am-override-check"> Approve anyway (admin override)
+          </label>
+        </div>
+        <div class="form-grid cols-1">
+          <div class="form-group">
+            <label>Note (optional)</label>
+            <textarea name="note" rows="2" placeholder="Visible to the student"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-sec" onclick="closeApproveModal()">Cancel</button>
+        <button type="submit" class="btn-modal-save" id="am-submit-btn"><i class="ti ti-check"></i> Approve</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══ REJECT MODAL ══ -->
+<div class="modal-overlay" id="rejectLeaveModal" onclick="if(event.target===this) closeRejectLeaveModal()">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-x"></i> Reject Leave</h3>
+      <button class="modal-close" onclick="closeRejectLeaveModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="reject-leave-form" method="POST">
+      <div class="form-section">
+        <p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:.8rem">
+          Rejecting <strong id="rm-student">—</strong>'s leave request. They'll be notified immediately.
+        </p>
+        <div class="form-grid cols-1">
+          <div class="form-group">
+            <label>Reason <span class="req">*</span></label>
+            <textarea name="reason" rows="3" required placeholder="e.g. Insufficient notice for non-medical leave"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-sec" onclick="closeRejectLeaveModal()">Cancel</button>
+        <button type="submit" class="btn-modal-del"><i class="ti ti-x"></i> Reject</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+/* window.openModal / window.closeModal are defined globally in admin-footer.ejs */
+
+function openGuardianModal(id, name) {
+  document.getElementById('gm-student').textContent = name;
+  document.getElementById('guardian-form').action = '/admin/operations/leave/guardian/' + id;
+  openModal('guardianModal');
+}
+function closeGuardianModal() { closeModal('guardianModal'); }
+
+function openApproveModal(id, name, guardianVerified) {
+  document.getElementById('am-student').textContent = name;
+  document.getElementById('approve-form').action = '/admin/operations/leave/approve/' + id;
+  document.getElementById('am-guardian-warning').style.display = guardianVerified ? 'none' : 'block';
+  document.getElementById('am-override-check').checked = false;
+  openModal('approveModal');
+}
+function closeApproveModal() { closeModal('approveModal'); }
+
+function openRejectLeaveModal(id, name) {
+  document.getElementById('rm-student').textContent = name;
+  document.getElementById('reject-leave-form').action = '/admin/operations/leave/reject/' + id;
+  openModal('rejectLeaveModal');
+}
+function closeRejectLeaveModal() { closeModal('rejectLeaveModal'); }
+</script>
+
+<%- include('admin-footer') %>

@@ -1,0 +1,268 @@
+<%
+  const activePage     = 'dashboard';
+  const pageSubtitle   = currentDate + '  ·  Admin Portal';
+  const _hr            = new Date().getHours();
+  const currentGreeting = _hr < 12 ? 'Morning' : (_hr < 17 ? 'Afternoon' : 'Evening');
+
+  // topbarGreeting is now passed in directly by the controller
+  // (adminController.getDashboard) as 'Welcome back, Name!' — no need
+  // to declare it again here. If a controller doesn't pass it for some
+  // reason, admin-header.ejs falls back to pageTitle, then 'Admin Portal'.
+%>
+<%- include('admin-header') %>
+
+<!-- ══════════════════════════════════════
+     WELCOME BANNER
+══════════════════════════════════════ -->
+<div class="welcome-banner">
+  <div class="wb-text">
+    <h2>Good <%= currentGreeting %>, <%= user.fullname.split(' ')[0] %>!</h2>
+    <p>Supervisor &amp; Escalation Authority · <%= pendingApprovalsCount || 0 %> items need your attention today</p>
+  </div>
+  <i class="fas fa-shield-halved wb-icon"></i>
+</div>
+
+<!-- ══════════════════════════════════════
+     STAT CARDS — Top-level overview
+══════════════════════════════════════ -->
+<div class="stats-row">
+
+  <div class="stat-card clickable" onclick="location.href='/admin/users?page=all-users'">
+    <div class="s-icon all"><i class="ti ti-users"></i></div>
+    <div class="s-info">
+      <h4>Total Users</h4>
+      <h3><%= stats.totalUsers %></h3>
+      <p><%= stats.students %> students · <%= stats.wardens %> wardens · <%= stats.admins %> admins</p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/admin/users?page=pending'">
+    <div class="s-icon <%= stats.pendingApprovals > 0 ? 'pending' : 'green' %>"><i class="ti ti-user-check"></i></div>
+    <div class="s-info">
+      <h4>Pending Approvals</h4>
+      <h3><%= stats.pendingApprovals %></h3>
+      <p>Student signups</p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/admin/rooms?page=occupied'">
+    <div class="s-icon occ"><i class="ti ti-bed"></i></div>
+    <div class="s-info">
+      <h4>Occupied Rooms</h4>
+      <h3><%= stats.occupiedRooms %></h3>
+      <p><%= stats.vacantRooms %> vacant</p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/admin/fees?page=pending'">
+    <div class="s-icon <%= stats.pendingPaymentsCount > 0 ? 'orange' : 'green' %>"><i class="ti ti-wallet"></i></div>
+    <div class="s-info">
+      <h4>Pending Payments</h4>
+      <h3><%= stats.pendingPaymentsCount %></h3>
+      <p>Awaiting verification</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     OPERATIONS OVERSIGHT SNAPSHOT
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="ti ti-shield-check"></i> Operations Oversight</h3>
+    <span class="count-pill">Warden-scope visibility</span>
+  </div>
+  <div class="stats-row" style="padding:1.2rem;margin-bottom:0">
+
+    <div class="stat-card clickable" onclick="location.href='/admin/operations/attendance'">
+      <div class="s-icon <%= (opsStats.pendingDisputes||0) > 0 ? 'red' : 'green' %>"><i class="ti ti-flag"></i></div>
+      <div class="s-info">
+        <h4>Attendance Disputes</h4>
+        <h3><%= opsStats.pendingDisputes || 0 %></h3>
+        <p>Needs review</p>
+      </div>
+    </div>
+
+    <div class="stat-card clickable" onclick="location.href='/admin/operations/leave'">
+      <div class="s-icon <%= (opsStats.escalatedLeaves||0) > 0 ? 'orange' : 'green' %>"><i class="ti ti-calendar-off"></i></div>
+      <div class="s-info">
+        <h4>Escalated Leave</h4>
+        <h3><%= opsStats.escalatedLeaves || 0 %></h3>
+        <p>Guardian unreachable / overdue</p>
+      </div>
+    </div>
+
+    <div class="stat-card clickable" onclick="location.href='/admin/operations/complaints'">
+      <div class="s-icon <%= (opsStats.staleComplaints||0) > 0 ? 'red' : 'green' %>"><i class="ti ti-message-report"></i></div>
+      <div class="s-info">
+        <h4>Stale Complaints</h4>
+        <h3><%= opsStats.staleComplaints || 0 %></h3>
+        <p>SLA breached</p>
+      </div>
+    </div>
+
+    <div class="stat-card clickable" onclick="location.href='/admin/operations/room-requests'">
+      <div class="s-icon <%= (opsStats.pendingRoomRequests||0) > 0 ? 'teal' : 'green' %>"><i class="ti ti-door"></i></div>
+      <div class="s-info">
+        <h4>Room Requests</h4>
+        <h3><%= opsStats.pendingRoomRequests || 0 %></h3>
+        <p>Awaiting final approval</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     MODULE QUICK ACCESS
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+  </div>
+  <div class="quick-grid">
+    <a href="/admin/users?page=pending" class="quick-tile">
+      <i class="ti ti-user-check"></i>
+      Pending Approvals
+      <% if (stats.pendingApprovals > 0) { %>
+        <span style="font-size:.6rem;background:#C62828;color:white;padding:.05rem .35rem;border-radius:10px;font-weight:700"><%= stats.pendingApprovals %></span>
+      <% } %>
+    </a>
+    <a href="/admin/users?page=add-user" class="quick-tile">
+      <i class="ti ti-user-plus"></i>
+      Add User
+    </a>
+    <a href="/admin/rooms?page=unassigned" class="quick-tile">
+      <i class="ti ti-user-off"></i>
+      Unassigned Students
+    </a>
+    <a href="/admin/fees?page=pending" class="quick-tile">
+      <i class="ti ti-credit-card"></i>
+      Verify Payments
+    </a>
+    <a href="/admin/fees?page=overdue" class="quick-tile">
+      <i class="ti ti-alert-triangle"></i>
+      Overdue Fees
+    </a>
+    <a href="/admin/operations/room-requests" class="quick-tile">
+      <i class="ti ti-door"></i>
+      Approve Room Requests
+    </a>
+    <a href="/admin/operations/activity" class="quick-tile">
+      <i class="ti ti-history"></i>
+      Warden Activity
+    </a>
+    <a href="/admin/notifications" class="quick-tile">
+      <i class="ti ti-bell"></i>
+      Send Notice
+    </a>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     BOTTOM GRID: User Distribution + Recent Activity
+══════════════════════════════════════ -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.2rem">
+
+  <!-- User Distribution -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-chart-pie"></i> User Distribution</h3>
+    </div>
+    <div class="activity-list">
+      <a href="/admin/users?page=students" class="activity-item" style="text-decoration:none;color:inherit">
+        <div class="activity-dot blue"></div>
+        <div class="activity-body">
+          <p>Students</p>
+          <small><%= stats.approvedStudents %> approved · <%= stats.rejectedStudents %> rejected</small>
+        </div>
+        <div class="activity-time"><span class="badge badge-info"><%= stats.students %></span></div>
+      </a>
+      <a href="/admin/users?page=wardens" class="activity-item" style="text-decoration:none;color:inherit">
+        <div class="activity-dot orange"></div>
+        <div class="activity-body">
+          <p>Wardens</p>
+          <small>Operational staff</small>
+        </div>
+        <div class="activity-time"><span class="badge badge-warning"><%= stats.wardens %></span></div>
+      </a>
+      <a href="/admin/users?page=admins" class="activity-item" style="text-decoration:none;color:inherit">
+        <div class="activity-dot purple"></div>
+        <div class="activity-body">
+          <p>Admins</p>
+          <small>Supervisory access</small>
+        </div>
+        <div class="activity-time"><span class="badge badge-purple"><%= stats.admins %></span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="fas fa-clock-rotate-left"></i> Recent Activity</h3>
+    </div>
+    <% if (recentActivities && recentActivities.length > 0) { %>
+    <div class="activity-list">
+      <% recentActivities.forEach(function(a) { %>
+      <div class="activity-item">
+        <div class="activity-dot green"></div>
+        <div class="activity-body">
+          <p><%= a.action %></p>
+          <small><%= a.user %></small>
+        </div>
+        <div class="activity-time"><%= a.date %></div>
+      </div>
+      <% }); %>
+    </div>
+    <% } else { %>
+    <div class="empty-state" style="padding:2rem">
+      <i class="fas fa-bell-slash"></i>
+      <h4>No recent activity</h4>
+    </div>
+    <% } %>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     FINANCE SNAPSHOT
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="ti ti-cash"></i> Finance Snapshot</h3>
+    <a href="/admin/fees" class="add-btn" style="text-decoration:none">
+      <i class="ti ti-arrow-right"></i> Fee Management
+    </a>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border)">
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        Total Income
+      </div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--green)">Rs <%= (stats.collectedFees || 0).toLocaleString() %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Verified</div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        Outstanding
+      </div>
+      <div style="font-size:1.1rem;font-weight:700;color:<%= (stats.outstandingFees||0) > 0 ? '#E65100' : 'var(--green)' %>">Rs <%= (stats.outstandingFees || 0).toLocaleString() %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Pending + overdue</div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        Pending Verification
+      </div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary)"><%= stats.pendingPaymentsCount %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Payments</div>
+    </div>
+
+  </div>
+</div>
+
+<%- include('admin-footer') %>

@@ -1,0 +1,658 @@
+<%
+  const money = n => n;
+  const slug  = s => (s || '').toLowerCase().replace(/\s+/g, '-');
+%>
+<%- include('admin-header') %>
+
+<!-- ── Sub-nav tabs ── -->
+<div class="page-tabs">
+  <button class="act-btn active" id="nav-log" style="background:#E3F2FD;color:#1565C0" onclick="showPage('log',this)">
+    <i class="ti ti-calendar-check"></i> Today's Log
+  </button>
+  <button class="act-btn" id="nav-disputes" style="background:#FFF8E1;color:#E65100" onclick="showPage('disputes',this)">
+    <i class="ti ti-flag"></i> Disputes
+    <% if (disputes.filter(d => d._disputeStatus === 'Pending').length > 0) { %>
+      <span style="background:#E65100;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem">
+        <%= disputes.filter(d => d._disputeStatus === 'Pending').length %>
+      </span>
+    <% } %>
+  </button>
+  <button class="act-btn" id="nav-monthly" style="background:#EEF5F0;color:#2D5A3D" onclick="showPage('monthly',this)">
+    <i class="ti ti-chart-bar"></i> Monthly Overview
+  </button>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TODAY'S LOG  (view + mark, merged)
+══════════════════════════════════════════ -->
+<div class="page active" id="page-log">
+
+  <!-- stats row (now live-updating via JS) -->
+  <div class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:1.2rem">
+    <div class="stat-card">
+      <div class="s-icon green"><i class="ti ti-check"></i></div>
+      <div class="s-info"><h4>Present</h4><h3 id="log-stat-In"><%= todayLog.filter(r => r.status === 'In').length %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon orange"><i class="ti ti-clock"></i></div>
+      <div class="s-info"><h4>Late</h4><h3 id="log-stat-Late"><%= todayLog.filter(r => r.status === 'Late').length %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon" style="background:#E3F2FD;color:#1565C0"><i class="ti ti-door-exit"></i></div>
+      <div class="s-info"><h4>Out</h4><h3 id="log-stat-Out"><%= todayLog.filter(r => r.status === 'Out').length %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon red"><i class="ti ti-x"></i></div>
+      <div class="s-info"><h4>Missed</h4><h3 id="log-stat-Missed"><%= todayLog.filter(r => r.status === 'Missed').length %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon" style="background:#F3E5F5;color:#7B1FA2"><i class="ti ti-calendar-off"></i></div>
+      <div class="s-info"><h4>On Leave</h4><h3 id="log-stat-Leave"><%= todayLog.filter(r => r.status === 'Leave').length %></h3></div>
+    </div>
+  </div>
+
+  <!-- Mark attendance — search bar (folded in from old Mark Attendance tab) -->
+  <div class="card" style="margin-bottom:1.2rem">
+    <div style="background:linear-gradient(135deg,#2D5A3D,#3E7C52);color:#fff;border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:.9rem 1.2rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+      <div>
+        <h3 style="color:#fff;display:flex;align-items:center;gap:.5rem;margin:0;font-size:.95rem"><i class="ti ti-user-check"></i> Mark Attendance</h3>
+        <p style="font-size:.72rem;opacity:.9;margin:.2rem 0 0">Search a student by name or ID to mark today's attendance.</p>
+      </div>
+      <i class="ti ti-user-check" style="font-size:1.8rem;opacity:.25"></i>
+    </div>
+    <div style="padding:1rem 1.2rem;">
+      <div style="display:flex;gap:.6rem;align-items:stretch;">
+        <div style="position:relative;flex:1;">
+          <i class="ti ti-search" style="position:absolute;left:.85rem;top:50%;transform:translateY(-50%);color:#999;font-size:1rem;"></i>
+          <input type="text" id="mark-search-input" class="filter-sel"
+                 placeholder="Search by name or student ID..."
+                 autocomplete="off"
+                 style="width:100%;padding:.65rem .8rem .65rem 2.3rem;">
+        </div>
+        <button type="button" id="mark-search-btn" class="add-btn" style="white-space:nowrap;">
+          <i class="ti ti-search"></i> Search
+        </button>
+      </div>
+      <div id="mark-search-loading" style="display:none;font-size:.72rem;color:var(--text-muted);padding:.6rem 0 0;">
+        <i class="ti ti-loader-2"></i> Searching…
+      </div>
+      <div id="mark-search-empty" class="empty-state" style="display:none;padding:1.5rem;">
+        <i class="ti ti-user-off"></i><p>No students found.</p>
+      </div>
+      <div id="mark-search-results" style="margin-top:.8rem;display:flex;flex-direction:column;gap:.8rem;"></div>
+    </div>
+  </div>
+
+  <!-- Today's Log table -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-list-details"></i> <%= todayDate %></h3>
+      <span class="count-pill" id="log-count-pill"><%= todayLog.length %> records</span>
+    </div>
+
+    <div class="tbl-wrap" id="log-tbl-wrap" style="<%= todayLog.length === 0 ? 'display:none' : '' %>">
+      <table id="log-table">
+        <thead>
+          <tr><th>Student</th><th>Status</th><th>Entry</th><th>Exit</th><th>Recorded By</th><th>Notes</th></tr>
+        </thead>
+        <tbody id="log-tbody">
+          <% const statusMap = {
+               'In'     : { cls: 'badge-success', label: 'Present' },
+               'Out'    : { cls: 'badge-info',    label: 'Out' },
+               'Late'   : { cls: 'badge-warning', label: 'Late' },
+               'Leave'  : { cls: 'badge-purple',  label: 'On Leave' },
+               'Missed' : { cls: 'badge-danger',  label: 'Absent' }
+             };
+             todayLog.forEach(r => {
+               const s = statusMap[r.status] || { cls: 'badge-neutral', label: r.status };
+          %>
+          <tr data-user-id="<%= r.student && r.student.user ? r.student.user.userId : '' %>" data-status="<%= r.status %>">
+            <td>
+              <% if (r.student && r.student.user) { %>
+              <div class="user-cell">
+                <div class="u-av s"><%= r.student.user.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= r.student.user.fullname %></div>
+                  <div class="u-email"><%= r.student.user.userId %></div>
+                </div>
+              </div>
+              <% } else { %><span style="color:var(--text-muted)">Unknown student</span><% } %>
+            </td>
+            <td class="log-status-cell"><span class="badge <%= s.cls %>"><%= s.label %></span></td>
+            <td class="log-entry-cell" style="font-size:.75rem"><%= r.entryTime ? new Date(r.entryTime).toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit' }) : '—' %></td>
+            <td class="log-exit-cell" style="font-size:.75rem"><%= r.exitTime ? new Date(r.exitTime).toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit' }) : '—' %></td>
+            <td class="log-recordedby-cell" style="font-size:.75rem"><%= r.recordedBy ? r.recordedBy.fullname : '—' %></td>
+            <td class="log-notes-cell">
+              <% if (r.notes && r.notes.startsWith('[DISPUTE]')) { %>
+                <span class="badge badge-warning" style="font-size:.62rem"><i class="ti ti-flag"></i> Disputed</span>
+              <% } else if (r.notes) { %>
+                <span class="remarks-text" title="<%= r.notes %>"><%= r.notes %></span>
+              <% } else { %>
+                <span style="color:#ccc;font-size:.7rem">—</span>
+              <% } %>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="empty-state" id="log-empty-state" style="<%= todayLog.length === 0 ? '' : 'display:none' %>">
+      <i class="ti ti-calendar-off"></i><p>No attendance marked yet today.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     DISPUTES (unchanged)
+══════════════════════════════════════════ -->
+<div class="page" id="page-disputes">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-flag"></i> Attendance Disputes</h3>
+      <span class="count-pill"><%= disputes.length %> total</span>
+    </div>
+    <% if (disputes.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Student</th><th>Date</th><th>Current Status</th><th>Dispute State</th><th>Resolved By</th><th class="actions-th">Actions</th></tr>
+        </thead>
+        <tbody>
+          <% const statusMap2 = {
+               'In':'badge-success','Out':'badge-info','Late':'badge-warning','Leave':'badge-purple','Missed':'badge-danger'
+             };
+             disputes.forEach(d => { %>
+          <tr>
+            <td>
+              <% if (d.student && d.student.user) { %>
+              <div class="user-cell">
+                <div class="u-av s"><%= d.student.user.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= d.student.user.fullname %></div>
+                  <div class="u-email"><%= d.student.user.userId %></div>
+                </div>
+              </div>
+              <% } else { %><span style="color:var(--text-muted)">Unknown student</span><% } %>
+            </td>
+            <td style="font-size:.75rem"><%= new Date(d.date).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td><span class="badge <%= statusMap2[d.status] || 'badge-neutral' %>"><%= d.status %></span></td>
+            <td>
+              <% if (d._disputeStatus === 'Pending') { %>
+                <span class="badge badge-warning" style="font-size:.62rem"><i class="ti ti-clock"></i> Pending</span>
+                <div style="font-size:.65rem;color:#999;margin-top:.2rem;max-width:180px"><%= d._disputeReason %></div>
+              <% } else if (d._disputeStatus === 'Accepted') { %>
+                <span class="badge badge-success" style="font-size:.62rem"><i class="ti ti-check"></i> Accepted</span>
+              <% } else if (d._disputeStatus === 'Rejected') { %>
+                <span class="badge badge-danger" style="font-size:.62rem"><i class="ti ti-x"></i> Rejected</span>
+                <div style="font-size:.65rem;color:#999;margin-top:.2rem;max-width:180px"><%= d._rejectReason %></div>
+              <% } %>
+            </td>
+            <td style="font-size:.75rem"><%= d.resolvedBy ? d.resolvedBy.fullname : '—' %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <button type="button" class="act-btn btn-approve"
+                  data-id="<%= d._id %>" data-name="<%= d.student && d.student.user ? d.student.user.fullname : 'student' %>"
+                  data-already="<%= d._disputeStatus !== 'Pending' %>"
+                  onclick="openResolveModal(this.dataset.id, this.dataset.name, this.dataset.already === 'true')">
+                  <i class="ti ti-gavel"></i> <%= d._disputeStatus === 'Pending' ? 'Resolve' : 'Override' %>
+                </button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state"><i class="fas fa-check-circle"></i><p>No disputes raised yet.</p></div>
+    <% } %>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MONTHLY OVERVIEW (unchanged)
+══════════════════════════════════════════ -->
+<div class="page" id="page-monthly">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-chart-bar"></i> Monthly Trends</h3>
+    </div>
+    <form method="GET" action="/admin/operations/attendance"
+          style="display:flex; gap:.6rem; align-items:center; padding:0.8rem 1.2rem 1.2rem; flex-wrap:wrap">
+      <input type="hidden" name="page" value="monthly">
+      <div style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap">
+        <select name="viewMode" class="filter-sel" onchange="this.form.submit()">
+          <option value="monthly" <%= viewMode === 'monthly' ? 'selected' : '' %>>Monthly</option>
+          <option value="yearly"  <%= viewMode === 'yearly'  ? 'selected' : '' %>>Yearly</option>
+        </select>
+        <% if (viewMode !== 'yearly') { %>
+        <select name="month" class="filter-sel">
+          <% const monthNames = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+             for (let m = 1; m <= 12; m++) { %>
+            <option value="<%= m %>" <%= selectedMonth === m ? 'selected' : '' %>>
+              <%= monthNames[m-1] %>
+            </option>
+          <% } %>
+        </select>
+        <% } %>
+        <select name="year" class="filter-sel">
+          <% for (let y = new Date().getFullYear(); y >= new Date().getFullYear() - 2; y--) { %>
+            <option value="<%= y %>" <%= selectedYear === y ? 'selected' : '' %>><%= y %></option>
+          <% } %>
+        </select>
+      </div>
+      <div style="display:flex; gap:.6rem; align-items:center; margin-left:auto; flex-wrap:wrap">
+        <input type="text" name="student" class="filter-sel"
+               placeholder="Search student name/ID" value="<%= searchStudent %>"
+               style="min-width:200px">
+        <button type="submit" class="add-btn"><i class="ti ti-search"></i> Apply</button>
+      </div>
+    </form>
+
+    <% if (monthlyStudents.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Student</th><th>Present</th><th>Late</th><th>Missed</th><th>On Leave</th><th>Total Days</th><th>Attendance %</th></tr>
+        </thead>
+        <tbody>
+          <% monthlyStudents.forEach(entry => { %>
+          <tr>
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= entry.student.user.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= entry.student.user.fullname %></div>
+                  <div class="u-email"><%= entry.student.user.userId %></div>
+                </div>
+              </div>
+            </td>
+            <td><%= entry.In %></td>
+            <td><%= entry.Late %></td>
+            <td><%= entry.Missed %></td>
+            <td><%= entry.Leave %></td>
+            <td><%= entry.total %></td>
+            <td style="font-weight:700;color:<%= entry.pct >= 75 ? 'var(--green)' : '#C62828' %>"><%= entry.pct %>%</td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state"><i class="ti ti-calendar-off"></i><p>No records for this period.</p></div>
+    <% } %>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     RESOLVE / OVERRIDE DISPUTE MODAL (unchanged)
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="resolveModal" onclick="if(event.target===this) closeResolveModal()">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-gavel"></i> Resolve Dispute</h3>
+      <button class="modal-close" onclick="closeResolveModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="resolve-form" method="POST">
+      <div class="form-section">
+        <p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:.8rem;">
+          Resolving <strong id="rs-student">—</strong>'s attendance dispute.
+        </p>
+        <div id="rs-override-warning" style="display:none;background:#FFF3E0;border:1px solid #FFCC80;border-radius:var(--radius-md);padding:.7rem 1rem;font-size:.72rem;color:#E65100;margin-bottom:.8rem">
+          <i class="fas fa-exclamation-triangle"></i>
+          This dispute was already resolved. Acting again will <strong>override</strong> the previous decision, and whoever made it will be notified.
+        </div>
+        <div class="form-grid cols-1">
+          <div class="form-group">
+            <label>Decision <span class="req">*</span></label>
+            <select name="action" id="rs-action" required onchange="toggleNewStatus()">
+              <option value="correct">Accept — Correct the record</option>
+              <option value="reject">Reject dispute</option>
+            </select>
+          </div>
+          <div class="form-group" id="rs-newstatus-wrap">
+            <label>Corrected Status <span class="req">*</span></label>
+            <select name="newStatus">
+              <option value="In">Present (In)</option>
+              <option value="Late">Late</option>
+              <option value="Out">Checked Out</option>
+              <option value="Missed">Absent</option>
+            </select>
+          </div>
+          <div class="form-group" id="rs-reason-wrap" style="display:none">
+            <label>Reason for Rejection</label>
+            <textarea name="reason" rows="3" placeholder="Optional"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-sec" onclick="closeResolveModal()">Cancel</button>
+        <button type="submit" class="btn-primary"><i class="ti ti-check"></i> Submit Decision</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+window.PAGE_TITLES = {
+  'log'      : "Today's Log",
+  'disputes' : 'Attendance Disputes',
+  'monthly'  : 'Monthly Overview'
+};
+
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const page   = params.get('page');
+  const navMap = {
+    'disputes': document.getElementById('nav-disputes'),
+    'monthly': document.getElementById('nav-monthly')
+  };
+  if (page && navMap[page]) {
+    showPage(page, navMap[page]);
+  } else {
+    // Default to Today's Log (also covers old ?page=mark links)
+    showPage('log', document.getElementById('nav-log'));
+  }
+});
+
+function toggleNewStatus() {
+  const action = document.getElementById('rs-action').value;
+  document.getElementById('rs-newstatus-wrap').style.display = action === 'correct' ? '' : 'none';
+  document.getElementById('rs-reason-wrap').style.display     = action === 'reject'  ? '' : 'none';
+}
+
+function openResolveModal(id, studentName, alreadyResolved) {
+  document.getElementById('resolve-form').action = '/admin/operations/attendance/dispute/' + id;
+  document.getElementById('rs-student').textContent = studentName;
+  document.getElementById('rs-override-warning').style.display = alreadyResolved ? '' : 'none';
+  toggleNewStatus();
+  openModal('resolveModal');
+}
+function closeResolveModal() { closeModal('resolveModal'); }
+
+// Generic modal helpers
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// showPage function (should already exist in admin-header or we add it)
+function showPage(pageId, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + pageId).classList.add('active');
+  document.querySelectorAll('.page-tabs .act-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+// ── Today's Log: live search + AJAX marking, with optimistic row upsert ──
+(function () {
+  const input     = document.getElementById('mark-search-input');
+  const searchBtn = document.getElementById('mark-search-btn');
+  const resultsEl = document.getElementById('mark-search-results');
+  const emptyEl   = document.getElementById('mark-search-empty');
+  const loadingEl = document.getElementById('mark-search-loading');
+
+  const tbody       = document.getElementById('log-tbody');
+  const tblWrap     = document.getElementById('log-tbl-wrap');
+  const logEmpty    = document.getElementById('log-empty-state');
+  const countPill   = document.getElementById('log-count-pill');
+
+  // Badge shown next to "Today:" on each search-result card
+  const statusLabels = {
+    In     : { label: 'Present',      cls: 'badge-success' },
+    Out    : { label: 'Checked Out',  cls: 'badge-info'    },
+    Late   : { label: 'Late',         cls: 'badge-warning' },
+    Missed : { label: 'Absent',       cls: 'badge-danger'  },
+    Leave  : { label: 'On Leave',     cls: 'badge-purple'  }
+  };
+
+  // Color config for the Mark In / Late / Out / Missed action buttons.
+  // "bg"/"text" = idle (light tint) state, "active" = solid fill used
+  // when that status is the one currently recorded for the student.
+  const statusBtnConfig = {
+    In     : { label: 'Mark In',     icon: 'ti-login',  bg: '#E8F5E9', text: '#2D5A3D', active: '#2D5A3D' },
+    Late   : { label: 'Mark Late',   icon: 'ti-clock',  bg: '#FFF3E0', text: '#E65100', active: '#E65100' },
+    Out    : { label: 'Mark Out',    icon: 'ti-logout', bg: '#E3F2FD', text: '#1565C0', active: '#1565C0' },
+    Missed : { label: 'Mark Missed', icon: 'ti-x',      bg: '#FFEBEE', text: '#C62828', active: '#C62828' }
+  };
+
+  // matches the labels used in the log table itself (slightly different
+  // wording than the search-card badges, e.g. "Present" vs "Present")
+  const logStatusLabels = {
+    In     : { label: 'Present', cls: 'badge-success' },
+    Out    : { label: 'Out',     cls: 'badge-info'    },
+    Late   : { label: 'Late',    cls: 'badge-warning' },
+    Leave  : { label: 'On Leave',cls: 'badge-purple'  },
+    Missed : { label: 'Absent',  cls: 'badge-danger'  }
+  };
+
+  const STAT_KEYS = ['In', 'Late', 'Out', 'Missed', 'Leave'];
+
+  function fmtTime(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function bumpStat(status, delta) {
+    if (!status || !STAT_KEYS.includes(status)) return;
+    const el = document.getElementById('log-stat-' + status);
+    if (!el) return;
+    el.textContent = Math.max(0, parseInt(el.textContent, 10) + delta);
+  }
+
+  function upsertLogRow(data) {
+    // data: { userId, fullname, status, entryTime, exitTime, recordedBy }
+    let row = tbody.querySelector('tr[data-user-id="' + data.userId + '"]');
+    const s = logStatusLabels[data.status] || { label: data.status, cls: 'badge-neutral' };
+    const prevStatus = row ? row.dataset.status : null;
+
+    if (row) {
+      row.querySelector('.log-status-cell').innerHTML = `<span class="badge ${s.cls}">${s.label}</span>`;
+      row.querySelector('.log-entry-cell').textContent = fmtTime(data.entryTime);
+      row.querySelector('.log-exit-cell').textContent  = fmtTime(data.exitTime);
+      row.querySelector('.log-recordedby-cell').textContent = data.recordedBy || '—';
+      row.dataset.status = data.status;
+    } else {
+      row = document.createElement('tr');
+      row.dataset.userId = data.userId;
+      row.dataset.status = data.status;
+      const initial = (data.fullname || '?').charAt(0).toUpperCase();
+      row.innerHTML = `
+        <td>
+          <div class="user-cell">
+            <div class="u-av s">${initial}</div>
+            <div>
+              <div class="u-name">${data.fullname}</div>
+              <div class="u-email">${data.userId}</div>
+            </div>
+          </div>
+        </td>
+        <td class="log-status-cell"><span class="badge ${s.cls}">${s.label}</span></td>
+        <td class="log-entry-cell" style="font-size:.75rem">${fmtTime(data.entryTime)}</td>
+        <td class="log-exit-cell" style="font-size:.75rem">${fmtTime(data.exitTime)}</td>
+        <td class="log-recordedby-cell" style="font-size:.75rem">${data.recordedBy || '—'}</td>
+        <td class="log-notes-cell"><span style="color:#ccc;font-size:.7rem">—</span></td>
+      `;
+      tbody.prepend(row);
+
+      // swap empty state for the real table on first-ever mark
+      tblWrap.style.display = '';
+      logEmpty.style.display = 'none';
+
+      const count = tbody.querySelectorAll('tr').length;
+      countPill.textContent = count + (count === 1 ? ' record' : ' records');
+    }
+
+    if (prevStatus !== data.status) {
+      if (prevStatus) bumpStat(prevStatus, -1);
+      bumpStat(data.status, +1);
+    }
+  }
+
+  function renderCard(item) {
+    const badge   = item.currentStatus ? statusLabels[item.currentStatus] : null;
+    const initial = item.fullname.charAt(0).toUpperCase();
+
+    const btns = Object.keys(statusBtnConfig).map(s => {
+      const cfg    = statusBtnConfig[s];
+      const active = s === item.currentStatus;
+      const bg     = active ? cfg.active : cfg.bg;
+      const color  = active ? '#fff' : cfg.text;
+      return `<button type="button" class="act-btn mark-status-btn"
+                data-user-id="${item.userId}" data-status="${s}"
+                style="background:${bg};color:${color};border:none;font-weight:600;">
+                <i class="ti ${cfg.icon}"></i> ${cfg.label}
+              </button>`;
+    }).join('');
+
+    return `
+      <div class="mark-result-card" data-user-id="${item.userId}"
+           style="background:#F3FBF6;border:1px solid #D7ECDD;border-radius:var(--radius-md);padding:.8rem 1rem;display:flex;flex-wrap:wrap;align-items:center;gap:.8rem;">
+        <div style="display:flex;align-items:center;gap:.6rem;flex:1;min-width:180px;">
+          <div class="u-av s" style="background:#2D5A3D;color:#fff;">${initial}</div>
+          <div>
+            <div class="u-name">${item.fullname}</div>
+            <div class="u-email">${item.userId}</div>
+            <div style="font-size:.7rem;color:var(--text-muted);">Room: ${item.room || 'Not assigned'}</div>
+          </div>
+        </div>
+        <div class="mark-status-badge" style="display:flex;align-items:center;gap:.5rem;">
+          <span style="font-size:.7rem;font-weight:500;color:#888;">Today:</span>
+          <span class="status-badge-inner badge ${badge ? badge.cls : 'badge-neutral'}">${badge ? badge.label : 'Not marked'}</span>
+        </div>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap;">${btns}</div>
+      </div>`;
+  }
+
+  let debounceTimer = null;
+  let activeRequest  = 0;
+
+  function runSearch(q) {
+    const requestId = ++activeRequest;
+    loadingEl.style.display = '';
+    emptyEl.style.display   = 'none';
+
+    fetch('/admin/operations/attendance/search-students?q=' + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(data => {
+        if (requestId !== activeRequest) return; // stale response, ignore
+        loadingEl.style.display = 'none';
+        const results = data.results || [];
+        if (results.length === 0) {
+          resultsEl.innerHTML = '';
+          emptyEl.style.display = '';
+          return;
+        }
+        resultsEl.innerHTML = results.map(renderCard).join('');
+      })
+      .catch(() => {
+        if (requestId !== activeRequest) return;
+        loadingEl.style.display = 'none';
+        resultsEl.innerHTML = '';
+        emptyEl.style.display = '';
+      });
+  }
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    clearTimeout(debounceTimer);
+    if (q.length < 2) {
+      resultsEl.innerHTML = '';
+      emptyEl.style.display = 'none';
+      loadingEl.style.display = 'none';
+      return;
+    }
+    debounceTimer = setTimeout(() => runSearch(q), 300);
+  });
+
+  // Explicit search button — bypasses debounce and the 2-char minimum,
+  // so a deliberate click (or Enter) always fires immediately.
+  function triggerImmediateSearch() {
+    clearTimeout(debounceTimer);
+    const q = input.value.trim();
+    if (!q) {
+      resultsEl.innerHTML = '';
+      emptyEl.style.display = 'none';
+      loadingEl.style.display = 'none';
+      return;
+    }
+    runSearch(q);
+  }
+
+  searchBtn.addEventListener('click', triggerImmediateSearch);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      triggerImmediateSearch();
+    }
+  });
+
+  // Delegate click on any Mark button, including ones rendered after search
+  resultsEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.mark-status-btn');
+    if (!btn) return;
+
+    const userId = btn.dataset.userId;
+    const status = btn.dataset.status;
+    const card    = btn.closest('.mark-result-card');
+    const allBtns = card.querySelectorAll('.mark-status-btn');
+
+    allBtns.forEach(b => b.disabled = true);
+
+    fetch('/admin/attendance/mark', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: new URLSearchParams({
+        studentId: userId,
+        status,
+        date: new Date().toISOString().split('T')[0]
+      })
+    })
+      .then(r => r.json())
+      .then(data => {
+        allBtns.forEach(b => b.disabled = false);
+        if (!data.ok) {
+          alert(data.error || 'Failed to mark attendance.');
+          return;
+        }
+        // Update the search-result card badge
+        const badge = statusLabels[data.status];
+        card.querySelector('.status-badge-inner').className = 'status-badge-inner badge ' + (badge ? badge.cls : 'badge-neutral');
+        card.querySelector('.status-badge-inner').textContent = badge ? badge.label : 'Not marked';
+
+        // Re-color the action buttons: active status gets a solid fill,
+        // the rest fall back to their light idle tint.
+        allBtns.forEach(b => {
+          const s      = b.dataset.status;
+          const cfg    = statusBtnConfig[s];
+          const active = s === data.status;
+          b.style.background = active ? cfg.active : cfg.bg;
+          b.style.color       = active ? '#fff' : cfg.text;
+        });
+
+        // Optimistically reflect the change straight into Today's Log
+        upsertLogRow({
+          userId    : userId,
+          fullname  : (data.student && data.student.fullname) || card.querySelector('.u-name').textContent,
+          status    : data.status,
+          entryTime : data.entryTime,
+          exitTime  : data.exitTime,
+          recordedBy: data.recordedBy
+        });
+      })
+      .catch(() => {
+        allBtns.forEach(b => b.disabled = false);
+        alert('Failed to mark attendance.');
+      });
+  });
+})();
+</script>
+
+<%- include('admin-footer') %>

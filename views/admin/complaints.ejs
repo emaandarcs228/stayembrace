@@ -1,0 +1,280 @@
+<%- include('admin-header') %>
+<%
+  const statusCls = {
+    'Submitted'   : 'badge-neutral',
+    'Acknowledged': 'badge-info',
+    'In Progress' : 'badge-warning',
+    'Resolved'    : 'badge-success'
+  };
+  const priorityCls = {
+    'Low'   : 'badge-neutral',
+    'Medium': 'badge-info',
+    'High'  : 'badge-warning',
+    'Urgent': 'badge-danger'
+  };
+%>
+
+<!-- ── Sub-nav tabs ── -->
+<div class="page-tabs">
+  <button class="act-btn active" id="nav-harassment" style="background:#E8EAF6;color:#3949AB" onclick="showPage('harassment',this)">
+    <i class="ti ti-shield-exclamation"></i> Harassment Cases
+    <% if (opsPendingHarassment > 0) { %>
+      <span style="background:#C62828;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem">
+        <%= opsPendingHarassment %>
+      </span>
+    <% } %>
+  </button>
+  <button class="act-btn" id="nav-all" style="background:#EEF5F0;color:#2D5A3D" onclick="showPage('all',this)">
+    <i class="ti ti-list-details"></i> All Complaints
+  </button>
+</div>
+
+<!-- ══════════════════════════════════════════
+     HARASSMENT CASES (admin-exclusive)
+══════════════════════════════════════════ -->
+<div class="page active" id="page-harassment">
+
+  <!-- Standalone notice banner — separate from the Cases card -->
+  <div style="background:#FFF5F5;border:1px solid #FFD6D6;border-left:4px solid #C62828;border-radius:var(--radius-lg);padding:.85rem 1.2rem;display:flex;align-items:center;gap:.9rem;margin-bottom:1.2rem">
+    <div style="width:36px;height:36px;border-radius:50%;background:#FFEBEE;color:#C62828;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <i class="ti ti-shield-lock" style="font-size:1rem"></i>
+    </div>
+    <div>
+      <h3 style="color:#C62828;display:flex;align-items:center;gap:.5rem;margin:0;font-size:.85rem">Ragging / Harassment Cases</h3>
+      <p style="font-size:.72rem;color:#7a2e2e;margin:.2rem 0 0">Handled exclusively by admin. Never visible to wardens, regardless of anonymity setting.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-list-details"></i> Cases</h3>
+      <span class="count-pill"><%= harassmentCases.length %> total</span>
+    </div>
+
+    <% if (harassmentCases.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Student</th><th>Subject</th><th>Date</th><th>Priority</th><th>Status</th><th class="actions-th">Actions</th></tr>
+        </thead>
+        <tbody>
+            
+            <% harassmentCases.forEach(c => { %>
+          <tr>
+            <td>
+              <% if (c.student && c.student.user) { %>
+              <div class="user-cell">
+                <div class="u-av" style="background:#E8EAF6;color:#3949AB;"><%= c.student.user.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= c.student.user.fullname %></div>
+                  <div class="u-email"><%= c.student.user.userId %></div>
+                </div>
+              </div>
+              <% if (c.isAnonymous) { %>
+                <span class="badge badge-neutral" style="font-size:.6rem;margin-top:.2rem"><i class="ti ti-incognito"></i> Anonymous to warden</span>
+              <% } %>
+              <% } else { %><span style="color:var(--text-muted)">Unknown student</span><% } %>
+            </td>
+            <td style="font-size:.78rem;max-width:220px"><%= c.subject %></td>
+            <td style="font-size:.75rem"><%= new Date(c.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td><span class="badge <%= priorityCls[c.priority] || 'badge-neutral' %>"><%= c.priority %></span></td>
+            <td><span class="badge <%= statusCls[c.status] || 'badge-neutral' %>"><%= c.status %></span></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <button type="button" class="act-btn btn-approve"
+                  data-id="<%= c._id %>"
+                  data-name="<%= c.student && c.student.user ? c.student.user.fullname : 'student' %>"
+                  data-subject="<%= c.subject %>"
+                  data-description="<%= c.description %>"
+                  data-status="<%= c.status %>"
+                  data-form-action="/admin/operations/complaints/status/<%= c._id %>"
+                  onclick="openComplaintModal(this.dataset)">
+                  <i class="ti ti-gavel"></i> <%= c.status === 'Submitted' ? 'Take Action' : 'Update' %>
+                </button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state"><i class="fas fa-check-circle"></i><p>No harassment cases reported.</p></div>
+    <% } %>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     ALL COMPLAINTS (oversight + override)
+══════════════════════════════════════════ -->
+<div class="page" id="page-all">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-list-details"></i> All Complaints</h3>
+      <span class="count-pill"><%= allComplaints.length %> total</span>
+    </div>
+
+    <form method="GET" action="/admin/operations/complaints"
+          style="display:flex; gap:1rem; align-items:center; padding:0 1.2rem 1.2rem; flex-wrap:wrap">
+      <input type="hidden" name="page" value="all">
+      <select name="category" class="filter-sel" onchange="this.form.submit()">
+        <option value="all" <%= activeCategory === 'all' ? 'selected' : '' %>>All Categories</option>
+        <option value="Maintenance"    <%= activeCategory === 'Maintenance'    ? 'selected' : '' %>>Maintenance</option>
+        <option value="Mess"           <%= activeCategory === 'Mess'           ? 'selected' : '' %>>Mess</option>
+        <option value="Laundry"        <%= activeCategory === 'Laundry'        ? 'selected' : '' %>>Laundry</option>
+        <option value="Roommate Issue" <%= activeCategory === 'Roommate Issue' ? 'selected' : '' %>>Roommate Issue</option>
+        <option value="Cleanliness"    <%= activeCategory === 'Cleanliness'    ? 'selected' : '' %>>Cleanliness</option>
+        <option value="Other"          <%= activeCategory === 'Other'          ? 'selected' : '' %>>Other</option>
+      </select>
+      <select name="status" class="filter-sel" onchange="this.form.submit()">
+        <option value="all" <%= activeStatus === 'all' ? 'selected' : '' %>>All Statuses</option>
+        <option value="Submitted"    <%= activeStatus === 'Submitted'    ? 'selected' : '' %>>Submitted</option>
+        <option value="Acknowledged" <%= activeStatus === 'Acknowledged' ? 'selected' : '' %>>Acknowledged</option>
+        <option value="In Progress"  <%= activeStatus === 'In Progress'  ? 'selected' : '' %>>In Progress</option>
+        <option value="Resolved"     <%= activeStatus === 'Resolved'     ? 'selected' : '' %>>Resolved</option>
+      </select>
+    </form>
+
+    <% if (allComplaints.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Student</th><th>Category</th><th>Subject</th><th>Date</th><th>Status</th><th>Handled By</th><th class="actions-th">Actions</th></tr>
+        </thead>
+        <tbody>
+          <% allComplaints.forEach(c => {
+               const isAnon = c.isAnonymous; %>
+          <tr>
+            <td>
+              <% if (!isAnon && c.student && c.student.user) { %>
+              <div class="user-cell">
+                <div class="u-av s"><%= c.student.user.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= c.student.user.fullname %></div>
+                  <div class="u-email"><%= c.student.user.userId %></div>
+                </div>
+              </div>
+              <% } else if (c.student && c.student.user) { %>
+              <span style="color:var(--text-muted)">Anonymous (<%= c.student.user.fullname %>)</span>
+              <% } else { %><span style="color:var(--text-muted)">Unknown student</span><% } %>
+            </td>
+            <td style="font-size:.75rem"><%= c.category %></td>
+            <td style="font-size:.78rem;max-width:200px"><%= c.subject %></td>
+            <td style="font-size:.75rem"><%= new Date(c.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td><span class="badge <%= statusCls[c.status] || 'badge-neutral' %>"><%= c.status %></span></td>
+            <td style="font-size:.75rem"><%= c.handledBy ? c.handledBy.fullname : '—' %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <button type="button" class="act-btn btn-approve"
+                  data-id="<%= c._id %>"
+                  data-name="<%= (!isAnon && c.student && c.student.user) ? c.student.user.fullname : 'this student' %>"
+                  data-subject="<%= c.subject %>"
+                  data-description="<%= c.description %>"
+                  data-status="<%= c.status %>"
+                  data-form-action="/admin/operations/complaints/status/<%= c._id %>"
+                  onclick="openComplaintModal(this.dataset)">
+                  <i class="ti ti-gavel"></i> <%= c.status === 'Submitted' ? 'Take Action' : 'Override' %>
+                </button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state"><i class="ti ti-list-details"></i><p>No complaints match this filter.</p></div>
+    <% } %>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     COMPLAINT ACTION / OVERRIDE MODAL
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="complaintModal" onclick="if(event.target===this) closeComplaintModal()">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-gavel"></i> Update Complaint</h3>
+      <button class="modal-close" onclick="closeComplaintModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="complaint-form" method="POST">
+      <div class="form-section">
+        <p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:.4rem;">
+          <strong id="cm-student">—</strong>'s complaint: <strong id="cm-subject">—</strong>
+        </p>
+        <p id="cm-description" style="font-size:.75rem;color:var(--text-muted);background:#f9f9f9;border-radius:var(--radius-md);padding:.6rem .8rem;margin-bottom:.8rem;max-height:100px;overflow-y:auto;"></p>
+
+        <div id="cm-override-warning" style="display:none;background:#FFF3E0;border:1px solid #FFCC80;border-radius:var(--radius-md);padding:.7rem 1rem;font-size:.72rem;color:#E65100;margin-bottom:.8rem">
+          <i class="fas fa-exclamation-triangle"></i>
+          This complaint was already handled. Updating it will <strong>override</strong> the previous decision, and whoever handled it will be notified.
+        </div>
+
+        <div class="form-grid cols-1">
+          <div class="form-group">
+            <label>Status <span class="req">*</span></label>
+            <select name="newStatus" id="cm-status" required>
+              <option value="Acknowledged">Acknowledged</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Resolved">Resolved</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Note <span class="req">*</span></label>
+            <textarea name="note" rows="3" placeholder="Explain the update — this note is required and shared with the student." required></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-sec" onclick="closeComplaintModal()">Cancel</button>
+        <button type="submit" class="btn-primary"><i class="ti ti-check"></i> Submit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+window.PAGE_TITLES = {
+  'harassment' : 'Harassment Cases',
+  'all'        : 'All Complaints'
+};
+
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const page   = params.get('page');
+  const navMap = { 'all': document.getElementById('nav-all') };
+  if (page && navMap[page]) {
+    showPage(page, navMap[page]);
+  } else {
+    showPage('harassment', document.getElementById('nav-harassment'));
+  }
+});
+
+function showPage(pageId, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + pageId).classList.add('active');
+  document.querySelectorAll('.page-tabs .act-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+function openComplaintModal(data) {
+  document.getElementById('complaint-form').action = data.formAction;
+  document.getElementById('cm-student').textContent = data.name;
+  document.getElementById('cm-subject').textContent = data.subject;
+  document.getElementById('cm-description').textContent = data.description;
+  document.getElementById('cm-override-warning').style.display = data.status !== 'Submitted' ? '' : 'none';
+
+  // Pre-select a sensible next status
+  const statusSel = document.getElementById('cm-status');
+  if (data.status === 'Submitted') statusSel.value = 'Acknowledged';
+  else if (data.status === 'Acknowledged') statusSel.value = 'In Progress';
+  else statusSel.value = 'Resolved';
+
+  openModal('complaintModal');
+}
+function closeComplaintModal() { closeModal('complaintModal'); }
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+</script>
+
+<%- include('admin-footer') %>

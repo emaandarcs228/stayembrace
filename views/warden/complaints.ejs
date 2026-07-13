@@ -1,0 +1,231 @@
+<%
+  const activePage   = 'complaints';
+  const pageTitle    = 'Complaints';
+  const pageSubtitle = 'Review and resolve student complaints';
+%>
+<%- include('warden-header') %>
+
+<!-- ── Filters ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
+
+  <!-- Status filter -->
+<div class="filter-tabs">
+  <% ['all','Submitted','Acknowledged','In Progress','Resolved'].forEach(function(s) {
+       const isActive = activeStatus === s;
+       const colorMap = {
+         'all'          : 'filter-tab-neutral',
+         'Submitted'    : 'filter-tab-blue',
+         'Acknowledged' : 'filter-tab-orange',
+         'In Progress'  : 'filter-tab-purple',
+         'Resolved'     : 'filter-tab-green'
+       };
+  %>
+  <a href="/warden/complaints?status=<%= encodeURIComponent(s) %>&category=<%= activeCategory %>"
+     class="filter-tab <%= colorMap[s] %> <%= isActive ? 'is-active' : '' %>">
+    <%= s === 'all' ? 'All Statuses' : s %>
+  </a>
+  <% }); %>
+</div>
+
+  <!-- Category filter -->
+  <select class="filter-sel" onchange="location.href='/warden/complaints?category='+this.value+'&status=<%= activeStatus %>'">
+    <option value="all" <%= activeCategory === 'all' ? 'selected' : '' %>>All Categories</option>
+    <% ['Maintenance','Mess','Laundry','Roommate Issue','Cleanliness','Ragging / Harassment','Other'].forEach(function(cat) { %>
+      <option value="<%= cat %>" <%= activeCategory === cat ? 'selected' : '' %>><%= cat %></option>
+    <% }); %>
+  </select>
+
+</div>
+
+<% if (complaints.length === 0) { %>
+<div class="card">
+  <div class="empty-state">
+    <i class="ti ti-message-report"></i>
+    <h4>No complaints found</h4>
+    <p>No complaints match the selected filters.</p>
+  </div>
+</div>
+<% } else { %>
+
+<div class="card">
+  <div class="card-head">
+    <h3><i class="ti ti-message-report"></i> Complaints</h3>
+    <span class="count-pill"><%= complaints.length %> records</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column">
+    <% complaints.forEach(function(c) {
+         const statusMap = {
+           'Submitted'   : { cls: 'badge-info',    label: 'Submitted'    },
+           'Acknowledged': { cls: 'badge-warning',  label: 'Acknowledged' },
+           'In Progress' : { cls: 'badge-purple',   label: 'In Progress'  },
+           'Resolved'    : { cls: 'badge-success',  label: 'Resolved'     }
+         };
+         const priorityMap = {
+           'Low'   : 'badge-neutral',
+           'Medium': 'badge-info',
+           'High'  : 'badge-warning',
+           'Urgent': 'badge-danger'
+         };
+         const s   = statusMap[c.status]   || { cls: 'badge-neutral', label: c.status };
+         const pCls = priorityMap[c.priority] || 'badge-neutral';
+         const isResolved  = c.status === 'Resolved';
+         const isAnon      = c.isAnonymous;
+         const isOverdue   = c.expectedResolutionDate && new Date(c.expectedResolutionDate) < new Date() && !isResolved;
+         const cardId      = 'card-' + c._id;
+         const formId      = 'form-' + c._id;
+    %>
+    <div style="border-bottom:1px solid var(--border);padding:0" id="<%= cardId %>">
+
+      <!-- Row header -->
+      <div style="display:flex;align-items:center;gap:.8rem;padding:.85rem 1.2rem;cursor:pointer"
+           onclick="toggleComplaint('<%= c._id %>')">
+
+        <div class="u-av" style="background:#F3E5F5;color:#7B1FA2;flex-shrink:0">
+          <% if (isAnon) { %>
+            <i class="ti ti-eye-off" style="font-size:.8rem"></i>
+          <% } else { %>
+            <%= c.student?.user?.fullname?.charAt(0) || '?' %>
+          <% } %>
+        </div>
+
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.82rem;font-weight:600;color:var(--text-primary)">
+            <%= c.subject %>
+          </div>
+          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.1rem">
+            <% if (isAnon) { %>
+              <span style="color:#7B1FA2;font-weight:500"><i class="ti ti-eye-off"></i> Anonymous</span>
+            <% } else { %>
+              <%= c.student?.user?.fullname || '—' %>
+              &nbsp;·&nbsp; <span class="uid-code"><%= c.student?.user?.userId || '—' %></span>
+            <% } %>
+            &nbsp;·&nbsp; <%= new Date(c.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:.4rem;flex-shrink:0;flex-wrap:wrap">
+          <span class="badge badge-neutral" style="font-size:.6rem"><%= c.category %></span>
+          <span class="badge <%= pCls %>" style="font-size:.6rem"><%= c.priority %></span>
+          <span class="badge <%= s.cls %>"><%= s.label %></span>
+          <% if (isOverdue) { %>
+            <span class="badge badge-danger"><i class="ti ti-clock-exclamation"></i> Overdue</span>
+          <% } %>
+          <i class="fas fa-chevron-down" id="chevron-<%= c._id %>" style="font-size:.65rem;color:var(--text-muted);transition:transform .2s;margin-left:.2rem"></i>
+        </div>
+      </div>
+
+      <!-- Expandable body -->
+      <div id="body-<%= c._id %>" style="display:none;border-top:1px solid #f5f5f5">
+
+        <!-- Description -->
+        <div style="padding:.8rem 1.2rem">
+          <div style="font-size:.68rem;font-weight:700;color:var(--green-dark);text-transform:uppercase;letter-spacing:.6px;margin-bottom:.4rem">Description</div>
+          <p style="font-size:.78rem;color:var(--text-primary);line-height:1.6"><%= c.description %></p>
+        </div>
+
+        <!-- Attachment (Maintenance) -->
+        <% if (c.attachment) { %>
+        <div style="padding:0 1.2rem .8rem">
+          <div style="font-size:.68rem;font-weight:700;color:var(--green-dark);text-transform:uppercase;letter-spacing:.6px;margin-bottom:.4rem">Attachment</div>
+          <a href="/<%= c.attachment %>" target="_blank" class="act-btn btn-view" style="text-decoration:none;display:inline-flex">
+            <i class="fas fa-image"></i> View Photo
+          </a>
+        </div>
+        <% } %>
+
+        <!-- SLA deadline -->
+        <% if (c.expectedResolutionDate) { %>
+        <div style="padding:0 1.2rem .8rem">
+          <div style="display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .8rem;border-radius:var(--radius-md);font-size:.72rem;font-weight:500;background:<%= isOverdue ? '#FFEBEE' : '#EEF5F0' %>;color:<%= isOverdue ? '#C62828' : 'var(--green-dark)' %>">
+            <i class="ti ti-calendar-due"></i>
+            Resolution deadline: <%= new Date(c.expectedResolutionDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+            <% if (isOverdue) { %> — <strong>OVERDUE</strong><% } %>
+          </div>
+        </div>
+        <% } %>
+
+        <!-- Previous warden notes -->
+        <% if (c.adminResponse) { %>
+        <div style="padding:0 1.2rem .8rem">
+          <div style="font-size:.68rem;font-weight:700;color:var(--green-dark);text-transform:uppercase;letter-spacing:.6px;margin-bottom:.4rem">Previous Notes</div>
+          <div style="background:#f9f9f9;border:1px solid var(--border);border-radius:var(--radius-md);padding:.7rem 1rem;font-size:.75rem;color:var(--text-secondary);white-space:pre-line"><%= c.adminResponse %></div>
+        </div>
+        <% } %>
+
+        <!-- 4-stage tracker -->
+        <div style="padding:0 1.2rem .8rem">
+          <div style="font-size:.68rem;font-weight:700;color:var(--green-dark);text-transform:uppercase;letter-spacing:.6px;margin-bottom:.6rem">Status Track</div>
+          <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+            <% const stages = ['Submitted','Acknowledged','In Progress','Resolved'];
+               const currentIdx = stages.indexOf(c.status);
+               stages.forEach(function(stage, idx) {
+                 const isDone   = idx < currentIdx;
+                 const isActive = idx === currentIdx;
+            %>
+            <div style="display:flex;align-items:center;gap:.4rem">
+              <div style="width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;flex-shrink:0;background:<%= isDone ? 'var(--green)' : isActive ? 'var(--green-light)' : '#f0f0f0' %>;color:<%= isDone ? 'white' : isActive ? 'var(--green)' : '#bbb' %>;border:2px solid <%= isDone ? 'var(--green-dark)' : isActive ? 'var(--green)' : '#e5e5e5' %>">
+                <% if (isDone) { %><i class="fas fa-check" style="font-size:.55rem"></i><% } else { %><%= idx + 1 %><% } %>
+              </div>
+              <span style="font-size:.68rem;font-weight:<%= isActive ? '600' : '400' %>;color:<%= isActive ? 'var(--green-dark)' : isDone ? 'var(--green)' : '#aaa' %>"><%= stage %></span>
+            </div>
+            <% if (idx < stages.length - 1) { %>
+              <div style="flex:1;height:2px;background:<%= isDone ? 'var(--green)' : '#eee' %>;min-width:20px;max-width:40px"></div>
+            <% } %>
+            <% }); %>
+          </div>
+        </div>
+
+        <!-- Update form (not shown if resolved) -->
+        <% if (!isResolved) { %>
+        <div style="border-top:1px solid var(--border);padding:1rem 1.2rem;background:var(--green-lighter)">
+          <div style="font-size:.7rem;font-weight:700;color:var(--green-dark);text-transform:uppercase;letter-spacing:.6px;margin-bottom:.6rem">
+            <i class="ti ti-edit"></i> Update Status
+          </div>
+          <form method="POST" action="/warden/complaints/update/<%= c._id %>" id="<%= formId %>">
+            <div style="display:flex;gap:.7rem;flex-wrap:wrap;align-items:flex-end">
+              <div style="display:flex;flex-direction:column;gap:.25rem;flex:0 0 auto">
+                <label style="font-size:.68rem;font-weight:500;color:var(--text-secondary)">New Status</label>
+                <select name="newStatus" class="filter-sel">
+                  <% stages.filter(function(s) { return s !== 'Submitted'; }).forEach(function(stage) { %>
+                    <option value="<%= stage %>" <%= c.status === stage ? 'selected' : '' %>><%= stage %></option>
+                  <% }); %>
+                </select>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.25rem;flex:1;min-width:200px">
+                <label style="font-size:.68rem;font-weight:500;color:var(--text-secondary)">Note <span class="req">*</span></label>
+                <input type="text" name="note" placeholder="Required — describe action taken or progress" required style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.42rem .7rem;font-size:.75rem;font-family:inherit;outline:none;height:32px">
+              </div>
+              <button type="submit" class="btn-primary" style="height:32px;padding:.35rem 1rem;font-size:.75rem;display:flex;align-items:center;gap:.3rem;white-space:nowrap">
+                <i class="ti ti-check"></i> Update
+              </button>
+            </div>
+          </form>
+        </div>
+        <% } else { %>
+        <div style="padding:.6rem 1.2rem;background:var(--green-lighter);font-size:.72rem;color:var(--green-dark);border-top:1px solid #c8e6cf">
+          <i class="ti ti-circle-check"></i>
+          Resolved on <%= c.resolvedAt ? new Date(c.resolvedAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) : 'N/A' %>
+        </div>
+        <% } %>
+
+      </div>
+    </div>
+    <% }); %>
+  </div>
+</div>
+
+<% } %>
+
+<script>
+function toggleComplaint(id) {
+  var body    = document.getElementById('body-' + id);
+  var chevron = document.getElementById('chevron-' + id);
+  if (!body) return;
+  var isOpen = body.style.display !== 'none';
+  body.style.display    = isOpen ? 'none' : 'block';
+  chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+</script>
+
+<%- include('warden-footer') %>

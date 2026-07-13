@@ -1,0 +1,1476 @@
+<%
+  const activePage   = 'rooms';
+  const pageTitle    = 'Room Management';
+  const pageSubtitle = 'Manage rooms, allocations, and transfers';
+%>
+<%- include('admin-header') %>
+
+<!-- ── Search + Add Room ── -->
+<div style="display:flex;justify-content:flex-end;align-items:center;gap:.8rem;margin-bottom:1.2rem;flex-wrap:wrap">
+  <div class="search-bar" style="max-width:320px;width:100%">
+    <i class="ti ti-search"></i>
+    <input type="text" placeholder="Search rooms..." id="globalSearch" oninput="globalSearchHandler()">
+  </div>
+  <button class="act-btn btn-approve" id="nav-add-room" onclick="showPage('add-room',this)"><i class="ti ti-plus"></i> Add Room</button>
+</div>
+
+<!-- ── Sub-nav tabs ── -->
+<div class="page-tabs">
+  <button class="act-btn active" style="background:#E8EAF6;color:#3949AB" onclick="showPage('overview',this)"><i class="ti ti-layout-dashboard"></i> Overview</button>
+  <button class="act-btn" id="nav-student-rooms" style="background:#E3F2FD;color:#1565C0" onclick="showPage('all-rooms',this)"><i class="ti ti-door"></i> Student Rooms</button>
+  <button class="act-btn" id="nav-guest-rooms" style="background:#F3E5F5;color:#8E24AA" onclick="showPage('guest-rooms',this)">
+    <i class="ti ti-home-2"></i> Guest Rooms
+  </button>
+  <button class="act-btn" id="nav-unassigned" style="background:#FFEBEE;color:#C62828" onclick="showPage('unassigned',this)">
+    <i class="ti ti-user-off"></i> Unassigned Students
+    <% if (unallocatedStudents.length > 0) { %>
+      <span style="background:#C62828;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= unallocatedStudents.length %></span>
+    <% } %>
+  </button>
+  <button class="act-btn" id="nav-allocations" style="background:#F3E5F5;color:#7B1FA2" onclick="showPage('allocations',this)"><i class="ti ti-transfer"></i> Allocations</button>
+</div>
+
+<!-- ══════════════════════════════════════
+     OVERVIEW PAGE  (Student rooms only)
+══════════════════════════════════════ -->
+<div class="page active" id="page-overview">
+
+  <div class="stats-row">
+    <div class="stat-card clickable" onclick="showPage('all-rooms',document.getElementById('nav-student-rooms'))">
+      <div class="s-icon all"><i class="ti ti-door"></i></div>
+      <div class="s-info"><h4>Student Rooms</h4><h3><%= stats.totalRooms %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="goToStudentRoomsFiltered('Available')">
+      <div class="s-icon avail"><i class="ti ti-circle-check"></i></div>
+      <div class="s-info"><h4>Available</h4><h3><%= stats.availableRooms %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="goToStudentRoomsFiltered('Occupied')">
+      <div class="s-icon occ"><i class="ti ti-users"></i></div>
+      <div class="s-info"><h4>Occupied</h4><h3><%= stats.occupiedRooms %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="goToStudentRoomsFiltered('Maintenance')">
+      <div class="s-icon maint"><i class="ti ti-tool"></i></div>
+      <div class="s-info"><h4>Maintenance</h4><h3><%= stats.maintenanceRooms %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon beds"><i class="ti ti-bed"></i></div>
+      <div class="s-info"><h4>Total Beds</h4><h3><%= stats.totalBeds %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon free"><i class="ti ti-bed-off"></i></div>
+      <div class="s-info"><h4>Free Beds</h4><h3><%= stats.freeBeds %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="showPage('unassigned',document.getElementById('nav-unassigned'))">
+      <div class="s-icon pending"><i class="ti ti-user-off"></i></div>
+      <div class="s-info"><h4>Unassigned Students</h4><h3><%= unallocatedStudents.length %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="showPage('guest-rooms',document.getElementById('nav-guest-rooms'))">
+      <div class="s-icon" style="background:#F3E5F5;color:#8E24AA"><i class="ti ti-home-2"></i></div>
+      <div class="s-info"><h4>Guest Rooms</h4><h3><%= guestStats.totalGuestRooms %></h3></div>
+    </div>
+  </div>
+
+  <!-- Occupancy Bar -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-chart-bar"></i> Occupancy Overview</h3>
+    </div>
+    <div class="occ-bar-wrap">
+      <% const occPct = stats.totalBeds > 0 ? Math.round((stats.occupiedBeds / stats.totalBeds) * 100) : 0; %>
+      <div class="occ-label">
+        <span><%= stats.occupiedBeds %> of <%= stats.totalBeds %> beds occupied</span>
+        <span class="occ-pct"><%= occPct %>%</span>
+      </div>
+      <div class="occ-bar-bg">
+        <div class="occ-bar-fill" style="--width:<%= occPct %>%"></div>
+      </div>
+      <div class="occ-legend">
+        <span class="leg-dot leg-occ"></span> Occupied (<%= stats.occupiedRooms %>)
+        &nbsp;&nbsp;
+        <span class="leg-dot leg-avail"></span> Available (<%= stats.availableRooms %>)
+        &nbsp;&nbsp;
+        <span class="leg-dot leg-maint"></span> Maintenance (<%= stats.maintenanceRooms %>)
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Allocations -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-transfer"></i> Recent Allocations</h3>
+      <button class="add-btn" onclick="showPage('allocations',document.getElementById('nav-allocations'))">View All</button>
+    </div>
+    <% if (recentAllocations && recentAllocations.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Student</th><th>Room</th><th>Bed No</th><th>Date</th><th>Status</th></tr></thead>
+        <tbody>
+          <% recentAllocations.forEach(function(al) { %>
+          <tr>
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= al.student && al.student.user && al.student.user.fullname ? al.student.user.fullname.charAt(0).toUpperCase() : '?' %></div>
+                <div>
+                  <div class="u-name"><%= al.student && al.student.user ? al.student.user.fullname : '—' %></div>
+                  <div class="u-sub"><%= al.student && al.student.user ? al.student.user.userId : '—' %></div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <strong><%= al.room ? al.room.roomNo : '—' %></strong>
+              <div style="font-size:.68rem;color:var(--text-muted)">Block <%= al.room ? al.room.block : '' %>, Floor <%= al.room ? al.room.floor : '' %></div>
+            </td>
+            <td><%= al.bedNo || '—' %></td>
+            <td style="font-size:.72rem;color:var(--text-muted)"><%= new Date(al.allocationDate).toLocaleDateString() %></td>
+            <td><span class="alloc-badge alloc-<%= al.status.toLowerCase() %>"><%= al.status %></span></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state"><i class="fas fa-bed"></i><p>No allocations yet.</p></div>
+    <% } %>
+  </div>
+
+  <!-- Quick Room Grid -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-layout-grid"></i> Room Grid</h3>
+      <button class="add-btn" onclick="showPage('all-rooms',document.getElementById('nav-student-rooms'))">View All</button>
+    </div>
+    <div class="room-grid">
+      <% rooms.slice(0,12).forEach(function(room) {
+           var safeDesc = (room.description || '').replace(/\\/g, '\\\\').replace(/'/g, '&#39;');
+      %>
+      <div class="room-tile room-tile-<%= room.status.toLowerCase() %>"
+           data-id="<%= room._id %>"
+           data-roomno="<%= room.roomNo %>"
+           data-block="<%= room.block %>"
+           data-floor="<%= room.floor %>"
+           data-capacity="<%= room.capacity %>"
+           data-occupied="<%= room.occupiedBeds %>"
+           data-type="<%= room.roomType %>"
+           data-category="Student"
+           data-fee="<%= room.monthlyFee %>"
+           data-nightlyfee="<%= room.feePerNight || 0 %>"
+           data-status="<%= room.status %>"
+           data-desc="<%= safeDesc %>"
+           onclick="openRoomModalFromTile(this)">
+        <div class="rt-no"><%= room.roomNo %></div>
+        <div class="rt-type"><%= room.roomType %></div>
+        <div class="rt-beds">
+          <% for(var i=0;i<room.capacity;i++){ %>
+            <span class="bed-dot <%= i < room.occupiedBeds ? 'bed-occ' : 'bed-free' %>"></span>
+          <% } %>
+        </div>
+        <div class="rt-status"><%= room.status %></div>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     STUDENT ROOMS PAGE  (formerly "All Rooms")
+     Status filter dropdown below replaces the old standalone
+     Available / Occupied / Maintenance tabs.
+══════════════════════════════════════ -->
+<div class="page" id="page-all-rooms">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-door"></i> Student Rooms</h3>
+      <div class="card-actions">
+        <select class="filter-sel" id="filter-block" onchange="applyRoomFilters()">
+          <option value="all">All Blocks</option>
+          <option value="A">Block A</option>
+          <option value="B">Block B</option>
+          <option value="C">Block C</option>
+        </select>
+        <select class="filter-sel" id="filter-status" onchange="applyRoomFilters()">
+          <option value="all">All Status</option>
+          <option value="Available">Available</option>
+          <option value="Occupied">Occupied</option>
+          <option value="Maintenance">Maintenance</option>
+        </select>
+        <select class="filter-sel" id="filter-type" onchange="applyRoomFilters()">
+          <option value="all">All Types</option>
+          <option value="Single">Single</option>
+          <option value="Double">Double</option>
+          <option value="Triple">Triple</option>
+        </select>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table id="rooms-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Room No</th><th>Block</th><th>Floor</th><th>Type</th>
+            <th>Capacity</th><th>Occupied</th><th>Monthly Fee</th><th>Status</th>
+            <th class="actions-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rooms-body">
+          <% rooms.forEach(function(room, index) {
+               var safeDesc2 = (room.description || '').replace(/\\/g, '\\\\').replace(/'/g, '&#39;');
+          %>
+          <tr data-block="<%= room.block %>" data-status="<%= room.status %>" data-type="<%= room.roomType %>">
+            <td><%= index + 1 %></td>
+            <td><strong><%= room.roomNo %></strong></td>
+            <td><span class="block-badge block-<%= room.block.toLowerCase() %>">Block <%= room.block %></span></td>
+            <td>Floor <%= room.floor %></td>
+            <td><span class="type-badge"><%= room.roomType %></span></td>
+            <td><%= room.capacity %> beds</td>
+            <td>
+              <div class="bed-bar">
+                <div class="bed-bar-fill" style="--width:<%= room.capacity > 0 ? ((room.occupiedBeds / room.capacity) * 100) : 0 %>%"></div>
+              </div>
+              <span class="bed-count"><%= room.occupiedBeds %>/<%= room.capacity %></span>
+            </td>
+            <td>Rs <%= room.monthlyFee.toLocaleString() %></td>
+            <td><span class="room-status-badge status-<%= room.status.toLowerCase() %>"><%= room.status %></span></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <button class="act-btn btn-view"
+                  data-id="<%= room._id %>"
+                  data-roomno="<%= room.roomNo %>"
+                  data-block="<%= room.block %>"
+                  data-floor="<%= room.floor %>"
+                  data-capacity="<%= room.capacity %>"
+                  data-occupied="<%= room.occupiedBeds %>"
+                  data-type="<%= room.roomType %>"
+                  data-category="Student"
+                  data-fee="<%= room.monthlyFee %>"
+                  data-nightlyfee="<%= room.feePerNight || 0 %>"
+                  data-status="<%= room.status %>"
+                  data-desc="<%= safeDesc2 %>"
+                  onclick="openRoomModalFromTile(this)">View</button>
+                <button class="act-btn btn-alloc"
+                  data-roomid="<%= room._id %>"
+                  data-roomno="<%= room.roomNo %>"
+                  data-capacity="<%= room.capacity %>"
+                  data-occupied="<%= room.occupiedBeds %>"
+                  onclick="openAllocModalFromBtn(this)"
+                  <%= room.status !== 'Available' || room.occupiedBeds >= room.capacity ? 'disabled title="No free beds"' : '' %>>
+                  Allocate
+                </button>
+                <% if (room.status === 'Occupied') { %>
+                <button class="act-btn btn-vacate"
+                  data-roomid="<%= room._id %>" data-roomno="<%= room.roomNo %>"
+                  onclick="showOccupantsModal(this.dataset.roomid, this.dataset.roomno)">Occupants</button>
+                <% } %>
+                <button class="act-btn btn-del"
+                  data-roomid="<%= room._id %>"
+                  data-roomno="<%= room.roomNo %>"
+                  onclick="openDeleteRoomModal(this.dataset.roomid, this.dataset.roomno)">Delete</button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination" id="rooms-pagination">
+      <span id="rooms-page-info">Showing 1–13 of <%= rooms.length %> rooms</span>
+      <div class="page-btns" id="rooms-page-btns"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     UNASSIGNED STUDENTS PAGE
+══════════════════════════════════════ -->
+<div class="page" id="page-unassigned">
+  <% if (unallocatedStudents.length === 0) { %>
+  <div class="card">
+    <div class="empty-state" style="padding:3rem">
+      <i class="ti ti-circle-check" style="color:var(--green);opacity:.5;font-size:2.5rem;display:block;margin-bottom:.7rem"></i>
+      <h4>All students have been assigned rooms.</h4>
+    </div>
+  </div>
+  <% } else { %>
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-user-off"></i> Students Without Room Assignment</h3>
+      <span class="count-pill"><%= unallocatedStudents.length %> students</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Student</th><th>Student ID</th><th>Phone</th><th>Status</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          <% unallocatedStudents.forEach(function(student, index) { %>
+          <tr>
+            <td><%= index + 1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= student.user && student.user.fullname ? student.user.fullname.charAt(0).toUpperCase() : '?' %></div>
+                <div>
+                  <div class="u-name"><%= student.user ? student.user.fullname : '—' %></div>
+                  <div class="u-sub"><%= student.user ? student.user.email : '—' %></div>
+                </div>
+              </div>
+            </td>
+            <td><code class="uid-code"><%= student.user ? student.user.userId : '—' %></code></td>
+            <td><%= student.user && student.user.phoneNumber ? student.user.phoneNumber : '—' %></td>
+            <td><span class="alloc-badge alloc-vacated">No Room Assigned</span></td>
+            <td>
+              <button class="act-btn btn-alloc"
+                data-studentid="<%= student._id %>"
+                data-studentname="<%= student.user ? student.user.fullname : '' %>"
+                onclick="openStudentAllocationModal(this.dataset.studentid, this.dataset.studentname)">
+                <i class="ti ti-door"></i> Allocate Room
+              </button>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══════════════════════════════════════
+     ALLOCATIONS PAGE
+══════════════════════════════════════ -->
+<div class="page" id="page-allocations">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-transfer"></i> All Allocations</h3>
+      <div class="card-actions">
+        <select class="filter-sel" id="filter-alloc-status" onchange="applyAllocFilters()">
+          <option value="all">All Status</option>
+          <option value="Active">Active</option>
+          <option value="Vacated">Vacated</option>
+          <option value="Transferred">Transferred</option>
+        </select>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Student</th><th>Room</th><th>Bed No</th><th>Allocated By</th><th>Date</th><th>Status</th><th>Remarks</th><th class="actions-th">Actions</th></tr></thead>
+        <tbody id="alloc-body">
+          <% allocations.forEach(function(al, i) { %>
+          <tr data-alloc-status="<%= al.status %>">
+            <td><%= i+1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= al.student && al.student.user && al.student.user.fullname ? al.student.user.fullname.charAt(0).toUpperCase() : '?' %></div>
+                <div>
+                  <div class="u-name"><%= al.student && al.student.user ? al.student.user.fullname : '—' %></div>
+                  <div class="u-sub"><%= al.student && al.student.user ? al.student.user.userId : '—' %></div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <strong><%= al.room ? al.room.roomNo : '—' %></strong>
+              <div style="font-size:.68rem;color:var(--text-muted)">Block <%= al.room ? al.room.block : '' %></div>
+            </td>
+            <td><%= al.bedNo || '—' %></td>
+            <td><%= al.allocatedBy ? al.allocatedBy.fullname : 'System' %></td>
+            <td style="font-size:.72rem;color:var(--text-muted)"><%= new Date(al.allocationDate).toLocaleDateString() %></td>
+            <td><span class="alloc-badge alloc-<%= al.status.toLowerCase() %>"><%= al.status %></span></td>
+            <td><span class="remarks-text"><%= al.remarks || '—' %></span></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <% if (al.status === 'Active') { %>
+                <button class="act-btn btn-vacate"
+                  data-allocid="<%= al._id %>"
+                  data-studentname="<%= al.student && al.student.user ? al.student.user.fullname : '' %>"
+                  data-roomno="<%= al.room ? al.room.roomNo : '' %>"
+                  onclick="openVacateModal(this.dataset.allocid, this.dataset.studentname, this.dataset.roomno)">
+                  Vacate
+                </button>
+                <button class="act-btn btn-transfer"
+                  data-allocid="<%= al._id %>"
+                  data-studentname="<%= al.student && al.student.user ? al.student.user.fullname : '' %>"
+                  data-studentid="<%= al.student ? al.student._id : '' %>"
+                  onclick="openTransferModal(this.dataset.allocid, this.dataset.studentname, this.dataset.studentid)">
+                  Transfer
+                </button>
+                <% } %>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     GUEST ROOMS PAGE
+     Private, whole-room bookings for visitors — max `capacity` people
+     per booking, priced per night. No Allocation model involvement,
+     no student allocate/vacate/transfer actions here.
+══════════════════════════════════════ -->
+<div class="page" id="page-guest-rooms">
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="s-icon" style="background:#F3E5F5;color:#8E24AA"><i class="ti ti-home-2"></i></div>
+      <div class="s-info"><h4>Total Guest Rooms</h4><h3><%= guestStats.totalGuestRooms %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon avail"><i class="ti ti-circle-check"></i></div>
+      <div class="s-info"><h4>Available</h4><h3><%= guestStats.availableGuestRooms %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon occ"><i class="ti ti-users"></i></div>
+      <div class="s-info"><h4>Occupied</h4><h3><%= guestStats.occupiedGuestRooms %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon maint"><i class="ti ti-tool"></i></div>
+      <div class="s-info"><h4>Maintenance</h4><h3><%= guestStats.maintenanceGuestRooms %></h3></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon indigo"><i class="ti ti-calendar-event"></i></div>
+      <div class="s-info"><h4>Upcoming Bookings</h4><h3><%= guestStats.roomsWithUpcomingBookings %></h3></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-home-2"></i> Guest Rooms</h3>
+      <div class="card-actions">
+        <button class="act-btn btn-approve" onclick="showPage('add-room', document.getElementById('nav-add-room')); presetGuestCategory();">
+          <i class="ti ti-plus"></i> Add Guest Room
+        </button>
+      </div>
+    </div>
+
+    <% if (guestRooms.length === 0) { %>
+    <div class="empty-state" style="padding:2.5rem">
+      <i class="ti ti-home-2"></i>
+      <h4>No guest rooms yet</h4>
+      <p>Add a room and set its category to "Guest Room" to get started.</p>
+    </div>
+    <% } else { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Room No</th><th>Block</th><th>Floor</th><th>Max Occupancy</th><th>Fee / Night</th><th>Status</th><th>Upcoming Bookings</th><th class="actions-th">Actions</th></tr></thead>
+        <tbody>
+          <% guestRooms.forEach(function(room, i) {
+               var safeDescG = (room.description || '').replace(/\\/g, '\\\\').replace(/'/g, '&#39;');
+          %>
+          <tr>
+            <td><%= i+1 %></td>
+            <td><strong><%= room.roomNo %></strong></td>
+            <td><span class="block-badge block-<%= room.block.toLowerCase() %>">Block <%= room.block %></span></td>
+            <td>Floor <%= room.floor %></td>
+            <td><%= room.capacity %> <%= room.capacity === 1 ? 'person' : 'people' %> (private)</td>
+            <td>Rs <%= (room.feePerNight || 0).toLocaleString() %> / night</td>
+            <td><span class="room-status-badge status-<%= room.status.toLowerCase() %>"><%= room.status %></span></td>
+            <td>
+  <% var roomBookings = guestBookingsByRoom[String(room._id)]; %>
+  <% if (roomBookings && roomBookings.length > 0) { %>
+    <div style="font-size:.72rem;color:#6A1B9A;font-weight:600;white-space:nowrap">
+      <%= roomBookings[0].fromDate %> – <%= roomBookings[0].toDate %>
+    </div>
+    <div style="font-size:.65rem;color:var(--text-muted);margin-top:.1rem">
+      <%= roomBookings[0].studentName %>
+    </div>
+    <% if (roomBookings.length > 1) { %>
+      <span class="badge badge-purple" style="margin-top:.25rem;display:inline-block">+<%= roomBookings.length - 1 %> more</span>
+    <% } %>
+  <% } else { %>
+    <span style="font-size:.72rem;color:var(--text-muted)">No upcoming bookings</span>
+  <% } %>
+</td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <button class="act-btn btn-view"
+                  data-id="<%= room._id %>" data-roomno="<%= room.roomNo %>" data-block="<%= room.block %>"
+                  data-floor="<%= room.floor %>" data-capacity="<%= room.capacity %>" data-occupied="<%= room.occupiedBeds %>"
+                  data-type="<%= room.roomType %>" data-category="Guest" data-fee="<%= room.monthlyFee %>"
+                  data-nightlyfee="<%= room.feePerNight || 0 %>" data-status="<%= room.status %>"
+                  data-desc="<%= safeDescG %>" onclick="openRoomModalFromTile(this)">View</button>
+                <button class="act-btn btn-del"
+                  data-roomid="<%= room._id %>" data-roomno="<%= room.roomNo %>"
+                  onclick="openDeleteRoomModal(this.dataset.roomid, this.dataset.roomno)">Delete</button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     ADD ROOM PAGE
+══════════════════════════════════════ -->
+<div class="page" id="page-add-room">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-plus"></i> Add New Room</h3>
+    </div>
+    <form action="/admin/rooms/add" method="POST" id="add-room-form" novalidate>
+      <div class="form-section">
+        <h4 class="form-section-title">Room Details</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Room Number <span class="req">*</span></label>
+            <input type="text" name="roomNo" placeholder="e.g. A-101" required>
+          </div>
+          <div class="form-group">
+            <label>Block <span class="req">*</span></label>
+            <select name="block" required>
+              <option value="">— Select Block —</option>
+              <option value="A">Block A</option>
+              <option value="B">Block B</option>
+              <option value="C">Block C</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Floor <span class="req">*</span></label>
+            <input type="number" name="floor" placeholder="e.g. 1" min="0" max="20" required>
+          </div>
+          <div class="form-group">
+            <label>Room Category <span class="req">*</span></label>
+            <select name="roomCategory" id="ar-category" required onchange="toggleAddRoomFeeFields(this.value)">
+              <option value="Student" selected>Student Room</option>
+              <option value="Guest">Guest Room</option>
+            </select>
+          </div>
+          <div class="form-group" id="ar-roomtype-group">
+            <label id="ar-roomtype-label">Room Type <span class="req">*</span></label>
+            <select name="roomType" id="ar-roomtype" required onchange="syncCapacity(this)">
+              <option value="">— Select Type —</option>
+              <option value="Single">Single (1 bed)</option>
+              <option value="Double">Double (2 beds)</option>
+              <option value="Triple">Triple (3 beds)</option>
+            </select>
+            <p class="static-note" id="ar-roomtype-note" style="display:none;font-size:.74rem;color:#6A1B9A;margin:.4rem 0 0;padding:.5rem .7rem;background:#F3E5F5;border-radius:var(--radius-sm)">
+              <i class="ti ti-lock"></i> Private Room — booked as a whole unit, up to 3 guests.
+            </p>
+          </div>
+          <div class="form-group" id="ar-capacity-group">
+            <label id="ar-capacity-label">Capacity (Beds) <span class="req">*</span></label>
+            <input type="number" name="capacity" id="ar-capacity" placeholder="e.g. 2" min="1" max="10" required>
+          </div>
+          <div class="form-group" id="ar-monthlyfee-group">
+            <label>Monthly Fee (Rs) <span class="req">*</span></label>
+            <input type="number" name="monthlyFee" id="ar-monthlyfee" placeholder="e.g. 5000" min="0">
+          </div>
+          <div class="form-group" id="ar-nightlyfee-group" style="display:none">
+            <label>Fee per Night (Rs) <span class="req">*</span></label>
+            <input type="number" name="feePerNight" id="ar-nightlyfee" placeholder="e.g. 2500" min="0">
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select name="status">
+              <option value="Available">Available</option>
+              <option value="Maintenance">Maintenance</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="form-section">
+        <h4 class="form-section-title">Additional Info</h4>
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Description</label>
+            <textarea name="description" rows="3" placeholder="Any notes about the room (AC, attached bathroom, etc.)"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="form-footer">
+        <button type="submit" class="btn-primary"><i class="ti ti-plus"></i> Add Room</button>
+        <button type="button" class="btn-sec" onclick="document.getElementById('add-room-form').reset(); toggleAddRoomFeeFields('Student');">Clear</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     ROOM VIEW / EDIT MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="roomModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="rm-modal-title"><i class="ti ti-door"></i> Room Details</h3>
+      <button class="modal-close" onclick="closeRoomModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="rm-view-section" class="modal-view">
+      <div class="rm-header">
+        <div class="rm-no-badge" id="rv-roomNo">—</div>
+        <span class="room-status-badge" id="rv-status-badge">—</span>
+      </div>
+      <div class="mv-grid" style="margin-top:1rem;text-align:left">
+        <div class="mv-field"><label>Block</label><span id="rv-block">—</span></div>
+        <div class="mv-field"><label>Floor</label><span id="rv-floor">—</span></div>
+        <div class="mv-field"><label>Category</label><span id="rv-category">—</span></div>
+        <div class="mv-field" id="rv-type-field"><label>Room Type</label><span id="rv-type">—</span></div>
+        <div class="mv-field" id="rv-fee-field"><label>Monthly Fee</label><span id="rv-fee">—</span></div>
+        <div class="mv-field" id="rv-nightlyfee-field" style="display:none"><label>Fee per Night</label><span id="rv-nightlyfee">—</span></div>
+        <div class="mv-field"><label>Total Beds</label><span id="rv-capacity">—</span></div>
+        <div class="mv-field" id="rv-occupied-field"><label>Occupied Beds</label><span id="rv-occupied">—</span></div>
+        <div class="mv-field full-span"><label>Description</label><span id="rv-description">—</span></div>
+      </div>
+      <div class="bed-viz" id="rv-bed-viz"></div>
+
+      <!-- Upcoming Bookings — Guest rooms only. Room.status is manual/
+           informational (per design), so this is how admin actually
+           sees which future date-ranges this room is already spoken
+           for before approving another overlapping request. -->
+      <div id="rv-bookings-section" style="display:none;margin-top:1rem;padding:0 1.2rem 1rem;text-align:left">
+        <div style="font-size:.7rem;font-weight:700;color:#6A1B9A;text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+          <i class="ti ti-calendar-event"></i> Upcoming Bookings
+        </div>
+        <div id="rv-bookings-loading" style="font-size:.75rem;color:var(--text-muted)">Loading…</div>
+        <div id="rv-bookings-list" style="display:none;display:flex;flex-direction:column;gap:.5rem"></div>
+        <div id="rv-bookings-empty" style="display:none;font-size:.75rem;color:var(--text-muted)">No upcoming approved bookings for this room.</div>
+      </div>
+    </div>
+    <form class="modal-edit" id="rm-edit-section" method="POST" style="display:none;padding:1.2rem">
+      <div class="edit-grid">
+        <div class="edit-group">
+          <label>Room Number</label>
+          <input type="text" id="re-roomNo" name="roomNo" required>
+        </div>
+        <div class="edit-group">
+          <label>Block</label>
+          <select id="re-block" name="block">
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+          </select>
+        </div>
+        <div class="edit-group">
+          <label>Floor</label>
+          <input type="number" id="re-floor" name="floor" min="0" max="20">
+        </div>
+        <div class="edit-group">
+          <label>Category</label>
+          <select id="re-roomCategory" name="roomCategory" onchange="toggleEditRoomFeeFields(this.value)">
+            <option value="Student">Student Room</option>
+            <option value="Guest">Guest Room</option>
+          </select>
+        </div>
+        <div class="edit-group" id="re-roomtype-group">
+          <label id="re-roomtype-label">Room Type</label>
+          <select id="re-roomType" name="roomType">
+            <option value="Single">Single</option>
+            <option value="Double">Double</option>
+            <option value="Triple">Triple</option>
+          </select>
+          <p class="static-note" id="re-roomtype-note" style="display:none;font-size:.72rem;color:#6A1B9A;margin:.35rem 0 0;padding:.4rem .6rem;background:#F3E5F5;border-radius:var(--radius-sm)">
+            <i class="ti ti-lock"></i> Private Room
+          </p>
+        </div>
+        <div class="edit-group" id="re-capacity-group">
+          <label>Capacity</label>
+          <input type="number" id="re-capacity" name="capacity" min="1" max="10">
+        </div>
+        <div class="edit-group" id="re-monthlyfee-group">
+          <label>Monthly Fee (Rs)</label>
+          <input type="number" id="re-monthlyFee" name="monthlyFee" min="0">
+        </div>
+        <div class="edit-group" id="re-nightlyfee-group" style="display:none">
+          <label>Fee per Night (Rs)</label>
+          <input type="number" id="re-feePerNight" name="feePerNight" min="0">
+        </div>
+        <div class="edit-group full">
+          <label>Status</label>
+          <select id="re-status" name="status">
+            <option value="Available">Available</option>
+            <option value="Occupied">Occupied</option>
+            <option value="Maintenance">Maintenance</option>
+          </select>
+        </div>
+        <div class="edit-group full">
+          <label>Description</label>
+          <textarea id="re-description" name="description" rows="2" style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.45rem .7rem;font-size:.78rem;font-family:inherit;outline:none;resize:vertical;width:100%"></textarea>
+        </div>
+      </div>
+    </form>
+    <div class="modal-foot">
+      <div class="mf-left">
+        <button class="btn-modal-edit" id="rm-btn-edit" onclick="switchRoomToEdit()"><i class="fas fa-pen"></i> Edit</button>
+        <button class="btn-modal-save" id="rm-btn-save" style="display:none" onclick="submitRoomEdit()"><i class="fas fa-save"></i> Save</button>
+        <button class="btn-modal-cancel" id="rm-btn-cancel" style="display:none" onclick="switchRoomToView()">Cancel</button>
+      </div>
+      <button class="btn-modal-del" onclick="triggerRoomDelete()"><i class="fas fa-trash"></i> Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     ALLOCATE ROOM MODAL  (Student rooms only)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="allocModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="ti ti-transfer"></i> Allocate Room</h3>
+      <button class="modal-close" onclick="closeAllocModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <form method="POST" id="alloc-form">
+      <div style="padding:1.2rem">
+        <div class="alloc-room-banner" id="alloc-room-banner">
+          <i class="ti ti-door"></i>
+          <div>
+            <div class="alloc-room-no" id="alloc-room-no">—</div>
+            <div class="alloc-room-meta" id="alloc-room-meta">—</div>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:1rem">
+          <label>Select Student <span class="req">*</span></label>
+          <select name="studentId" id="alloc-student" required>
+            <option value="">— Choose an approved student without a room —</option>
+            <% unallocatedStudents.forEach(function(s) { %>
+            <option value="<%= s._id %>">
+              <%= s.user ? s.user.fullname : '—' %> (<%= s.user ? s.user.userId : '—' %>)
+            </option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-group" style="margin-top:.8rem">
+          <label>Bed Number <span class="req">*</span></label>
+          <select name="bedNo" id="alloc-bed" required>
+            <option value="">— Select bed —</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-top:.8rem">
+          <label>Remarks</label>
+          <input type="text" name="remarks" placeholder="Optional notes" style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.45rem .7rem;font-size:.78rem;font-family:inherit;outline:none;width:100%">
+        </div>
+      </div>
+      <div class="modal-foot">
+        <div class="mf-left">
+          <button type="submit" class="btn-modal-save"><i class="ti ti-transfer"></i> Confirm Allocation</button>
+          <button type="button" class="btn-modal-cancel" onclick="closeAllocModal()">Cancel</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     OCCUPANTS MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="occupantsModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="ti ti-users"></i> Room Occupants — <span id="occ-room-no">—</span></h3>
+      <button class="modal-close" onclick="closeOccupantsModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="occ-loading" class="si-loading-state"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    <div id="occ-content" style="display:none;padding:1rem 1.2rem">
+      <table style="width:100%;font-size:.8rem;border-collapse:collapse" id="occ-table">
+        <thead><tr>
+          <th style="text-align:left;padding:.4rem .5rem;border-bottom:2px solid var(--green);font-size:.72rem;text-transform:uppercase">Student</th>
+          <th style="text-align:left;padding:.4rem .5rem;border-bottom:2px solid var(--green);font-size:.72rem;text-transform:uppercase">Bed</th>
+          <th style="text-align:left;padding:.4rem .5rem;border-bottom:2px solid var(--green);font-size:.72rem;text-transform:uppercase">Since</th>
+          <th style="text-align:left;padding:.4rem .5rem;border-bottom:2px solid var(--green);font-size:.72rem;text-transform:uppercase">Action</th>
+        </tr></thead>
+        <tbody id="occ-tbody"></tbody>
+      </table>
+      <div id="occ-empty" class="empty-state" style="display:none"><i class="fas fa-bed"></i><p>No active occupants.</p></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-modal-cancel" onclick="closeOccupantsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     VACATE MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="vacateModal">
+  <div class="del-modal-box">
+    <div class="del-icon" style="background:#FFF8E1;color:#E65100"><i class="fas fa-sign-out-alt"></i></div>
+    <h3>Vacate Room?</h3>
+    <p id="vacate-msg">This will mark the allocation as Vacated.</p>
+    <div class="del-btns">
+      <button class="btn-cancel-del" onclick="closeVacateModal()">Cancel</button>
+      <form id="vacate-form" method="POST" style="display:inline">
+        <button type="submit" class="btn-confirm-del" style="background:#E65100">Yes, Vacate</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     TRANSFER MODAL  (Student rooms only)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="transferModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="ti ti-replace"></i> Transfer Student</h3>
+      <button class="modal-close" onclick="closeTransferModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <form method="POST" id="transfer-form">
+      <div style="padding:1.2rem">
+        <p class="text-muted" id="transfer-student-name"></p>
+        <div class="form-group" style="margin-top:.8rem">
+          <label>New Room <span class="req">*</span></label>
+          <select name="newRoomId" id="transfer-room" required>
+            <option value="">— Select available room —</option>
+            <% rooms.filter(function(r){ return r.status === 'Available' && r.occupiedBeds < r.capacity; }).forEach(function(room) { %>
+            <option value="<%= room._id %>"><%= room.roomNo %> — Block <%= room.block %>, Floor <%= room.floor %> (<%= room.capacity - room.occupiedBeds %> free beds)</option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-group" style="margin-top:.8rem">
+          <label>New Bed Number <span class="req">*</span></label>
+          <select name="newBedNo" id="transfer-bed" required>
+            <option value="">— Select room first —</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-top:.8rem">
+          <label>Remarks</label>
+          <input type="text" name="remarks" placeholder="Reason for transfer" style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.45rem .7rem;font-size:.78rem;font-family:inherit;outline:none;width:100%">
+        </div>
+      </div>
+      <div class="modal-foot">
+        <div class="mf-left">
+          <button type="submit" class="btn-modal-save"><i class="ti ti-replace"></i> Confirm Transfer</button>
+          <button type="button" class="btn-modal-cancel" onclick="closeTransferModal()">Cancel</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     DELETE ROOM MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="deleteRoomModal">
+  <div class="del-modal-box">
+    <div class="del-icon"><i class="fas fa-exclamation-triangle"></i></div>
+    <h3>Delete Room?</h3>
+    <p id="del-room-msg">This action cannot be undone.</p>
+    <div class="del-btns">
+      <button class="btn-cancel-del" onclick="closeDeleteRoomModal()">Cancel</button>
+      <form id="delete-room-form" method="POST" style="display:inline">
+        <button type="submit" class="btn-confirm-del">Yes, Delete</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Rooms data for JS -->
+<script id="rooms-data" type="application/json"><%- JSON.stringify(rooms.filter(function(r){ return r.status === 'Available' && r.occupiedBeds < r.capacity; }).map(function(r){ return { id: String(r._id), roomNo: r.roomNo, block: r.block, floor: r.floor, capacity: r.capacity, occupiedBeds: r.occupiedBeds }; })) %></script>
+
+<script>
+window.PAGE_TITLES = {
+  'overview'     : 'Room Management — Overview',
+  'all-rooms'    : 'Room Management — Student Rooms',
+  'unassigned'   : 'Room Management — Unassigned Students',
+  'allocations'  : 'Room Management — Allocations',
+  'guest-rooms'  : 'Room Management — Guest Rooms',
+  'add-room'     : 'Room Management — Add Room'
+};
+
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.page-tabs .act-btn').forEach(function(n){ n.classList.remove('active'); });
+  var pg = document.getElementById('page-' + id);
+  if (pg) pg.classList.add('active');
+  if (el) el.classList.add('active');
+  if (id === 'all-rooms') { applyRoomFilters(); renderRoomsPagination(); }
+  if (window.PAGE_TITLES && window.PAGE_TITLES[id]) {
+    var titleEl = document.querySelector('.topbar-left h2');
+    if (titleEl) titleEl.textContent = window.PAGE_TITLES[id];
+  }
+}
+
+// Used by the Overview stat cards (Available/Occupied/Maintenance) —
+// jumps to Student Rooms tab and pre-applies the status filter, since
+// those standalone tabs were removed in favor of this dropdown.
+function goToStudentRoomsFiltered(status) {
+  document.getElementById('filter-status').value = status;
+  showPage('all-rooms', document.getElementById('nav-student-rooms'));
+}
+
+/* ═══ DOM READY ═══ */
+document.addEventListener('DOMContentLoaded', function() {
+  var params = new URLSearchParams(window.location.search);
+  var page   = params.get('page');
+  var valid  = Object.keys(window.PAGE_TITLES);
+  if (page && valid.indexOf(page) !== -1) {
+    var navMap = {
+      'all-rooms'   : document.getElementById('nav-student-rooms'),
+      'unassigned'  : document.getElementById('nav-unassigned'),
+      'allocations' : document.getElementById('nav-allocations'),
+      'guest-rooms' : document.getElementById('nav-guest-rooms'),
+      'add-room'    : document.getElementById('nav-add-room')
+    };
+    showPage(page, navMap[page] || null);
+  } else {
+    renderRoomsPagination();
+  }
+
+  /* Transfer room → load beds */
+  document.getElementById('transfer-room').addEventListener('change', async function() {
+    var roomId = this.value;
+    var bedSel = document.getElementById('transfer-bed');
+    bedSel.innerHTML = '<option value="">— Select bed —</option>';
+    if (!roomId) return;
+    try {
+      var res  = await fetch('/admin/rooms/' + roomId + '/free-beds');
+      var data = await res.json();
+      data.freeBeds.forEach(function(bed) {
+        var o = document.createElement('option');
+        o.value = bed; o.textContent = 'Bed ' + bed;
+        bedSel.appendChild(o);
+      });
+    } catch(err) {
+      bedSel.innerHTML = '<option value="">Unable to load beds</option>';
+    }
+  });
+
+  // Ensure Add Room form starts in the correct fee-field state
+  toggleAddRoomFeeFields(document.getElementById('ar-category').value);
+});
+
+/* ═══ MODAL OVERLAY CLICK-TO-CLOSE ═══ */
+document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+/* ═══ ROOM FILTERS ═══ */
+function applyRoomFilters() {
+  var block  = document.getElementById('filter-block').value;
+  var status = document.getElementById('filter-status').value;
+  var type   = document.getElementById('filter-type').value;
+  document.querySelectorAll('#rooms-body tr').forEach(function(row) {
+    var m = (block  === 'all' || row.dataset.block  === block)  &&
+            (status === 'all' || row.dataset.status === status) &&
+            (type   === 'all' || row.dataset.type   === type);
+    row.dataset.filterHidden = m ? '0' : '1';
+  });
+  ROOMS_PAGE = 1;
+  renderRoomsPagination();
+}
+
+function applyAllocFilters() {
+  var status = document.getElementById('filter-alloc-status').value;
+  document.querySelectorAll('#alloc-body tr').forEach(function(row) {
+    row.style.display = (status === 'all' || row.dataset.allocStatus === status) ? '' : 'none';
+  });
+}
+
+/* ═══ PAGINATION ═══ */
+var ROWS_PER_PAGE = 13;
+var ROOMS_PAGE = 1;
+
+function getVisibleRoomRows() {
+  return Array.from(document.querySelectorAll('#rooms-body tr')).filter(function(r) {
+    return r.dataset.filterHidden !== '1' && r.dataset.searchHidden !== '1';
+  });
+}
+
+function renderRoomsPagination() {
+  var all     = Array.from(document.querySelectorAll('#rooms-body tr'));
+  var visible = getVisibleRoomRows();
+  var total   = visible.length;
+  var pages   = Math.max(1, Math.ceil(total / ROWS_PER_PAGE));
+  if (ROOMS_PAGE > pages) ROOMS_PAGE = pages;
+  if (ROOMS_PAGE < 1) ROOMS_PAGE = 1;
+  all.forEach(function(r){ r.style.display = 'none'; });
+  var start = (ROOMS_PAGE - 1) * ROWS_PER_PAGE;
+  var end   = start + ROWS_PER_PAGE;
+  visible.slice(start, end).forEach(function(r){ r.style.display = ''; });
+  document.getElementById('rooms-page-info').textContent =
+    total === 0 ? 'Showing 0 of 0 rooms' :
+    'Showing ' + (start+1) + '–' + Math.min(end,total) + ' of ' + total + ' rooms';
+  var wrap = document.getElementById('rooms-page-btns');
+  wrap.innerHTML = '';
+  var prev = document.createElement('button');
+  prev.className = 'pg-btn'; prev.textContent = '‹'; prev.disabled = ROOMS_PAGE === 1;
+  prev.onclick = function(){ ROOMS_PAGE--; renderRoomsPagination(); };
+  wrap.appendChild(prev);
+  for (var i = 1; i <= pages; i++) {
+    (function(num) {
+      var b = document.createElement('button');
+      b.className = 'pg-btn' + (num === ROOMS_PAGE ? ' active' : '');
+      b.textContent = num;
+      b.onclick = function(){ ROOMS_PAGE = num; renderRoomsPagination(); };
+      wrap.appendChild(b);
+    })(i);
+  }
+  var next = document.createElement('button');
+  next.className = 'pg-btn'; next.textContent = '›'; next.disabled = ROOMS_PAGE === pages;
+  next.onclick = function(){ ROOMS_PAGE++; renderRoomsPagination(); };
+  wrap.appendChild(next);
+}
+
+/* ═══ GLOBAL SEARCH ═══ */
+function globalSearchHandler() {
+  var q = document.getElementById('globalSearch').value.trim().toLowerCase();
+  document.querySelectorAll('#rooms-body tr').forEach(function(row) {
+    var m = q === '' || row.textContent.toLowerCase().indexOf(q) !== -1;
+    row.dataset.searchHidden = m ? '0' : '1';
+  });
+  ROOMS_PAGE = 1;
+  renderRoomsPagination();
+  if (q !== '') showPage('all-rooms', document.getElementById('nav-student-rooms'));
+}
+
+/* ═══ ADD ROOM HELPERS ═══ */
+function syncCapacity(sel) {
+  var cap = document.getElementById('ar-capacity');
+  if (sel.value === 'Single') cap.value = 1;
+  if (sel.value === 'Double') cap.value = 2;
+  if (sel.value === 'Triple') cap.value = 3;
+}
+
+// Toggle fields based on selected category:
+// - Monthly Fee vs Fee-per-Night
+// - Room Type (hidden for Guest, replaced by a "Private Room" note)
+// - Capacity (hidden for Guest — always 3, set silently on the hidden input)
+// `required` is kept in sync so the browser only enforces whichever
+// fields are actually visible.
+function toggleAddRoomFeeFields(category) {
+  var monthlyGroup   = document.getElementById('ar-monthlyfee-group');
+  var nightlyGroup   = document.getElementById('ar-nightlyfee-group');
+  var monthlyInput   = document.getElementById('ar-monthlyfee');
+  var nightlyInput   = document.getElementById('ar-nightlyfee');
+  var capacityInput  = document.getElementById('ar-capacity');
+  var capacityGroup  = document.getElementById('ar-capacity-group');
+  var roomTypeSelect = document.getElementById('ar-roomtype');
+  var roomTypeNote   = document.getElementById('ar-roomtype-note');
+  var roomTypeLabel  = document.getElementById('ar-roomtype-label');
+
+  if (category === 'Guest') {
+    monthlyGroup.style.display = 'none';
+    nightlyGroup.style.display = '';
+    monthlyInput.required = false;
+    nightlyInput.required = true;
+
+    // Guest rooms are always private, whole-room bookings for up to 3
+    // guests — hide the field and let the (still-present, hidden) input
+    // carry the fixed value through on submit.
+    capacityGroup.style.display = 'none';
+    capacityInput.required = false;
+    capacityInput.value = 3;
+
+    // Room Type (Single/Double/Triple) is a bed-count concept and
+    // doesn't apply to a private guest room — swap it for a note, but
+    // keep a valid hidden value so the schema enum still validates.
+    roomTypeSelect.style.display = 'none';
+    roomTypeSelect.required = false;
+    roomTypeSelect.value = 'Triple';
+    roomTypeLabel.textContent = 'Room Type';
+    roomTypeNote.style.display = 'block';
+  } else {
+    monthlyGroup.style.display = '';
+    nightlyGroup.style.display = 'none';
+    monthlyInput.required = true;
+    nightlyInput.required = false;
+
+    capacityGroup.style.display = '';
+    capacityInput.required = true;
+
+    roomTypeSelect.style.display = '';
+    roomTypeSelect.required = true;
+    roomTypeLabel.innerHTML = 'Room Type <span class="req">*</span>';
+    roomTypeNote.style.display = 'none';
+  }
+}
+
+// Used by the "Add Guest Room" shortcut button on the Guest Rooms tab
+function presetGuestCategory() {
+  var sel = document.getElementById('ar-category');
+  sel.value = 'Guest';
+  toggleAddRoomFeeFields('Guest');
+}
+
+/* ═══ ROOM VIEW / EDIT MODAL ═══ */
+var _currentRoomId = null;
+
+function openRoomModalFromTile(el) {
+  openRoomModal({
+    id          : el.dataset.id,
+    roomNo      : el.dataset.roomno,
+    block       : el.dataset.block,
+    floor       : el.dataset.floor,
+    capacity    : el.dataset.capacity,
+    occupiedBeds: el.dataset.occupied,
+    roomType    : el.dataset.type,
+    category    : el.dataset.category || 'Student',
+    monthlyFee  : el.dataset.fee,
+    feePerNight : el.dataset.nightlyfee || 0,
+    status      : el.dataset.status,
+    description : el.dataset.desc
+  });
+}
+
+function openRoomModal(d) {
+  _currentRoomId = d.id;
+  var isGuest = d.category === 'Guest';
+
+  document.getElementById('rv-roomNo').textContent      = d.roomNo;
+  document.getElementById('rv-block').textContent       = 'Block ' + d.block;
+  document.getElementById('rv-floor').textContent       = 'Floor ' + d.floor;
+  document.getElementById('rv-category').textContent    = isGuest ? 'Guest Room' : 'Student Room';
+  document.getElementById('rv-type').textContent         = d.roomType;
+  document.getElementById('rv-capacity').textContent    = d.capacity + (isGuest ? ' (max occupancy)' : '');
+  document.getElementById('rv-description').textContent = d.description || '—';
+
+  // Room Type only makes sense for Student rooms — Guest rooms are a
+  // private whole unit, so hide the field entirely.
+  document.getElementById('rv-type-field').style.display = isGuest ? 'none' : '';
+
+  // Fee field — show whichever applies
+  document.getElementById('rv-fee-field').style.display        = isGuest ? 'none' : '';
+  document.getElementById('rv-nightlyfee-field').style.display = isGuest ? '' : 'none';
+  document.getElementById('rv-fee').textContent         = 'Rs ' + Number(d.monthlyFee || 0).toLocaleString();
+  document.getElementById('rv-nightlyfee').textContent  = 'Rs ' + Number(d.feePerNight || 0).toLocaleString() + ' / night';
+
+  // Occupied-beds field only makes sense for Student rooms (bed-level
+  // tracking); Guest rooms are booked as a whole, so hide it.
+  document.getElementById('rv-occupied-field').style.display = isGuest ? 'none' : '';
+  document.getElementById('rv-occupied').textContent = d.occupiedBeds;
+
+  var sb = document.getElementById('rv-status-badge');
+  sb.textContent = d.status;
+  sb.className   = 'room-status-badge status-' + d.status.toLowerCase();
+
+  // Upcoming Bookings — Guest rooms only. Fetches this room's active
+  // (Approved, not-yet-ended) bookings so admin can see at a glance
+  // when it's actually spoken for, since Room.status itself is manual.
+  var bookingsSection = document.getElementById('rv-bookings-section');
+  bookingsSection.style.display = isGuest ? 'block' : 'none';
+  if (isGuest) {
+    loadRoomBookings(d.id);
+  }
+
+  // Bed visualiser only for Student rooms — a Guest room is booked as
+  // one private unit, not per-bed.
+  var viz = document.getElementById('rv-bed-viz');
+  viz.innerHTML = '';
+  if (!isGuest) {
+    for (var i = 1; i <= Number(d.capacity); i++) {
+      var b = document.createElement('div');
+      b.className = 'bed-slot ' + (i <= Number(d.occupiedBeds) ? 'bed-slot-occ' : 'bed-slot-free');
+      b.innerHTML = '<i class="fas fa-bed"></i><span>Bed ' + i + '</span>';
+      viz.appendChild(b);
+    }
+  }
+
+  document.getElementById('re-roomNo').value       = d.roomNo;
+  document.getElementById('re-block').value        = d.block;
+  document.getElementById('re-floor').value        = d.floor;
+  document.getElementById('re-roomCategory').value = isGuest ? 'Guest' : 'Student';
+  document.getElementById('re-roomType').value     = d.roomType;
+  document.getElementById('re-capacity').value     = d.capacity;
+  document.getElementById('re-monthlyFee').value   = d.monthlyFee || 0;
+  document.getElementById('re-feePerNight').value  = d.feePerNight || 0;
+  document.getElementById('re-status').value       = d.status;
+  document.getElementById('re-description').value  = d.description || '';
+
+  toggleEditRoomFeeFields(isGuest ? 'Guest' : 'Student');
+  switchRoomToView();
+  document.getElementById('roomModal').classList.add('open');
+}
+
+function closeRoomModal() {
+  document.getElementById('roomModal').classList.remove('open');
+}
+
+function switchRoomToEdit() {
+  document.getElementById('rm-modal-title').innerHTML      = '<i class="ti ti-pencil"></i> Edit Room';
+  document.getElementById('rm-view-section').style.display = 'none';
+  document.getElementById('rm-edit-section').style.display = 'block';
+  document.getElementById('rm-btn-edit').style.display     = 'none';
+  document.getElementById('rm-btn-save').style.display     = 'flex';
+  document.getElementById('rm-btn-cancel').style.display   = 'flex';
+}
+
+function switchRoomToView() {
+  document.getElementById('rm-modal-title').innerHTML      = '<i class="ti ti-door"></i> Room Details';
+  document.getElementById('rm-view-section').style.display = 'block';
+  document.getElementById('rm-edit-section').style.display = 'none';
+  document.getElementById('rm-btn-edit').style.display     = 'flex';
+  document.getElementById('rm-btn-save').style.display     = 'none';
+  document.getElementById('rm-btn-cancel').style.display   = 'none';
+}
+
+// Toggle Monthly Fee vs Fee-per-Night, Room Type vs note, and Capacity
+// visibility in the Edit modal based on category.
+function toggleEditRoomFeeFields(category) {
+  var monthlyGroup   = document.getElementById('re-monthlyfee-group');
+  var nightlyGroup   = document.getElementById('re-nightlyfee-group');
+  var capacityGroup  = document.getElementById('re-capacity-group');
+  var capacityInput  = document.getElementById('re-capacity');
+  var roomTypeSelect = document.getElementById('re-roomType');
+  var roomTypeNote   = document.getElementById('re-roomtype-note');
+
+  if (category === 'Guest') {
+    monthlyGroup.style.display  = 'none';
+    nightlyGroup.style.display  = '';
+
+    capacityGroup.style.display = 'none';
+    capacityInput.value = 3;
+
+    roomTypeSelect.style.display = 'none';
+    roomTypeSelect.value = 'Triple';
+    roomTypeNote.style.display = 'block';
+  } else {
+    monthlyGroup.style.display  = '';
+    nightlyGroup.style.display  = 'none';
+
+    capacityGroup.style.display = '';
+
+    roomTypeSelect.style.display = '';
+    roomTypeNote.style.display = 'none';
+  }
+}
+
+function submitRoomEdit() {
+  if (!_currentRoomId) return;
+  var form = document.getElementById('rm-edit-section');
+  form.action = '/admin/rooms/edit/' + _currentRoomId;
+  form.submit();
+}
+
+function triggerRoomDelete() {
+  var no = document.getElementById('rv-roomNo').textContent;
+  closeRoomModal();
+  openDeleteRoomModal(_currentRoomId, no);
+}
+
+/* ═══ UPCOMING BOOKINGS (Guest rooms only) ═══ */
+async function loadRoomBookings(roomId) {
+  var loading = document.getElementById('rv-bookings-loading');
+  var list    = document.getElementById('rv-bookings-list');
+  var empty   = document.getElementById('rv-bookings-empty');
+
+  loading.style.display = 'block';
+  list.style.display    = 'none';
+  empty.style.display   = 'none';
+  list.innerHTML = '';
+
+  try {
+    var res  = await fetch('/admin/rooms/' + roomId + '/guest-bookings');
+    var data = await res.json();
+    loading.style.display = 'none';
+
+    if (!data.bookings || data.bookings.length === 0) {
+      empty.style.display = 'block';
+      return;
+    }
+
+    data.bookings.forEach(function(b) {
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding:.5rem .7rem;background:#F3E5F5;border-radius:var(--radius-sm);font-size:.75rem';
+      row.innerHTML =
+        '<span><strong>' + (b.studentName || 'Unknown') + '</strong> — ' + b.fromDate + ' to ' + b.toDate + '</span>' +
+        '<span class="badge badge-success" style="flex-shrink:0">Approved</span>';
+      list.appendChild(row);
+    });
+    list.style.display = 'flex';
+  } catch (err) {
+    loading.style.display = 'none';
+    empty.textContent = 'Unable to load bookings.';
+    empty.style.display = 'block';
+  }
+}
+
+/* ═══ ALLOCATE MODAL — from room button (Student rooms only) ═══ */
+function openAllocModalFromBtn(el) {
+  openAllocModal(el.dataset.roomid, el.dataset.roomno, el.dataset.capacity, el.dataset.occupied);
+}
+
+async function openAllocModal(roomId, roomNo, capacity, occupied) {
+  document.getElementById('alloc-room-no').textContent   = roomNo;
+  document.getElementById('alloc-room-meta').textContent = (Number(capacity) - Number(occupied)) + ' of ' + capacity + ' beds free';
+  document.getElementById('alloc-form').action           = '/admin/rooms/allocate/' + roomId;
+  document.getElementById('alloc-student').selectedIndex = 0;
+
+  var bedSel = document.getElementById('alloc-bed');
+  bedSel.innerHTML = '<option>Loading beds...</option>';
+
+  try {
+    var res  = await fetch('/admin/rooms/' + roomId + '/free-beds');
+    var data = await res.json();
+    bedSel.innerHTML = '<option value="">— Select bed —</option>';
+    data.freeBeds.forEach(function(bed) {
+      var o = document.createElement('option');
+      o.value = bed; o.textContent = 'Bed ' + bed;
+      bedSel.appendChild(o);
+    });
+  } catch(err) {
+    bedSel.innerHTML = '<option value="">Unable to load beds</option>';
+  }
+
+  document.getElementById('allocModal').classList.add('open');
+}
+
+function closeAllocModal() {
+  document.getElementById('allocModal').classList.remove('open');
+  var injected = document.getElementById('alloc-room-group');
+  if (injected) injected.remove();
+  document.getElementById('alloc-form').onsubmit = null;
+}
+
+/* ═══ ALLOCATE MODAL — from unassigned student button ═══ */
+function openStudentAllocationModal(studentId, studentName) {
+  document.getElementById('alloc-room-no').textContent   = 'Select a room below';
+  document.getElementById('alloc-room-meta').textContent = 'Allocating for: ' + studentName;
+  document.getElementById('alloc-form').action = '#';
+  document.getElementById('alloc-form').onsubmit = function(e) {
+    var roomSel = document.getElementById('alloc-student-room-sel');
+    if (roomSel && roomSel.value) {
+      this.action = '/admin/rooms/allocate/' + roomSel.value;
+      return true;
+    }
+    e.preventDefault();
+    alert('Please select a room first.');
+    return false;
+  };
+
+  var studentSel = document.getElementById('alloc-student');
+  studentSel.value = studentId;
+
+  var bedSel = document.getElementById('alloc-bed');
+  bedSel.innerHTML = '<option value="">— Select room first —</option>';
+
+  var existing = document.getElementById('alloc-student-room-sel');
+  if (!existing) {
+    var group = document.createElement('div');
+    group.className = 'form-group';
+    group.id = 'alloc-room-group';
+    group.style.marginTop = '.8rem';
+    group.innerHTML =
+      '<label>Select Room <span class="req">*</span></label>' +
+      '<select id="alloc-student-room-sel" required style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.45rem .7rem;font-size:.78rem;font-family:inherit;outline:none;width:100%">' +
+        '<option value="">— Choose an available room —</option>' +
+      '</select>';
+    bedSel.parentElement.parentElement.insertBefore(group, bedSel.parentElement);
+
+    // NOTE: rooms-data JSON is already scoped to Student rooms only
+    // (see the JSON script tag above), so Guest rooms never appear here.
+    var roomSel = document.getElementById('alloc-student-room-sel');
+    var availableRooms = JSON.parse(document.getElementById('rooms-data').textContent || '[]');
+    availableRooms.forEach(function(room) {
+      var o = document.createElement('option');
+      o.value = room.id;
+      o.textContent = room.roomNo + ' — Block ' + room.block + ', Floor ' + room.floor + ' (' + (room.capacity - room.occupiedBeds) + ' free)';
+      roomSel.appendChild(o);
+    });
+
+    roomSel.addEventListener('change', async function() {
+      var rId = this.value;
+      var bSel = document.getElementById('alloc-bed');
+      bSel.innerHTML = '<option>Loading...</option>';
+      if (!rId) { bSel.innerHTML = '<option value="">— Select room first —</option>'; return; }
+      document.getElementById('alloc-form').action = '/admin/rooms/allocate/' + rId;
+      try {
+        var res  = await fetch('/admin/rooms/' + rId + '/free-beds');
+        var data = await res.json();
+        bSel.innerHTML = '<option value="">— Select bed —</option>';
+        data.freeBeds.forEach(function(bed) {
+          var o = document.createElement('option');
+          o.value = bed; o.textContent = 'Bed ' + bed;
+          bSel.appendChild(o);
+        });
+      } catch(err) {
+        bSel.innerHTML = '<option value="">Unable to load beds</option>';
+      }
+    });
+  } else {
+    existing.selectedIndex = 0;
+    bedSel.innerHTML = '<option value="">— Select room first —</option>';
+    document.getElementById('alloc-form').action = '#';
+  }
+
+  document.getElementById('allocModal').classList.add('open');
+}
+
+/* ═══ OCCUPANTS MODAL ═══ */
+async function showOccupantsModal(roomId, roomNo) {
+  document.getElementById('occ-room-no').textContent    = roomNo;
+  document.getElementById('occ-loading').style.display  = 'flex';
+  document.getElementById('occ-content').style.display  = 'none';
+  document.getElementById('occupantsModal').classList.add('open');
+  try {
+    var res  = await fetch('/admin/rooms/' + roomId + '/occupants');
+    var data = await res.json();
+    var tbody = document.getElementById('occ-tbody');
+    tbody.innerHTML = '';
+    var empty = document.getElementById('occ-empty');
+    if (!data.occupants || data.occupants.length === 0) {
+      empty.style.display = 'block';
+    } else {
+      empty.style.display = 'none';
+      data.occupants.forEach(function(al) {
+        var tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #f0f0f0';
+        tr.innerHTML =
+          '<td style="padding:.45rem .5rem">' +
+            '<div style="font-weight:500;font-size:.78rem">' + (al.studentName || '—') + '</div>' +
+            '<div style="font-size:.68rem;color:var(--text-muted)">' + (al.studentUserId || '—') + '</div>' +
+          '</td>' +
+          '<td style="padding:.45rem .5rem;font-size:.78rem">Bed ' + (al.bedNo || '—') + '</td>' +
+          '<td style="padding:.45rem .5rem;font-size:.72rem;color:var(--text-muted)">' + (al.since || '—') + '</td>' +
+          '<td style="padding:.45rem .5rem">' +
+            '<button class="act-btn btn-vacate" style="font-size:.68rem" ' +
+              'data-allocid="' + al.allocationId + '" ' +
+              'data-name="' + (al.studentName || '') + '" ' +
+              'data-roomno="' + roomNo + '" ' +
+              'onclick="closeOccupantsModal();openVacateModal(this.dataset.allocid,this.dataset.name,this.dataset.roomno)">' +
+              'Vacate' +
+            '</button>' +
+          '</td>';
+        tbody.appendChild(tr);
+      });
+    }
+    document.getElementById('occ-loading').style.display = 'none';
+    document.getElementById('occ-content').style.display = 'block';
+  } catch(err) {
+    document.getElementById('occ-loading').innerHTML =
+      '<i class="fas fa-exclamation-circle" style="color:#C62828"></i> Failed to load.';
+  }
+}
+
+function closeOccupantsModal() {
+  document.getElementById('occupantsModal').classList.remove('open');
+}
+
+/* ═══ VACATE MODAL ═══ */
+function openVacateModal(allocId, studentName, roomNo) {
+  document.getElementById('vacate-msg').textContent =
+    'Vacate "' + studentName + '" from room ' + roomNo + '? This cannot be undone.';
+  document.getElementById('vacate-form').action = '/admin/rooms/vacate/' + allocId;
+  document.getElementById('vacateModal').classList.add('open');
+}
+function closeVacateModal() {
+  document.getElementById('vacateModal').classList.remove('open');
+}
+
+/* ═══ TRANSFER MODAL ═══ */
+function openTransferModal(allocId, studentName, studentId) {
+  document.getElementById('transfer-student-name').textContent = 'Transferring: ' + studentName;
+  document.getElementById('transfer-form').action = '/admin/rooms/transfer/' + allocId;
+  document.getElementById('transfer-room').selectedIndex = 0;
+  document.getElementById('transfer-bed').innerHTML = '<option value="">— Select room first —</option>';
+  document.getElementById('transferModal').classList.add('open');
+}
+function closeTransferModal() {
+  document.getElementById('transferModal').classList.remove('open');
+}
+
+/* ═══ DELETE ROOM MODAL ═══ */
+function openDeleteRoomModal(id, no) {
+  document.getElementById('del-room-msg').textContent = 'Delete room "' + no + '"? All allocation history will be preserved.';
+  document.getElementById('delete-room-form').action  = '/admin/rooms/delete/' + id;
+  document.getElementById('deleteRoomModal').classList.add('open');
+}
+function closeDeleteRoomModal() {
+  document.getElementById('deleteRoomModal').classList.remove('open');
+}
+</script>
+
+<%- include('admin-footer') %>

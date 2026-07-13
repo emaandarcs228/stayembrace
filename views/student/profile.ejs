@@ -1,0 +1,262 @@
+<%
+  const activePage    = 'profile';
+  const pageTitle     = 'My Profile';
+  const pageSubtitle  = student.user.userId;
+%>
+<%- include('student-header') %>
+
+<div class="page active" id="page-profile">
+
+  <!-- ── Profile Header Banner ── -->
+  <div class="welcome-banner" style="margin-bottom:1.2rem">
+    <div style="display:flex;align-items:center;gap:1rem;z-index:1">
+      <div style="width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:700;color:white;border:3px solid rgba(255,255,255,.35);flex-shrink:0">
+        <%= student.user.fullname.charAt(0).toUpperCase() %>
+      </div>
+      <div class="wb-text">
+        <h2><%= student.user.fullname %></h2>
+        <p>
+          <span style="background:rgba(255,255,255,.18);padding:.1rem .55rem;border-radius:20px;font-size:.7rem;font-weight:600;margin-right:.4rem">Student</span>
+          <%= student.user.userId %>
+          &nbsp;·&nbsp;
+          <span style="color:<%= student.user.status === 'approved' ? '#a8f0c0' : '#ffcdd2' %>">
+            ● <%= student.user.status.charAt(0).toUpperCase() + student.user.status.slice(1) %>
+          </span>
+        </p>
+      </div>
+    </div>
+    <i class="fas fa-id-badge wb-icon"></i>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem">
+
+    <!-- ── Personal Info ── -->
+    <div class="card">
+      <div class="card-head">
+        <h3><i class="fas fa-user"></i> Personal Information</h3>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-field">
+          <label>Full Name</label>
+          <span><%= student.user.fullname %></span>
+        </div>
+        <div class="detail-field">
+          <label>Email Address</label>
+          <span><%= student.user.email %></span>
+        </div>
+        <div class="detail-field">
+          <label>Phone Number</label>
+          <span><%= student.user.phoneNumber || '—' %></span>
+        </div>
+        <div class="detail-field">
+          <label>Gender</label>
+          <span><%= student.user.gender ? (student.user.gender.charAt(0).toUpperCase() + student.user.gender.slice(1)) : '—' %></span>
+        </div>
+        <div class="detail-field">
+          <label>Date of Birth</label>
+          <span><%= student.user.dateOfBirth ? new Date(student.user.dateOfBirth).toLocaleDateString('en-US', { day:'numeric', month:'long', year:'numeric' }) : '—' %></span>
+        </div>
+        <div class="detail-field">
+          <label>Blood Group</label>
+          <span><%= student.bloodGroup || '—' %></span>
+        </div>
+        <div class="detail-field full">
+          <label>Home Address</label>
+          <span><%= student.homeAddress || '—' %></span>
+        </div>
+        <div class="detail-field">
+          <label>Emergency Contact</label>
+          <span><%= student.emergencyContact || '—' %></span>
+        </div>
+        <div class="detail-field">
+          <label>CNIC</label>
+          <span><%= student.cnic || '—' %></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Academic & Guardian ── -->
+    <div style="display:flex;flex-direction:column;gap:1.2rem">
+
+      <div class="card">
+        <div class="card-head">
+          <h3><i class="fas fa-graduation-cap"></i> Academic Details</h3>
+        </div>
+        <div class="detail-grid">
+          <div class="detail-field">
+            <label>Department</label>
+            <span><%= student.department || '—' %></span>
+          </div>
+          <div class="detail-field">
+            <label>Institution</label>
+            <span><%= student.institution || '—' %></span>
+          </div>
+          <div class="detail-field full">
+            <label>Admission Date</label>
+            <span><%= student.admissionDate ? new Date(student.admissionDate).toLocaleDateString('en-US', { day:'numeric', month:'long', year:'numeric' }) : '—' %></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3><i class="fas fa-users"></i> Guardian / Emergency</h3>
+        </div>
+        <div class="detail-grid">
+          <div class="detail-field">
+            <label>Guardian Name</label>
+            <span><%= student.guardianName || '—' %></span>
+          </div>
+          <div class="detail-field">
+            <label>Relation</label>
+            <span><%= student.guardianRelation || '—' %></span>
+          </div>
+          <div class="detail-field full">
+            <label>Guardian Contact</label>
+            <span><%= student.guardianContact || '—' %></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem">
+
+    <!-- ── Hostel Info ── -->
+    <div class="card">
+      <div class="card-head">
+        <h3><i class="ti ti-door"></i> Hostel Details</h3>
+        <a href="/student/room" class="add-btn" style="text-decoration:none"><i class="ti ti-arrow-right"></i> Room</a>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-field">
+          <label>Room Number</label>
+          <span style="font-size:1rem;font-weight:700;color:var(--green-dark)">
+            <%= student.room ? student.room.roomNo : '—' %>
+          </span>
+        </div>
+        <div class="detail-field">
+          <label>Block / Floor</label>
+          <span><%= student.room ? 'Block ' + student.room.block + ', Floor ' + student.room.floor : '—' %></span>
+        </div>
+        <div class="detail-field">
+          <label>Bed Number</label>
+          <span><%= student.currentAllocation ? student.currentAllocation.bedNo : '—' %></span>
+        </div>
+        <div class="detail-field">
+          <label>Room Type</label>
+          <span><%= student.room ? student.room.roomType : '—' %></span>
+        </div>
+        <div class="detail-field">
+          <label>Hostel Status</label>
+          <span>
+            <% const hStatus = student.hostelStatus || 'active'; %>
+            <span class="badge <%= hStatus === 'active' ? 'badge-success' : hStatus === 'suspended' ? 'badge-danger' : 'badge-neutral' %>">
+              <%= hStatus.charAt(0).toUpperCase() + hStatus.slice(1) %>
+            </span>
+          </span>
+        </div>
+        <div class="detail-field">
+          <label>Allocation Date</label>
+          <span><%= student.currentAllocation ? new Date(student.currentAllocation.allocationDate).toLocaleDateString() : '—' %></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ID Document ── -->
+    <div class="card">
+      <div class="card-head">
+        <h3><i class="fas fa-id-card"></i> ID Document</h3>
+      </div>
+      <div style="padding:1rem 1.2rem">
+        <% if (student.user.idImage) {
+             const idSrc = '/' + student.user.idImage;
+             const isPdf = idSrc.toLowerCase().endsWith('.pdf');
+        %>
+          <% if (isPdf) { %>
+            <div style="display:flex;align-items:center;gap:.8rem;background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);padding:.9rem 1rem">
+              <i class="fas fa-file-pdf" style="font-size:2rem;color:#E53935;flex-shrink:0"></i>
+              <div>
+                <div style="font-size:.8rem;font-weight:600;color:#5D4037;margin-bottom:.3rem">PDF Document</div>
+                <button class="act-btn btn-view" onclick="openIDLightbox('<%= idSrc %>', true)">
+                  <i class="fas fa-external-link-alt"></i> View PDF
+                </button>
+              </div>
+            </div>
+          <% } else { %>
+            <img src="<%= idSrc %>"
+                 alt="ID Document"
+                 style="max-width:100%;max-height:220px;object-fit:contain;border-radius:var(--radius-md);border:1px solid var(--border);cursor:pointer;display:block"
+                 onclick="openIDLightbox('<%= idSrc %>', false)"
+                 title="Click to enlarge">
+            <p style="font-size:.65rem;color:var(--text-muted);margin-top:.4rem"><i class="fas fa-search-plus"></i> Click to enlarge</p>
+          <% } %>
+        <% } else { %>
+          <div class="empty-state" style="padding:1.5rem">
+            <i class="fas fa-id-card" style="font-size:2rem;opacity:.3"></i>
+            <h4 style="font-size:.8rem">No ID uploaded</h4>
+            <p>Contact admin if your ID was not submitted.</p>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ── ID Lightbox Modal ── -->
+<div class="modal-overlay" id="idLightbox" onclick="if(event.target===this)closeIDLightbox()">
+  <div style="background:#1a1a1a;border-radius:var(--radius-lg);width:100%;max-width:820px;max-height:92vh;display:flex;flex-direction:column;box-shadow:var(--shadow-xl);overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem 1rem;background:#111;border-bottom:1px solid #333;flex-shrink:0">
+      <span style="font-size:.82rem;font-weight:600;color:#eee">ID Document — <%= student.user.fullname %></span>
+      <div style="display:flex;gap:.5rem">
+        <a id="lb-download" href="#" download style="display:inline-flex;align-items:center;gap:.35rem;padding:.32rem .75rem;border-radius:6px;font-size:.72rem;font-weight:500;border:1px solid #444;background:#2a2a2a;color:#ccc;text-decoration:none">
+          <i class="fas fa-download"></i> Download
+        </a>
+        <button onclick="closeIDLightbox()" style="display:inline-flex;align-items:center;gap:.3rem;padding:.32rem .75rem;border-radius:6px;font-size:.72rem;border:1px solid #622;background:#3a1a1a;color:#f88;cursor:pointer">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+    <div style="flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:1rem;min-height:200px">
+      <img id="lb-img" src="" alt="ID Document" style="max-width:100%;max-height:75vh;object-fit:contain;border-radius:6px;display:none">
+      <div id="lb-pdf" style="display:none;flex-direction:column;align-items:center;gap:.8rem;color:#ccc;text-align:center">
+        <i class="fas fa-file-pdf" style="font-size:3rem;color:#E53935"></i>
+        <p style="font-size:.82rem">PDF document</p>
+        <a id="lb-pdf-link" href="#" target="_blank" style="display:inline-flex;align-items:center;gap:.4rem;padding:.45rem 1.1rem;border-radius:6px;background:var(--green);color:white;text-decoration:none;font-size:.78rem;font-weight:500">
+          <i class="fas fa-external-link-alt"></i> Open PDF
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function openIDLightbox(src, isPdf) {
+  const lb  = document.getElementById('idLightbox');
+  const img = document.getElementById('lb-img');
+  const pdf = document.getElementById('lb-pdf');
+  const dl  = document.getElementById('lb-download');
+  const pl  = document.getElementById('lb-pdf-link');
+  dl.href = src;
+  if (isPdf) {
+    img.style.display = 'none';
+    pdf.style.display = 'flex';
+    pl.href = src;
+  } else {
+    pdf.style.display = 'none';
+    img.style.display = 'block';
+    img.src = src;
+  }
+  lb.classList.add('open');
+}
+function closeIDLightbox() {
+  document.getElementById('idLightbox').classList.remove('open');
+  document.getElementById('lb-img').src = '';
+}
+</script>
+
+<%- include('student-footer') %>

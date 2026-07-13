@@ -1,0 +1,464 @@
+<%
+  const activePage   = 'visitors';
+  const pageTitle    = 'Visitors & Guest Rooms';
+  const pageSubtitle = 'Request visitor approval and book a guest room';
+%>
+<%- include('student-header') %>
+
+<!-- ── Sub-nav ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
+  <button class="act-btn btn-view" id="btn-list" onclick="showPage('list', this)">
+    <i class="ti ti-list"></i> My Visitor Requests
+  </button>
+  <button class="act-btn" style="background:var(--green-light);color:var(--green-dark)" id="btn-apply" onclick="showPage('apply', this)">
+    <i class="ti ti-plus"></i> Request Visitor
+  </button>
+  <button class="act-btn" style="background:#F3E5F5;color:#8E24AA" id="btn-bookings" onclick="showPage('bookings', this)">
+    <i class="ti ti-home-2"></i> Guest Room Bookings
+  </button>
+</div>
+
+<!-- ══ MY VISITOR REQUESTS PAGE ══ -->
+<div class="page active" id="page-list">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-users"></i> All Visitor Requests</h3>
+      <span class="count-pill"><%= visitorRequests.length %> total</span>
+    </div>
+
+    <% if (visitorRequests.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Visitor</th>
+            <th>Relation</th>
+            <th>Guests</th>
+            <th>Visit Date</th>
+            <th>Status</th>
+            <th>Applied</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% visitorRequests.forEach(function(vr, i) {
+               const statusMap = {
+                 'Pending'   : 'badge-warning',
+                 'Approved'  : 'badge-success',
+                 'Rejected'  : 'badge-danger',
+                 'Cancelled' : 'badge-neutral'
+               };
+               const visitDate   = new Date(vr.visitDate);
+               const alreadyBooked = bookedVisitorRequestIds.includes(String(vr._id));
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td>
+              <div style="font-weight:600;font-size:.8rem"><%= vr.visitorName %></div>
+              <div style="font-size:.68rem;color:var(--text-muted)"><%= vr.visitorCNIC %></div>
+            </td>
+            <td style="font-size:.78rem"><%= vr.relation %></td>
+            <td style="text-align:center"><span class="count-pill"><%= vr.numberOfGuests %></span></td>
+            <td style="font-size:.75rem;font-weight:500">
+              <%= visitDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+              <% if (vr.visitTime) { %><div style="font-size:.68rem;color:var(--text-muted)"><%= vr.visitTime %></div><% } %>
+            </td>
+            <td><span class="badge <%= statusMap[vr.status] || 'badge-neutral' %>"><%= vr.status %></span></td>
+            <td style="font-size:.7rem;color:var(--text-muted)"><%= new Date(vr.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
+            <td>
+              <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+                <% if (vr.status === 'Pending') { %>
+                <form action="/student/visitors/cancel/<%= vr._id %>" method="POST" id="cancelVrForm-<%= vr._id %>">
+                  <button type="button" class="act-btn btn-cancel" onclick="openCancelVrModal('<%= vr._id %>')">
+                    <i class="ti ti-x"></i> Cancel
+                  </button>
+                </form>
+                <% } else if (vr.status === 'Approved') { %>
+                  <% if (!alreadyBooked) { %>
+                  <button
+                    class="act-btn btn-approve"
+                    onclick="openGuestRoomModal(this)"
+                    data-vrid="<%= vr._id %>"
+                    data-vrname="<%= vr.visitorName %>"
+                  >
+                    <i class="ti ti-home-2"></i> Request Guest Room
+                  </button>
+                  <% } else { %>
+                  <span style="font-size:.68rem;color:var(--text-muted)">Guest room requested</span>
+                  <% } %>
+                <% } else if (vr.status === 'Rejected' && vr.wardenDecision && vr.wardenDecision.note) { %>
+                <button class="act-btn btn-view" onclick="openRejectModal(this)" data-reason="<%= vr.wardenDecision.note.replace(/\"/g, '&quot;') %>">
+                  <i class="ti ti-info-circle"></i> Reason
+                </button>
+                <% } else { %>
+                <span style="color:#ccc;font-size:.7rem">—</span>
+                <% } %>
+              </div>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-users"></i>
+      <h4>No visitor requests yet</h4>
+      <p>Tap "Request Visitor" to submit your first request.</p>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /page-list -->
+
+<!-- ══ REQUEST VISITOR PAGE ══ -->
+<div class="page" id="page-apply">
+  <div class="card" style="max-width:600px">
+    <div class="card-head">
+      <h3><i class="ti ti-user-plus"></i> Request a Visitor</h3>
+    </div>
+
+    <form action="/student/visitors/apply" method="POST">
+      <div class="form-section">
+        <div class="form-grid">
+
+          <div class="form-group">
+            <label>Visitor Name <span class="req">*</span></label>
+            <input type="text" name="visitorName" placeholder="Full name" required>
+          </div>
+
+          <div class="form-group">
+            <label>Visitor CNIC <span class="req">*</span></label>
+            <input type="text" name="visitorCNIC" placeholder="XXXXX-XXXXXXX-X" required>
+          </div>
+
+          <div class="form-group">
+            <label>Relation <span class="req">*</span></label>
+            <input type="text" name="relation" placeholder="e.g. Father, Sister, Friend" required>
+          </div>
+
+          <div class="form-group">
+            <label>Number of Guests <span class="req">*</span></label>
+            <select name="numberOfGuests" required>
+              <option value="1" selected>1 person</option>
+              <option value="2">2 people</option>
+              <option value="3">3 people</option>
+            </select>
+            <span class="field-hint">Total headcount, including the primary visitor above.</span>
+          </div>
+
+          <div class="form-group">
+            <label>Visit Date <span class="req">*</span></label>
+            <input type="date" name="visitDate" required min="<%= today %>">
+          </div>
+
+          <div class="form-group">
+            <label>Visit Time</label>
+            <input type="time" name="visitTime">
+          </div>
+
+          <div class="form-group full">
+            <label>Purpose</label>
+            <textarea name="purpose" rows="3" placeholder="Briefly describe the purpose of the visit..."></textarea>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" class="btn-primary"><i class="ti ti-send"></i> Submit Request</button>
+        <button type="button" class="btn-sec" onclick="showPage('list')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div><!-- /page-apply -->
+
+<!-- ══ GUEST ROOM BOOKINGS PAGE ══ -->
+<div class="page" id="page-bookings">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-home-2"></i> My Guest Room Bookings</h3>
+      <span class="count-pill"><%= bookings.length %> total</span>
+    </div>
+
+    <% if (bookings.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Visitor</th>
+            <th>Room</th>
+            <th>From</th>
+            <th>To</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% bookings.forEach(function(bk, i) {
+               const statusMap = {
+                 'Pending'   : 'badge-warning',
+                 'Approved'  : 'badge-success',
+                 'Rejected'  : 'badge-danger',
+                 'Cancelled' : 'badge-neutral'
+               };
+               const from = new Date(bk.fromDate);
+               const to   = new Date(bk.toDate);
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td style="font-size:.8rem;font-weight:500"><%= bk.visitorRequest ? bk.visitorRequest.visitorName : '—' %></td>
+            <td>
+              <strong><%= bk.room ? bk.room.roomNo : '—' %></strong>
+              <div style="font-size:.68rem;color:var(--text-muted)">Block <%= bk.room ? bk.room.block : '' %>, Floor <%= bk.room ? bk.room.floor : '' %></div>
+              <div style="font-size:.68rem;color:var(--text-muted)">Rs <%= bk.room ? (bk.room.feePerNight || 0).toLocaleString() : 0 %> / night</div>
+            </td>
+            <td style="font-size:.75rem"><%= from.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td style="font-size:.75rem"><%= to.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td><span class="badge <%= statusMap[bk.status] || 'badge-neutral' %>"><%= bk.status %></span></td>
+            <td>
+              <% if (bk.status === 'Pending') { %>
+              <form action="/student/visitors/guest-room/cancel/<%= bk._id %>" method="POST" id="cancelBkForm-<%= bk._id %>">
+                <button type="button" class="act-btn btn-cancel" onclick="openCancelBkModal('<%= bk._id %>')">
+                  <i class="ti ti-x"></i> Cancel
+                </button>
+              </form>
+              <% } else if (bk.status === 'Rejected' && bk.adminDecision && bk.adminDecision.note) { %>
+              <button class="act-btn btn-view" onclick="openRejectModal(this)" data-reason="<%= bk.adminDecision.note.replace(/\"/g, '&quot;') %>">
+                <i class="ti ti-info-circle"></i> Reason
+              </button>
+              <% } else { %>
+              <span style="color:#ccc;font-size:.7rem">—</span>
+              <% } %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-home-2"></i>
+      <h4>No guest room bookings yet</h4>
+      <p>Once a visitor request is approved, you can request a guest room for them from the "My Visitor Requests" tab.</p>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /page-bookings -->
+
+<!-- Rejection Reason Modal (shared by visitor requests and bookings) -->
+<div class="modal-overlay" id="rejectModal" onclick="if(event.target===this)closeModal('rejectModal')">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-info-circle"></i> Rejection Reason</h3>
+      <button class="modal-close" onclick="closeModal('rejectModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <p id="rejectReasonText" style="font-size:.82rem;color:var(--text-secondary);line-height:1.6"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-modal-cancel" onclick="closeModal('rejectModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Request Guest Room Modal -->
+<div class="modal-overlay" id="guestRoomModal" onclick="if(event.target===this)closeModal('guestRoomModal')">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-home-2"></i> Request Guest Room</h3>
+      <button class="modal-close" onclick="closeModal('guestRoomModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <form action="/student/visitors/guest-room/request" method="POST">
+      <input type="hidden" name="visitorRequestId" id="grVisitorRequestId">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:.9rem">
+
+        <div style="padding:.6rem .85rem;background:var(--green-lighter);border:1px solid #c8e6cf;border-radius:var(--radius-md);font-size:.78rem">
+          Booking guest room for: <strong id="grVisitorName">—</strong>
+        </div>
+
+        <div class="form-group">
+          <label>From Date <span class="req">*</span></label>
+          <input type="date" name="fromDate" id="grFromDate" required min="<%= today %>" onchange="handleGuestDateChange()">
+        </div>
+
+        <div class="form-group">
+          <label>To Date <span class="req">*</span></label>
+          <input type="date" name="toDate" id="grToDate" required min="<%= today %>" onchange="handleGuestDateChange()">
+        </div>
+
+        <div class="form-group">
+          <label>Guest Room <span class="req">*</span></label>
+          <select name="roomId" id="grRoomSelect" required disabled>
+            <option value="">— Select dates first —</option>
+          </select>
+          <span class="field-hint" id="grRoomHint" style="display:none;color:#C62828"></span>
+        </div>
+
+      </div>
+      <div class="modal-foot">
+        <button type="submit" class="btn-modal-save" id="grSubmitBtn"><i class="ti ti-send"></i> Submit Booking Request</button>
+        <button type="button" class="btn-modal-cancel" onclick="closeModal('guestRoomModal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Cancel Visitor Request Confirmation Modal -->
+<div class="modal-overlay" id="cancelVrModal">
+  <div class="del-modal-box">
+    <div class="del-icon"><i class="ti ti-x"></i></div>
+    <h3>Cancel this visitor request?</h3>
+    <p>This action can't be undone. You'll need to submit a new request if you change your mind.</p>
+    <div class="del-btns">
+      <button class="btn-cancel-del" onclick="closeModal('cancelVrModal')">Keep Request</button>
+      <button class="btn-confirm-del" id="confirmCancelVrBtn">Yes, Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cancel Guest Room Booking Confirmation Modal -->
+<div class="modal-overlay" id="cancelBkModal">
+  <div class="del-modal-box">
+    <div class="del-icon"><i class="ti ti-x"></i></div>
+    <h3>Cancel this guest room booking?</h3>
+    <p>This action can't be undone. The room will be released for other bookings.</p>
+    <div class="del-btns">
+      <button class="btn-cancel-del" onclick="closeModal('cancelBkModal')">Keep Booking</button>
+      <button class="btn-confirm-del" id="confirmCancelBkBtn">Yes, Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Activate first tab
+document.getElementById('btn-list').classList.add('active');
+
+// ── If URL has ?page=apply or ?page=bookings, switch to that page ──
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const page = params.get('page');
+  if (page === 'apply' || page === 'bookings') {
+    showPage(page);
+    document.getElementById('btn-' + page).classList.add('active');
+    document.getElementById('btn-list').classList.remove('active');
+  }
+})();
+
+function openRejectModal(button) {
+  const reason = button.getAttribute('data-reason');
+  document.getElementById('rejectReasonText').textContent = reason;
+  openModal('rejectModal');
+}
+
+function openGuestRoomModal(button) {
+  const vrId   = button.getAttribute('data-vrid');
+  const vrName = button.getAttribute('data-vrname');
+  document.getElementById('grVisitorRequestId').value = vrId;
+  document.getElementById('grVisitorName').textContent = vrName;
+
+  // Reset the date-driven room dropdown to its initial "pick dates
+  // first" state each time the modal opens for a new visitor.
+  document.getElementById('grFromDate').value = '';
+  document.getElementById('grToDate').value   = '';
+  const roomSel = document.getElementById('grRoomSelect');
+  roomSel.innerHTML = '<option value="">— Select dates first —</option>';
+  roomSel.disabled = true;
+  document.getElementById('grRoomHint').style.display = 'none';
+
+  openModal('guestRoomModal');
+}
+
+// Fires whenever From/To date changes in the guest room modal — fetches
+// only the Guest rooms actually free for that range and repopulates the
+// dropdown, so a student can never even select a room that's already
+// booked (Pending or Approved) for overlapping dates.
+async function handleGuestDateChange() {
+  const fromInput = document.getElementById('grFromDate');
+  const toInput   = document.getElementById('grToDate');
+  const roomSel   = document.getElementById('grRoomSelect');
+  const hint      = document.getElementById('grRoomHint');
+
+  // Keep To's min in sync with From (same behavior as before)
+  if (fromInput.value) toInput.min = fromInput.value;
+
+  hint.style.display = 'none';
+
+  if (!fromInput.value || !toInput.value) {
+    roomSel.innerHTML = '<option value="">— Select dates first —</option>';
+    roomSel.disabled = true;
+    return;
+  }
+
+  if (new Date(toInput.value) <= new Date(fromInput.value)) {
+    roomSel.innerHTML = '<option value="">— To date must be after From date —</option>';
+    roomSel.disabled = true;
+    return;
+  }
+
+  roomSel.innerHTML = '<option value="">Loading available rooms…</option>';
+  roomSel.disabled = true;
+
+  try {
+    const params = new URLSearchParams({ fromDate: fromInput.value, toDate: toInput.value });
+    const res  = await fetch('/student/visitors/guest-room/available-rooms?' + params.toString());
+    const data = await res.json();
+
+    if (!res.ok) {
+      roomSel.innerHTML = '<option value="">— Select dates first —</option>';
+      hint.textContent = data.error || 'Could not check availability.';
+      hint.style.display = 'block';
+      return;
+    }
+
+    if (!data.rooms || data.rooms.length === 0) {
+      roomSel.innerHTML = '<option value="">— No guest rooms available for these dates —</option>';
+      hint.textContent = 'All guest rooms are already booked for the selected date range. Try different dates.';
+      hint.style.display = 'block';
+      return;
+    }
+
+    roomSel.innerHTML = '<option value="">— Select a Guest Room —</option>';
+    data.rooms.forEach(function (room) {
+      const opt = document.createElement('option');
+      opt.value = room._id;
+      opt.textContent = room.roomNo + ' — Block ' + room.block + ', Floor ' + room.floor +
+        ' (Rs ' + (room.feePerNight || 0).toLocaleString() + '/night, up to ' + room.capacity + ' guests)';
+      roomSel.appendChild(opt);
+    });
+    roomSel.disabled = false;
+  } catch (err) {
+    roomSel.innerHTML = '<option value="">— Select dates first —</option>';
+    hint.textContent = 'Failed to load available rooms. Please try again.';
+    hint.style.display = 'block';
+  }
+}
+
+let cancelVrTargetId = null;
+let cancelBkTargetId = null;
+
+function openCancelVrModal(vrId) {
+  cancelVrTargetId = vrId;
+  openModal('cancelVrModal');
+}
+
+function openCancelBkModal(bkId) {
+  cancelBkTargetId = bkId;
+  openModal('cancelBkModal');
+}
+
+document.getElementById('confirmCancelVrBtn').addEventListener('click', function() {
+  if (cancelVrTargetId) {
+    document.getElementById('cancelVrForm-' + cancelVrTargetId).submit();
+  }
+});
+
+document.getElementById('confirmCancelBkBtn').addEventListener('click', function() {
+  if (cancelBkTargetId) {
+    document.getElementById('cancelBkForm-' + cancelBkTargetId).submit();
+  }
+});
+</script>
+
+<%- include('student-footer') %>

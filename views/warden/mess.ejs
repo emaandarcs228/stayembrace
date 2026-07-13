@@ -1,0 +1,308 @@
+<%
+  const activePage   = 'mess';
+  const pageTitle    = 'Mess';
+  const pageSubtitle = 'Manage orders and menu';
+%>
+<%- include('warden-header') %>
+
+<!-- ── Sub-nav ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
+  <button class="act-btn btn-view" id="btn-orders" onclick="showTab('orders', this)">
+    <i class="ti ti-receipt"></i> Orders
+  </button>
+  <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-menu" onclick="showTab('menu', this)">
+    <i class="ti ti-tools-kitchen-2"></i> Menu
+  </button>
+  <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-addmenu" onclick="showTab('addmenu', this)">
+    <i class="ti ti-plus"></i> Add Menu
+  </button>
+</div>
+
+<!-- ══════════════════ ORDERS TAB ══════════════════ -->
+<div class="tab active" id="tab-orders">
+
+  <div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
+    <select class="filter-sel" onchange="applyFilter('status', this.value)">
+      <option value="active"    <%= statusFilter === 'active'    ? 'selected' : '' %>>Active Orders</option>
+      <option value="all"       <%= statusFilter === 'all'       ? 'selected' : '' %>>All Orders</option>
+      <option value="Pending"   <%= statusFilter === 'Pending'   ? 'selected' : '' %>>Pending</option>
+      <option value="Accepted"  <%= statusFilter === 'Accepted'  ? 'selected' : '' %>>Accepted</option>
+      <option value="Preparing" <%= statusFilter === 'Preparing' ? 'selected' : '' %>>Preparing</option>
+      <option value="Delivered" <%= statusFilter === 'Delivered' ? 'selected' : '' %>>Delivered</option>
+      <option value="Cancelled" <%= statusFilter === 'Cancelled' ? 'selected' : '' %>>Cancelled</option>
+    </select>
+    <span class="count-pill" style="margin-left:auto"><%= orders.length %> order<%= orders.length !== 1 ? 's' : '' %></span>
+  </div>
+
+  <% if (orders.length === 0) { %>
+  <div class="card">
+    <div class="empty-state">
+      <i class="ti ti-tools-kitchen-2"></i>
+      <h4>No orders found</h4>
+      <p>No mess orders match the selected filter.</p>
+    </div>
+  </div>
+  <% } else { %>
+
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-tools-kitchen-2"></i> Mess Orders</h3>
+      <span class="count-pill"><%= orders.length %> records</span>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Student</th><th>Items</th><th>Amount</th>
+            <th>Payment</th><th>Status</th><th>Order Time</th><th class="actions-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% orders.forEach(function(order, i) {
+               const statusMap = {
+                 'Pending'   : { cls: 'badge-warning', label: 'Pending'   },
+                 'Accepted'  : { cls: 'badge-info',    label: 'Accepted'  },
+                 'Preparing' : { cls: 'badge-purple',  label: 'Preparing' },
+                 'Delivered' : { cls: 'badge-success', label: 'Delivered' },
+                 'Cancelled' : { cls: 'badge-neutral', label: 'Cancelled' }
+               };
+               const s = statusMap[order.orderStatus] || { cls: 'badge-neutral', label: order.orderStatus };
+               const dueStatus  = order.due ? order.due.status : 'Unknown';
+               const isPaid     = dueStatus === 'Paid';
+               const isCancelled = order.orderStatus === 'Cancelled';
+               const isDelivered = order.orderStatus === 'Delivered';
+               const canProgress = isPaid && !isCancelled && !isDelivered;
+               const dueStatusMap = {
+                 'Pending'       : 'badge-danger',
+                 'Partially Paid': 'badge-warning',
+                 'Paid'          : 'badge-success',
+                 'Overdue'       : 'badge-danger'
+               };
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= order.student?.user?.fullname?.charAt(0) || '?' %></div>
+                <div>
+                  <div class="u-name"><%= order.student?.user?.fullname || '—' %></div>
+                  <div class="u-sub"><%= order.student?.user?.userId || '—' %></div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div style="max-width:180px">
+                <% if (order.items && order.items.length > 0) { %>
+                  <% order.items.slice(0, 2).forEach(function(it) { %>
+                    <div style="font-size:.72rem;color:var(--text-primary)">
+                      <%= it.menuItem ? it.menuItem.name : '—' %>
+                      <% if (it.quantity > 1) { %><span style="color:var(--text-muted)"> x<%= it.quantity %></span><% } %>
+                    </div>
+                  <% }); %>
+                  <% if (order.items.length > 2) { %>
+                    <div style="font-size:.65rem;color:var(--text-muted)">+<%= order.items.length - 2 %> more</div>
+                  <% } %>
+                <% } else { %>
+                  <span style="color:#ccc;font-size:.7rem">—</span>
+                <% } %>
+              </div>
+            </td>
+            <td style="font-weight:600;color:var(--green-dark)">Rs. <%= order.totalAmount %></td>
+            <td><span class="badge <%= dueStatusMap[dueStatus] || 'badge-neutral' %>" style="font-size:.62rem"><%= dueStatus %></span></td>
+            <td><span class="badge <%= s.cls %>"><%= s.label %></span></td>
+            <td style="font-size:.72rem;color:var(--text-muted)">
+              <%= new Date(order.orderDate).toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit' }) %>
+              <div style="font-size:.65rem"><%= new Date(order.orderDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></div>
+            </td>
+            <td>
+              <div class="action-cell">
+                <% if (!isCancelled && !isDelivered) { %>
+                  <% if (!isPaid) { %>
+                  <form method="POST" action="/warden/mess/cash-received/<%= order._id %>" style="display:inline">
+                    <button type="submit" class="act-btn btn-pay" title="Mark cash received"><i class="ti ti-cash"></i> Cash</button>
+                  </form>
+                  <% } %>
+                  <% if (canProgress || order.orderStatus === 'Pending') { %>
+                  <form method="POST" action="/warden/mess/update-status/<%= order._id %>" style="display:inline-flex;gap:.3rem;align-items:center">
+                    <select name="newStatus" class="filter-sel" style="font-size:.65rem;padding:.18rem .4rem">
+                      <% ['Accepted','Preparing','Delivered'].forEach(function(st) { %>
+                        <option value="<%= st %>" <%= order.orderStatus === st ? 'selected' : '' %>><%= st %></option>
+                      <% }); %>
+                    </select>
+                    <button type="submit" class="act-btn btn-fulfill" style="padding:.22rem .5rem;font-size:.65rem" title="Update status"><i class="ti ti-check"></i></button>
+                  </form>
+                  <% } %>
+                  <form method="POST" action="/warden/mess/update-status/<%= order._id %>" style="display:inline">
+                    <input type="hidden" name="newStatus" value="Cancelled">
+                    <button type="submit" class="act-btn btn-cancel" title="Cancel order" onclick="return confirm('Cancel this order?')"><i class="ti ti-x"></i></button>
+                  </form>
+                <% } else { %>
+                  <span style="font-size:.7rem;color:var(--text-muted)"><%= isCancelled ? 'Cancelled' : 'Delivered' %></span>
+                <% } %>
+              </div>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+</div><!-- /tab-orders -->
+
+<!-- ══════════════════ MENU TAB ══════════════════ -->
+<div class="tab" id="tab-menu" style="display:none">
+
+  <!-- Empty form — checkboxes & publish button attach to this via the
+       form="" attribute below, so item Edit/Delete forms never nest
+       inside it (nested <form> tags are invalid HTML and were causing
+       every button click to accidentally submit the Publish form). -->
+  <form id="publishMenuForm" method="POST" action="/warden/mess/menu/publish"></form>
+
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-tools-kitchen-2"></i> Today's Menu</h3>
+      <span class="count-pill"><%= publishedItemIds.length %> published</span>
+    </div>
+
+    <% let anyItems = false; %>
+    <% menus.forEach(function(menuDoc) {
+         const meal  = menuDoc.name;
+         const items = itemsByMeal[meal];
+         if (!items || !items.length) return;
+         anyItems = true;
+    %>
+    <div style="padding:1rem 1.2rem;border-top:1px solid var(--border)">
+      <h4 style="font-size:.85rem;margin-bottom:.7rem"><%= meal %></h4>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem">
+        <% items.forEach(function(item) {
+             const isChecked = publishedItemIds.includes(item._id.toString());
+        %>
+        <div class="menu-item-card" style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.9rem;background:white">
+          <% if (item.image) { %>
+            <img src="/<%= item.image %>" alt="<%= item.name %>" style="width:100%;height:80px;object-fit:cover;border-radius:var(--radius-sm);margin-bottom:.6rem">
+          <% } else { %>
+            <div style="width:100%;height:80px;background:#f5f5f5;border-radius:var(--radius-sm);margin-bottom:.6rem;display:flex;align-items:center;justify-content:center;color:#ccc">
+              <i class="ti ti-photo" style="font-size:1.5rem"></i>
+            </div>
+          <% } %>
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;font-weight:600;margin-bottom:.3rem">
+            <input type="checkbox" form="publishMenuForm" name="itemIds" value="<%= item._id %>" <%= isChecked ? 'checked' : '' %> <%= item.isAvailable === false ? 'disabled' : '' %>>
+            <%= item.name %>
+          </label>
+          <div style="font-size:.75rem;color:var(--green-dark);font-weight:700;margin-bottom:.4rem">Rs <%= item.price %></div>
+          <% if (item.isAvailable === false) { %>
+            <span class="badge badge-neutral" style="margin-bottom:.4rem;display:inline-block">Disabled</span>
+          <% } %>
+          <div style="display:flex;gap:.4rem">
+            <form method="POST" action="/warden/mess/menu/items/edit/<%= item._id %>" enctype="multipart/form-data" style="display:inline">
+              <input type="hidden" name="name" value="<%= item.name %>">
+              <input type="hidden" name="price" value="<%= item.price %>">
+              <input type="hidden" name="isAvailable" value="<%= item.isAvailable === false ? 'on' : '' %>">
+              <button type="submit" class="act-btn" style="font-size:.62rem;padding:.2rem .5rem"><%= item.isAvailable === false ? 'Enable' : 'Disable' %></button>
+            </form>
+            <form method="POST" action="/warden/mess/menu/items/delete/<%= item._id %>" onsubmit="return confirm('Delete this item?')" style="display:inline">
+              <button type="submit" class="act-btn btn-cancel" style="font-size:.62rem;padding:.2rem .5rem"><i class="ti ti-trash"></i></button>
+            </form>
+          </div>
+        </div>
+        <% }); %>
+      </div>
+    </div>
+    <% }); %>
+
+    <% if (!anyItems) { %>
+    <div class="empty-state">
+      <i class="ti ti-tools-kitchen-2"></i>
+      <h4>No menu items yet</h4>
+      <p>Go to "Add Menu" tab to create meal categories and items.</p>
+    </div>
+    <% } else { %>
+    <div style="padding:1rem 1.2rem">
+      <button type="submit" form="publishMenuForm" class="act-btn btn-fulfill"><i class="ti ti-upload"></i> Publish Today's Menu</button>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /tab-menu -->
+
+<!-- ══════════════════ ADD MENU TAB ══════════════════ -->
+<div class="tab" id="tab-addmenu" style="display:none">
+
+  <div class="card" style="margin-bottom:1.2rem">
+    <div class="card-head"><h3><i class="ti ti-category"></i> Add Meal Category</h3></div>
+    <form method="POST" action="/warden/mess/menu/add-menu" style="display:flex;gap:.6rem;padding:1rem 1.2rem;align-items:center">
+      <input type="text" name="name" class="filter-sel" style="flex:1" placeholder="e.g. Breakfast, Beverages, Midnight Snacks" required>
+      <button type="submit" class="act-btn btn-view"><i class="ti ti-plus"></i> Add Category</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3><i class="ti ti-plus"></i> Add Menu Item</h3></div>
+    <% if (menus.length === 0) { %>
+      <div class="empty-state">
+        <i class="ti ti-category-off"></i>
+        <h4>No meal categories yet</h4>
+        <p>Add a meal category above first.</p>
+      </div>
+    <% } else { %>
+    <form method="POST" action="/warden/mess/menu/items/add" enctype="multipart/form-data" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.6rem;padding:1rem 1.2rem;align-items:end">
+      <div>
+        <label style="font-size:.7rem;color:var(--text-muted)">Meal</label>
+        <select name="menuId" class="filter-sel" style="width:100%" required>
+          <option value="">Select</option>
+          <% menus.forEach(function(m) { %>
+            <option value="<%= m._id %>"><%= m.name %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.7rem;color:var(--text-muted)">Name</label>
+        <input type="text" name="name" class="filter-sel" style="width:100%" required>
+      </div>
+      <div>
+        <label style="font-size:.7rem;color:var(--text-muted)">Price (Rs)</label>
+        <input type="number" name="price" class="filter-sel" style="width:100%" min="1" required>
+      </div>
+      <div>
+        <label style="font-size:.7rem;color:var(--text-muted)">Photo</label>
+        <input type="file" name="menuItemImage" accept="image/*" class="filter-sel" style="width:100%">
+      </div>
+      <div>
+        <label style="font-size:.7rem;color:var(--text-muted)">Description</label>
+        <input type="text" name="description" class="filter-sel" style="width:100%">
+      </div>
+      <button type="submit" class="act-btn btn-view"><i class="ti ti-plus"></i> Add Item</button>
+    </form>
+    <% } %>
+  </div>
+</div><!-- /tab-addmenu -->
+
+<script>
+function applyFilter(key, val) {
+  window.location.href = '/warden/mess?tab=orders&' + key + '=' + encodeURIComponent(val);
+}
+
+function showTab(name, btnEl) {
+  document.querySelectorAll('.tab').forEach(el => el.style.display = 'none');
+  document.getElementById('tab-' + name).style.display = 'block';
+
+  document.querySelectorAll('#btn-orders, #btn-menu, #btn-addmenu').forEach(b => {
+    b.classList.remove('btn-view');
+    b.style.background = '#f5f5f5';
+    b.style.color = 'var(--text-secondary)';
+  });
+  btnEl.classList.add('btn-view');
+  btnEl.style.background = '';
+  btnEl.style.color = '';
+}
+
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const tab = params.get('tab') || 'orders';
+  const btn = document.getElementById('btn-' + tab);
+  if (btn) showTab(tab, btn);
+})();
+</script>
+
+<%- include('warden-footer') %>

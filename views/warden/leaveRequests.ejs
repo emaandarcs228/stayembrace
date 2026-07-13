@@ -1,0 +1,260 @@
+<%
+  const activePage   = 'leave';
+  const pageTitle    = 'Leave Requests';
+  const pageSubtitle = 'Verify guardians and approve or reject student leave';
+%>
+<%- include('warden-header') %>
+
+<!-- ── Filter Tabs ── -->
+<!-- ── Filter Tabs ── -->
+<div class="filter-tabs" style="margin-bottom:1.2rem">
+
+  <a href="/warden/leave-requests?filter=all"
+     class="filter-tab filter-tab-neutral <%= activeFilter === 'all' ? 'is-active' : '' %>">
+    All <span class="tab-count"><%= counts.all %></span>
+  </a>
+
+  <a href="/warden/leave-requests?filter=pending"
+     class="filter-tab filter-tab-orange <%= activeFilter === 'pending' ? 'is-active' : '' %>">
+    <i class="ti ti-clock"></i> Pending Guardian
+    <% if (counts.pending > 0) { %><span class="tab-count"><%= counts.pending %></span><% } %>
+  </a>
+
+  <a href="/warden/leave-requests?filter=guardian"
+     class="filter-tab filter-tab-green <%= activeFilter === 'guardian' ? 'is-active' : '' %>">
+    <i class="ti ti-circle-check"></i> Guardian Verified
+    <% if (counts.guardian > 0) { %><span class="tab-count"><%= counts.guardian %></span><% } %>
+  </a>
+
+  <a href="/warden/leave-requests?filter=unreachable"
+     class="filter-tab filter-tab-red <%= activeFilter === 'unreachable' ? 'is-active' : '' %>">
+    <i class="ti ti-phone-off"></i> Unreachable
+    <% if (counts.unreachable > 0) { %><span class="tab-count"><%= counts.unreachable %></span><% } %>
+  </a>
+
+  <a href="/warden/leave-requests?filter=approved"
+    class="filter-tab filter-tab-blue <%= activeFilter === 'approved' ? 'is-active' : '' %>">
+    Approved
+  </a>
+
+  <a href="/warden/leave-requests?filter=rejected"
+    class="filter-tab filter-tab-neutral <%= activeFilter === 'rejected' ? 'is-active' : '' %>">
+    Rejected
+  </a>
+
+</div>
+
+<% if (leaves.length === 0) { %>
+<div class="card">
+  <div class="empty-state">
+    <i class="ti ti-<%= activeFilter === 'unreachable' ? 'phone-off' : 'calendar-off' %>"></i>
+    <h4><%= activeFilter === 'unreachable' ? 'No unreachable cases' : 'No leave requests' %></h4>
+    <p><%= activeFilter === 'unreachable' ? 'All guardians have been reached successfully.' : 'No requests match the selected filter.' %></p>
+  </div>
+</div>
+<% } else { %>
+
+<div style="display:flex;flex-direction:column;gap:1rem">
+  <% leaves.forEach(function(leave) {
+       const typeMap = {
+         'Home'      : { cls: 'badge-info',    icon: 'ti ti-home'                   },
+         'Local'     : { cls: 'badge-purple',  icon: 'ti ti-map-pin'                },
+         'Medical'   : { cls: 'badge-warning', icon: 'ti ti-heart-rate-monitor'     },
+         'Emergency' : { cls: 'badge-danger',  icon: 'ti ti-alert-triangle'         }
+       };
+       const statusMap = {
+         'Pending'   : 'badge-warning',
+         'Approved'  : 'badge-success',
+         'Rejected'  : 'badge-danger',
+         'Cancelled' : 'badge-neutral'
+       };
+       const t = typeMap[leave.leaveType] || { cls: 'badge-neutral', icon: 'ti ti-calendar' };
+       const fromDate    = new Date(leave.fromDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' });
+       const toDate      = new Date(leave.toDate).toLocaleDateString('en-PK',   { day:'2-digit', month:'short', year:'numeric' });
+       const appliedDate = new Date(leave.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short' });
+       const isPendingApproval = leave.status === 'Pending';
+       const needsGuardian     = isPendingApproval && !leave.guardianVerified;
+       const canApprove        = isPendingApproval && leave.guardianVerified;
+       const isUnreachable     = leave.guardianVerificationNotes && /unreachable/i.test(leave.guardianVerificationNotes);
+  %>
+  <div class="card" style="margin-bottom:0">
+
+    <!-- Card Header -->
+    <div class="card-head">
+      <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap">
+        <div class="u-av s"><%= leave.student?.user?.fullname?.charAt(0) || '?' %></div>
+        <div>
+          <div style="font-size:.85rem;font-weight:600;color:var(--text-primary)">
+            <%= leave.student?.user?.fullname || '—' %>
+          </div>
+          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.1rem">
+            <span class="uid-code"><%= leave.student?.user?.userId || '—' %></span>
+            &nbsp;·&nbsp; Applied <%= appliedDate %>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <span class="badge <%= t.cls %>"><i class="<%= t.icon %>"></i> <%= leave.leaveType %></span>
+        <span class="badge <%= statusMap[leave.status] || 'badge-neutral' %>"><%= leave.status %></span>
+        <% if (leave.guardianVerified) { %>
+          <span class="badge badge-success"><i class="ti ti-phone-check"></i> Guardian Verified</span>
+        <% } else if (isUnreachable) { %>
+          <span class="badge badge-danger"><i class="ti ti-phone-off"></i> Unreachable</span>
+        <% } else if (isPendingApproval) { %>
+          <span class="badge badge-warning"><i class="ti ti-phone"></i> Guardian Pending</span>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Leave Details -->
+    <div class="detail-grid" style="padding:.8rem 1.2rem">
+      <div class="detail-field">
+        <label>From Date</label>
+        <span style="font-weight:600;color:var(--green-dark)"><%= fromDate %></span>
+      </div>
+      <div class="detail-field">
+        <label>To Date</label>
+        <span style="font-weight:600;color:var(--green-dark)"><%= toDate %></span>
+      </div>
+      <div class="detail-field">
+        <label>Destination</label>
+        <span><%= leave.destination || 'Home' %></span>
+      </div>
+      <div class="detail-field">
+        <label>Emergency Contact (Leave Form)</label>
+        <span style="font-family:monospace;font-weight:500"><%= leave.emergencyContact || '—' %></span>
+      </div>
+      <div class="detail-field full">
+        <label>Reason</label>
+        <span><%= leave.reason %></span>
+      </div>
+    </div>
+
+    <!-- Guardian Info -->
+    <% if (leave.student) { %>
+    <div style="padding:.5rem 1.2rem .8rem">
+      <div style="background:#EEF5F0;border:1px solid #c8e6cf;border-radius:var(--radius-md);padding:.65rem 1rem;font-size:.75rem;display:flex;flex-wrap:wrap;gap:.3rem .9rem;align-items:center">
+        <span>
+          <strong style="color:var(--green-dark)"><i class="fas fa-user-friends"></i> Guardian:</strong>
+          <%= leave.student.guardianName || '—' %>
+        </span>
+        <span style="color:var(--border-mid)">·</span>
+        <span>
+          <strong>Relation:</strong> <%= leave.student.guardianRelation || '—' %>
+        </span>
+        <span style="color:var(--border-mid)">·</span>
+        <span>
+          <strong>Guardian Contact:</strong>
+          <span style="font-family:monospace;font-weight:600"><%= leave.student.guardianContact || '—' %></span>
+        </span>
+        <span style="color:var(--border-mid)">·</span>
+        <span>
+          <strong>Emergency Contact (Profile):</strong>
+          <span style="font-family:monospace;font-weight:600"><%= leave.student.emergencyContact || '—' %></span>
+        </span>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Guardian verification notes (if any) -->
+    <% if (leave.guardianVerificationNotes) { %>
+    <div style="padding:0 1.2rem .8rem">
+      <div style="background:#<%= isUnreachable ? 'FFEBEE' : 'E8F5E9' %>;border:1px solid #<%= isUnreachable ? 'FFCDD2' : 'C8E6C9' %>;border-radius:var(--radius-md);padding:.6rem 1rem;font-size:.73rem;color:#<%= isUnreachable ? 'B71C1C' : '1B5E20' %>">
+        <i class="<%= isUnreachable ? 'ti ti-phone-off' : 'ti ti-phone-check' %>"></i>
+        <%= leave.guardianVerificationNotes %>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Rejection reason (if rejected) -->
+    <% if (leave.status === 'Rejected' && leave.rejectionReason) { %>
+    <div style="padding:0 1.2rem .8rem">
+      <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);padding:.6rem 1rem;font-size:.73rem;color:#5D4037">
+        <i class="ti ti-x"></i> <strong>Rejection Reason:</strong> <%= leave.rejectionReason %>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Action Forms (only for pending) -->
+    <% if (isPendingApproval) { %>
+    <div style="border-top:1px solid var(--border);padding:1rem 1.2rem;display:flex;gap:1rem;flex-wrap:wrap">
+
+      <% if (needsGuardian && !isUnreachable) { %>
+      <!-- Guardian Verification Form -->
+      <div style="flex:1;min-width:260px">
+        <div style="font-size:.7rem;font-weight:700;color:var(--green-dark);text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+          <i class="ti ti-phone"></i> Guardian Verification
+        </div>
+        <form method="POST" action="/warden/leave-requests/guardian/<%= leave._id %>">
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <select name="verificationStatus" class="filter-sel" style="flex:1">
+              <option value="verified">Verified — Guardian Confirmed</option>
+              <option value="unreachable">Contact Attempted — Unreachable</option>
+            </select>
+            <input type="text" name="notes" placeholder="Notes (optional)" style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+            <button type="submit" class="btn-primary" style="align-self:flex-start;display:flex;align-items:center;gap:.35rem">
+              <i class="ti ti-phone-check"></i> Submit Verification
+            </button>
+          </div>
+        </form>
+      </div>
+      <% } %>
+
+      <% if (canApprove) { %>
+      <!-- Approve Form -->
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:.7rem;font-weight:700;color:#2E7D32;text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+          <i class="ti ti-circle-check"></i> Approve Leave
+        </div>
+        <form method="POST" action="/warden/leave-requests/approve/<%= leave._id %>">
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <input type="text" name="note" placeholder="Optional note for student" style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+            <button type="submit" class="act-btn btn-approve" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+              <i class="ti ti-check"></i> Approve
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Reject Form -->
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:.7rem;font-weight:700;color:#C62828;text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+          <i class="ti ti-x"></i> Reject Leave
+        </div>
+        <form method="POST" action="/warden/leave-requests/reject/<%= leave._id %>">
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <input type="text" name="reason" placeholder="Reason for rejection" required style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+            <button type="submit" class="act-btn btn-reject" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+              <i class="ti ti-x"></i> Reject
+            </button>
+          </div>
+        </form>
+      </div>
+      <% } %>
+
+      <% if (isUnreachable) { %>
+      <div style="flex:1;padding:.6rem 1rem;background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);font-size:.75rem;color:#5D4037">
+        <i class="fas fa-info-circle"></i>
+        <strong>Escalated to Admin.</strong> Guardian could not be reached. Admin has been notified to make a decision. You will be informed once the admin responds.
+      </div>
+      <% } %>
+
+    </div>
+    <% } %>
+
+    <!-- Approved details footer -->
+    <% if (leave.status === 'Approved' && leave.approvedAt) { %>
+    <div style="border-top:1px solid var(--border);padding:.6rem 1.2rem;background:var(--green-lighter);font-size:.72rem;color:var(--green-dark)">
+      <i class="ti ti-circle-check"></i>
+      Approved on <%= new Date(leave.approvedAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+      <% if (leave.remarks) { %> &nbsp;·&nbsp; Note: <%= leave.remarks %><% } %>
+    </div>
+    <% } %>
+
+  </div>
+  <% }); %>
+</div>
+
+<% } %>
+
+<%- include('warden-footer') %>

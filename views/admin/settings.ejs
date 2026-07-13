@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Settings – STAY EMBRACE</title>
+    <link rel="icon" href="/images/logo-brow.png">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/css/preloader.css">
+    <link rel="stylesheet" href="/css/navbar.css">
+    <link rel="stylesheet" href="/css/settings.css">
+</head>
+<body class="inner-page">
+
+
+    
+
+<nav class="navbar" id="navbar">
+    <a href="/" style="text-decoration:none;">
+        <div class="navbar-left">
+            <img src="/images/logo-head.png" class="logo-img">
+            <div>
+                <span class="logo-text">STAY EMBRACE</span>
+                <div class="navbar-accent"></div>
+            </div>
+        </div>
+    </a>
+    <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/admin/dashboard">Dashboard</a>
+        <a href="/login" class="btn-login">Logout</a>
+    </div>
+</nav>
+
+<section class="page-hero" style="background:linear-gradient(rgba(0,0,0,0.5),rgba(0,0,0,0.4)),url('https://images.pexels.com/photos/3184306/pexels-photo-3184306.jpeg?auto=compress&cs=tinysrgb&w=1600') center/cover no-repeat; min-height: 40vh;">
+</section>
+
+<div class="settings-page">
+    <div class="settings-header">
+        <h2><i class="fas fa-cog"></i> Account Settings</h2>
+        <p>Update your personal information and password</p>
+    </div>
+
+    <form class="settings-form">
+        <!-- Personal Information -->
+        <div class="form-card">
+            <h3><i class="fas fa-user-edit"></i> Personal Information</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" value="Muhammad Ahmed" placeholder="Enter full name">
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" value="admin@embrace.pk" placeholder="Enter email">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="text" value="+92 300 1112233" placeholder="Enter phone number">
+                </div>
+                <div class="form-group">
+                    <label>CNIC</label>
+                    <input type="text" value="35202-1234567-8" placeholder="Enter CNIC">
+                </div>
+            </div>
+            <div class="form-group full-width">
+                <label>Address</label>
+                <input type="text" value="12-A, Trust Plaza, G.T. Road, Gujranwala" placeholder="Enter address">
+            </div>
+        </div>
+
+        <!-- Change Password -->
+        <div class="form-card">
+            <h3><i class="fas fa-lock"></i> Change Password</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Current Password</label>
+                    <input type="password" placeholder="Enter current password">
+                </div>
+                <div class="form-group">
+                    <label>New Password</label>
+                    <input type="password" placeholder="Enter new password">
+                </div>
+            </div>
+            <div class="form-group full-width">
+                <label>Confirm New Password</label>
+                <input type="password" placeholder="Re-enter new password">
+            </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="form-actions">
+            <button type="submit" class="btn-save"><i class="fas fa-save"></i> Save Changes</button>
+            <a href="/admin/dashboard" class="btn-cancel">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script src="/js/preloader.js"></script>
+<script>
+    const navbar = document.getElementById("navbar");
+    window.addEventListener("scroll", () => {
+        if (window.scrollY > 50) navbar.classList.add("scrolled");
+        else navbar.classList.remove("scrolled");
+    });
+</script>
+</body>
+</html>

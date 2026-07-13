@@ -1,0 +1,117 @@
+/* ===== ADMIN PROFILE PAGE ===== */
+
+.profile-page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+}
+
+.profile-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.profile-avatar {
+    font-size: 4rem;
+    color: #4A7C59;
+    margin-bottom: 0.5rem;
+}
+
+.profile-header h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.profile-header p {
+    color: #888;
+    font-size: 0.95rem;
+}
+
+/* Profile Cards */
+.profile-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    border: 1px solid #E0E0E0;
+    margin-bottom: 1.2rem;
+}
+
+.profile-card h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #1a1a1a;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.profile-card h3 i {
+    color: #4A7C59;
+}
+
+/* Row layout */
+.profile-row {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 0.8rem;
+}
+
+.profile-row .label {
+    width: 160px;
+    font-weight: 500;
+    color: #555;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.profile-row .value {
+    flex: 1;
+    color: #1a1a1a;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Status badge */
+.status.paid {
+    background: #E8F5E9;
+    color: #2E7D32;
+    padding: 0.15rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Back button */
+.btn-back {
+    display: inline-block;
+    padding: 0.5rem 1.2rem;
+    background: #4A7C59;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    margin-top: 1rem;
+    transition: background 0.2s;
+}
+
+.btn-back:hover {
+    background: #2D5A3D;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .profile-row {
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+    .profile-row .label {
+        width: 100%;
+        margin-bottom: 0.1rem;
+    }
+    .profile-page {
+        padding: 1.5rem 1rem;
+    }
+}

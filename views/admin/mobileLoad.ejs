@@ -1,0 +1,232 @@
+<%
+  const activePage   = 'ops-mobile-load';
+  const pageTitle    = 'Mobile Load Oversight';
+  const pageSubtitle = "View warden's top-up requests and override stuck or incorrect decisions";
+%>
+<%- include('admin-header') %>
+
+<!-- ── Filters ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
+
+  <select class="filter-sel" onchange="applyFilter('status', this.value)">
+    <option value="all"          <%= statusFilter === 'all'          ? 'selected' : '' %>>All Statuses</option>
+    <option value="Pending"      <%= statusFilter === 'Pending'      ? 'selected' : '' %>>Pending</option>
+    <option value="Payment Done" <%= statusFilter === 'Payment Done' ? 'selected' : '' %>>Payment Done</option>
+    <option value="Completed"    <%= statusFilter === 'Completed'    ? 'selected' : '' %>>Completed</option>
+    <option value="Rejected"     <%= statusFilter === 'Rejected'     ? 'selected' : '' %>>Rejected</option>
+  </select>
+
+  <select class="filter-sel" onchange="applyFilter('network', this.value)">
+    <option value="all"     <%= networkFilter === 'all'     ? 'selected' : '' %>>All Networks</option>
+    <option value="Jazz"    <%= networkFilter === 'Jazz'    ? 'selected' : '' %>>Jazz</option>
+    <option value="Zong"    <%= networkFilter === 'Zong'    ? 'selected' : '' %>>Zong</option>
+    <option value="Ufone"   <%= networkFilter === 'Ufone'   ? 'selected' : '' %>>Ufone</option>
+    <option value="Telenor" <%= networkFilter === 'Telenor' ? 'selected' : '' %>>Telenor</option>
+  </select>
+
+  <span class="count-pill" style="margin-left:auto"><%= requests.length %> request<%= requests.length !== 1 ? 's' : '' %></span>
+</div>
+
+<% if (requests.length === 0) { %>
+<div class="card">
+  <div class="empty-state">
+    <i class="ti ti-device-mobile"></i>
+    <h4>No mobile load requests</h4>
+    <p>No requests match the selected filters.</p>
+  </div>
+</div>
+<% } else { %>
+
+<div class="card">
+  <div class="card-head">
+    <h3><i class="ti ti-device-mobile"></i> Mobile Load Requests</h3>
+    <span class="count-pill"><%= requests.length %> records</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column">
+    <% requests.forEach(function(ml) {
+         const statusMap = {
+           'Pending'      : { cls: 'badge-warning', label: 'Pending'      },
+           'Payment Done' : { cls: 'badge-info',    label: 'Payment Done' },
+           'Completed'    : { cls: 'badge-success', label: 'Completed'    },
+           'Rejected'     : { cls: 'badge-danger',  label: 'Rejected'     }
+         };
+         const networkColor = {
+           'Jazz'   : { bg: '#FFEBEE', color: '#B71C1C' },
+           'Zong'   : { bg: '#E8F5E9', color: '#1B5E20' },
+           'Ufone'  : { bg: '#FFF8E1', color: '#E65100' },
+           'Telenor': { bg: '#E3F2FD', color: '#1565C0' }
+         };
+         const s    = statusMap[ml.requestStatus] || { cls: 'badge-neutral', label: ml.requestStatus };
+         const nc   = networkColor[ml.network]    || { bg: '#f5f5f5', color: '#555' };
+         const dueStatus = ml.due ? ml.due.status : 'Pending';
+         const isPaid    = dueStatus === 'Paid';
+         const isDone    = ml.requestStatus === 'Completed' || ml.requestStatus === 'Rejected';
+    %>
+    <div style="display:flex;align-items:center;gap:.8rem;padding:.85rem 1.2rem;border-bottom:1px solid #f5f5f5;flex-wrap:wrap">
+
+      <!-- Student -->
+      <div class="user-cell" style="min-width:160px;flex:1">
+        <div class="u-av s"><%= ml.student?.user?.fullname?.charAt(0) || '?' %></div>
+        <div>
+          <div class="u-name"><%= ml.student?.user?.fullname || '—' %></div>
+          <div class="u-sub"><%= ml.student?.user?.userId || '—' %></div>
+        </div>
+      </div>
+
+      <!-- Network + Number -->
+      <div style="min-width:130px">
+        <span style="display:inline-block;background:<%= nc.bg %>;color:<%= nc.color %>;font-size:.65rem;font-weight:700;padding:.15rem .55rem;border-radius:var(--radius-pill);margin-bottom:.2rem"><%= ml.network || '—' %></span>
+        <div style="font-family:monospace;font-size:.78rem;font-weight:600;color:var(--text-primary)"><%= ml.mobileNumber %></div>
+      </div>
+
+      <!-- Amount -->
+      <div style="min-width:80px">
+        <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Amount</div>
+        <div style="font-size:.95rem;font-weight:700;color:var(--green-dark)">Rs. <%= ml.amount %></div>
+      </div>
+
+      <!-- Payment status -->
+      <div style="min-width:90px">
+        <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:.2rem">Payment</div>
+        <span class="badge <%= isPaid ? 'badge-success' : 'badge-danger' %>" style="font-size:.6rem">
+          <%= isPaid ? 'Paid' : dueStatus %>
+        </span>
+      </div>
+
+      <!-- Request status -->
+      <div style="min-width:110px">
+        <span class="badge <%= s.cls %>"><%= s.label %></span>
+        <div style="font-size:.62rem;color:var(--text-muted);margin-top:.2rem">
+          <%= new Date(ml.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %>
+        </div>
+        <% if (ml.fulfilledBy) { %>
+          <div class="audit-badge" style="margin-top:.25rem">
+            <i class="ti ti-user-check"></i> <%= ml.fulfilledBy.fullname %> (<%= ml.fulfilledBy.role %>)
+          </div>
+        <% } %>
+      </div>
+
+      <!-- Remarks (shows override audit trail) -->
+      <% if (ml.remarks) { %>
+      <div style="min-width:140px;max-width:200px">
+        <span class="remarks-text" title="<%= ml.remarks %>"><%= ml.remarks %></span>
+      </div>
+      <% } %>
+
+      <!-- Actions -->
+      <div class="action-cell" style="min-width:220px;justify-content:flex-end">
+
+        <!-- Normal-flow actions (mirror warden, still respected first) -->
+        <% if (!isDone) { %>
+          <% if (!isPaid && ml.requestStatus === 'Pending') { %>
+          <form method="POST" action="/admin/operations/mobile-load/cash-received/<%= ml._id %>" style="display:inline">
+            <button type="submit" class="act-btn btn-pay" title="Mark cash received">
+              <i class="ti ti-cash"></i> Cash
+            </button>
+          </form>
+          <% } %>
+
+          <% if (ml.requestStatus === 'Payment Done') { %>
+          <form method="POST" action="/admin/operations/mobile-load/complete/<%= ml._id %>" style="display:inline">
+            <button type="submit" class="act-btn btn-complete" title="Mark as completed — SIM topped up">
+              <i class="ti ti-device-mobile-check"></i> Complete
+            </button>
+          </form>
+          <% } %>
+
+          <button class="act-btn btn-reject" onclick="openRejectModal('<%= ml._id %>')" title="Reject request">
+            <i class="ti ti-x"></i>
+          </button>
+        <% } %>
+
+        <!-- Admin-only: full override, always available regardless of stage -->
+        <button class="act-btn btn-override-action" onclick="openOverrideModal('<%= ml._id %>', '<%= ml.requestStatus %>')" title="Override to any status">
+          <i class="ti ti-shield-check"></i> Override
+        </button>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+</div>
+
+<% } %>
+
+<!-- ── Reject Modal ── -->
+<div class="modal-overlay" id="rejectModal">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-x"></i> Reject Request</h3>
+      <button class="modal-close" onclick="closeModal('rejectModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="rejectForm" method="POST" action="">
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Reason for Rejection <span class="req">*</span></label>
+          <textarea name="reason" rows="3" placeholder="e.g. Wrong number provided, network unavailable" required style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.45rem .7rem;font-size:.78rem;font-family:inherit;outline:none;width:100%;resize:vertical"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-modal-cancel" onclick="closeModal('rejectModal')">Cancel</button>
+        <button type="submit" class="btn-modal-del"><i class="ti ti-x"></i> Reject</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Override Modal (admin-only, full supervisor control) ── -->
+<div class="modal-overlay" id="overrideModal">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-shield-check"></i> Override Request Status</h3>
+      <button class="modal-close" onclick="closeModal('overrideModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="overrideForm" method="POST" action="">
+      <div class="modal-body">
+        <div style="background:#E8EAF6;border:1px solid #C5CAE9;border-radius:var(--radius-md);padding:.6rem .8rem;font-size:.72rem;color:#3949AB;margin-bottom:1rem">
+          <i class="ti ti-info-circle"></i>
+          Current status: <strong id="overrideCurrentStatus">—</strong>. This bypasses the normal Pending → Payment Done → Completed flow and is logged in the request's remarks.
+        </div>
+        <div class="form-group" style="margin-bottom:.8rem">
+          <label>New Status <span class="req">*</span></label>
+          <select name="newStatus" id="overrideNewStatus" class="filter-sel" style="width:100%" required>
+            <option value="Pending">Pending</option>
+            <option value="Payment Done">Payment Done</option>
+            <option value="Completed">Completed</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Note (optional)</label>
+          <textarea name="note" rows="2" placeholder="Reason for override — visible to the student" style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.45rem .7rem;font-size:.78rem;font-family:inherit;outline:none;width:100%;resize:vertical"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-modal-cancel" onclick="closeModal('overrideModal')">Cancel</button>
+        <button type="submit" class="btn-override-action"><i class="ti ti-shield-check"></i> Confirm Override</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function applyFilter(key, val) {
+  var params = new URLSearchParams(window.location.search);
+  params.set(key, val);
+  window.location.href = '/admin/operations/mobile-load?' + params.toString();
+}
+
+function openRejectModal(id) {
+  document.getElementById('rejectForm').action = '/admin/operations/mobile-load/reject/' + id;
+  openModal('rejectModal');
+}
+
+function openOverrideModal(id, currentStatus) {
+  document.getElementById('overrideForm').action = '/admin/operations/mobile-load/override/' + id;
+  document.getElementById('overrideCurrentStatus').textContent = currentStatus;
+  document.getElementById('overrideNewStatus').value = currentStatus;
+  openModal('overrideModal');
+}
+</script>
+
+<%- include('admin-footer') %>

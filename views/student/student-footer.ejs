@@ -1,0 +1,133 @@
+    </div><!-- /page-body -->
+  </main><!-- /main -->
+</div><!-- /dash -->
+
+<!-- ══════════════════════════════════════════════
+     SHARED TOPBAR SCRIPTS
+     Notification bell + profile dropdown (dashboard)
+══════════════════════════════════════════════ -->
+<script>
+(function () {
+  'use strict';
+
+  /* ── Notification Bell ── */
+  const notifBtn      = document.getElementById('notifBtn');
+  const notifDropdown = document.getElementById('notifDropdown');
+  const notifBadge    = document.getElementById('notifBadge');
+  const markAllBtn    = document.getElementById('markAllRead');
+
+  if (notifBtn && notifDropdown) {
+    notifBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const isOpen = notifDropdown.classList.toggle('open');
+      notifBtn.classList.toggle('active', isOpen);
+
+      // Close profile dropdown if open
+      const pd = document.getElementById('profileDropdown');
+      const pb = document.getElementById('profileBtn');
+      if (pd) { pd.classList.remove('open'); }
+      if (pb) { pb.classList.remove('active'); }
+    });
+  }
+
+  if (markAllBtn) {
+    markAllBtn.addEventListener('click', async function (e) {
+      e.stopPropagation();
+      try {
+        await fetch('/student/notifications/mark-all-read', { method: 'POST' });
+        // Clear badge
+        if (notifBadge) { notifBadge.textContent = ''; notifBadge.dataset.count = '0'; }
+        // Remove unread styling from items
+        document.querySelectorAll('.notif-item.unread').forEach(function (el) {
+          el.classList.remove('unread');
+        });
+        document.querySelectorAll('.notif-dot').forEach(function (el) {
+          el.style.opacity = '0';
+        });
+        markAllBtn.textContent = 'All read';
+        markAllBtn.disabled = true;
+      } catch (err) {
+        console.error('Mark all read failed:', err);
+      }
+    });
+  }
+
+  /* ── Profile Dropdown (dashboard only) ── */
+  const profileBtn      = document.getElementById('profileBtn');
+  const profileDropdown = document.getElementById('profileDropdown');
+
+  if (profileBtn && profileDropdown) {
+    profileBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const isOpen = profileDropdown.classList.toggle('open');
+      profileBtn.classList.toggle('active', isOpen);
+
+      // Close notif dropdown if open
+      if (notifDropdown) { notifDropdown.classList.remove('open'); }
+      if (notifBtn)      { notifBtn.classList.remove('active'); }
+    });
+  }
+
+  /* ── Close all dropdowns when clicking outside ── */
+  document.addEventListener('click', function () {
+    if (notifDropdown) { notifDropdown.classList.remove('open'); }
+    if (notifBtn)      { notifBtn.classList.remove('active'); }
+    if (profileDropdown) { profileDropdown.classList.remove('open'); }
+    if (profileBtn)      { profileBtn.classList.remove('active'); }
+  });
+
+  /* ── Prevent dropdown close when clicking inside them ── */
+  [notifDropdown, profileDropdown].forEach(function (el) {
+    if (el) {
+      el.addEventListener('click', function (e) { e.stopPropagation(); });
+    }
+  });
+
+  /* ── Auto-dismiss flash modal ── */
+  const flashModal = document.getElementById('flashModal');
+  if (flashModal) {
+    setTimeout(function () { flashModal.remove(); }, 5000);
+  }
+
+  /* ── showPage helper (used by module pages with in-page sections) ── */
+  window.showPage = function (id, el) {
+    document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
+    var pg = document.getElementById('page-' + id);
+    if (pg) pg.classList.add('active');
+
+    // Update page-specific nav items if they exist
+    if (el) {
+      document.querySelectorAll('.sub-nav .nav-item').forEach(function (n) { n.classList.remove('active'); });
+      el.classList.add('active');
+    }
+
+    // Update topbar title if a title map is defined on the page
+    if (window.PAGE_TITLES && window.PAGE_TITLES[id]) {
+      var titleEl = document.querySelector('.topbar-left h2');
+      if (titleEl) titleEl.textContent = window.PAGE_TITLES[id];
+    }
+  };
+
+  /* ── Modal overlay click-to-close ── */
+  document.querySelectorAll('.modal-overlay').forEach(function (overlay) {
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) {
+        overlay.classList.remove('open');
+      }
+    });
+  });
+
+  /* ── Generic modal helpers ── */
+  window.openModal  = function (id) { var el = document.getElementById(id); if (el) el.classList.add('open'); };
+  window.closeModal = function (id) { var el = document.getElementById(id); if (el) el.classList.remove('open'); };
+
+})();
+</script>
+
+<!-- Page-specific scripts injected here if the page defines extraScript -->
+<% if (typeof extraScript !== 'undefined') { %>
+<script src="/js/<%= extraScript %>"></script>
+<% } %>
+
+</body>
+</html>

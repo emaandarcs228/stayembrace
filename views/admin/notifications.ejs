@@ -1,0 +1,181 @@
+<%
+  const activePage   = 'notifications';
+  const pageTitle    = 'Notifications';
+  const pageSubtitle = 'Action required, general updates, and broadcasts';
+%>
+<%- include('admin-header') %>
+
+<!-- ── Sub-nav tabs ── -->
+<div class="page-tabs">
+  <button class="act-btn <%= activeTab === 'action' ? 'btn-view' : '' %>"
+          style="<%= activeTab !== 'action' ? 'background:#f5f5f5;color:#555' : '' %>"
+          onclick="showPage('action', this)">
+    <i class="fas fa-exclamation-circle"></i> Action Required
+    <% if (typeof unreadCount !== 'undefined' && unreadCount > 0) { %>
+      <span style="background:#C62828;color:white;font-size:.55rem;padding:.05rem .32rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= unreadCount %></span>
+    <% } %>
+  </button>
+  <button class="act-btn <%= activeTab === 'general' ? 'btn-approve' : '' %>"
+          style="<%= activeTab !== 'general' ? 'background:#f5f5f5;color:#555' : '' %>"
+          onclick="showPage('general', this)">
+    <i class="fas fa-bullhorn"></i> General
+  </button>
+  <button class="act-btn"
+          style="<%= activeTab === 'all' ? 'background:var(--green);color:white' : 'background:#f5f5f5;color:#555' %>"
+          onclick="showPage('all', this)">
+    <i class="ti ti-list"></i> All
+  </button>
+  <div style="margin-left:auto">
+    <button class="act-btn btn-approve" onclick="showPage('compose', this)">
+      <i class="ti ti-send"></i> Compose
+    </button>
+  </div>
+</div>
+
+<!-- ══ ACTION REQUIRED ══ -->
+<div class="page <%= activeTab === 'action' ? 'active' : '' %>" id="page-action">
+  <% var actionNotifs = notifications.filter(n => n.category === 'Requests' || n.category === 'Payments'); %>
+  <% if (actionNotifs.length === 0) { %>
+  <div class="card"><div class="empty-state" style="padding:3rem">
+    <i class="fas fa-check-circle" style="color:var(--green);opacity:.4"></i>
+    <h4>All clear!</h4><p>No action-required notifications right now.</p>
+  </div></div>
+  <% } else { %>
+  <div class="card">
+    <div class="card-head"><h3><i class="fas fa-exclamation-circle" style="color:#C62828"></i> Action Required</h3><span class="count-pill"><%= actionNotifs.length %></span></div>
+    <div class="activity-list">
+      <% actionNotifs.forEach(function(n) {
+           const iconMap = { 'Payments': { cls:'payments', icon:'fas fa-wallet' }, 'Requests': { cls:'requests', icon:'fas fa-paper-plane' } };
+           const ic = iconMap[n.category] || { cls:'requests', icon:'fas fa-paper-plane' };
+           const linkMap = {
+             'RoomRequest'       : '/admin/operations/room-requests',
+             'GuestRoomBooking'  : '/admin/operations/guest-bookings',
+             'Complaint'         : '/admin/operations/complaints',
+             'LeaveRequest'      : '/admin/operations/leave',
+             'FoodOrder'         : '/admin/operations/mess',
+             'Payment'           : '/admin/fees?page=pending',
+             'Due'               : '/admin/fees?page=dues'
+           };
+           const deepLink = (n.relatedTo && n.relatedTo.model) ? (linkMap[n.relatedTo.model] || '/admin/notifications') : '/admin/notifications';
+      %>
+      <a href="<%= deepLink %>" class="notif-item <%= n._isUnread ? 'unread' : '' %>" style="text-decoration:none">
+        <div class="notif-icon <%= ic.cls %>"><i class="<%= ic.icon %>"></i></div>
+        <div class="notif-body">
+          <div class="notif-title"><%= n.title %></div>
+          <div class="notif-msg"><%= n.message %></div>
+          <div class="notif-time"><%= n._timeAgo %></div>
+        </div>
+        <% if (n._isUnread) { %><div class="notif-dot"></div><% } %>
+      </a>
+      <% }); %>
+    </div>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══ GENERAL ══ -->
+<div class="page <%= activeTab === 'general' ? 'active' : '' %>" id="page-general">
+  <% var generalNotifs = notifications.filter(n => n.category === 'Announcements' || n.category === 'General'); %>
+  <% if (generalNotifs.length === 0) { %>
+  <div class="card"><div class="empty-state" style="padding:3rem">
+    <i class="fas fa-bell-slash"></i><h4>No general notifications</h4>
+  </div></div>
+  <% } else { %>
+  <div class="card">
+    <div class="card-head"><h3><i class="fas fa-bullhorn"></i> General</h3><span class="count-pill"><%= generalNotifs.length %></span></div>
+    <div class="activity-list">
+      <% generalNotifs.forEach(function(n) { %>
+      <div class="notif-item <%= n._isUnread ? 'unread' : '' %>">
+        <div class="notif-icon announcements"><i class="fas fa-bullhorn"></i></div>
+        <div class="notif-body">
+          <div class="notif-title"><%= n.title %></div>
+          <div class="notif-msg"><%= n.message %></div>
+          <div class="notif-time"><%= n._timeAgo %></div>
+        </div>
+        <% if (n._isUnread) { %><div class="notif-dot"></div><% } %>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══ ALL ══ -->
+<div class="page <%= activeTab === 'all' ? 'active' : '' %>" id="page-all">
+  <% if (notifications.length === 0) { %>
+  <div class="card"><div class="empty-state" style="padding:3rem"><i class="ti ti-bell-off"></i><h4>No notifications</h4></div></div>
+  <% } else { %>
+  <div class="card">
+    <div class="card-head"><h3><i class="ti ti-list"></i> All Notifications</h3><span class="count-pill"><%= notifications.length %></span></div>
+    <div class="activity-list">
+      <% notifications.forEach(function(n) {
+           const iconMap = { 'Payments':{cls:'payments',icon:'fas fa-wallet'}, 'Requests':{cls:'requests',icon:'fas fa-paper-plane'}, 'Announcements':{cls:'announcements',icon:'fas fa-bullhorn'}, 'General':{cls:'announcements',icon:'fas fa-bell'} };
+           const ic = iconMap[n.category] || { cls: 'announcements', icon: 'fas fa-bell' };
+      %>
+      <div class="notif-item <%= n._isUnread ? 'unread' : '' %>">
+        <div class="notif-icon <%= ic.cls %>"><i class="<%= ic.icon %>"></i></div>
+        <div class="notif-body">
+          <div class="notif-title"><%= n.title %></div>
+          <div class="notif-msg"><%= n.message %></div>
+          <div class="notif-time"><%= n._timeAgo %></div>
+        </div>
+        <% if (n._isUnread) { %><div class="notif-dot"></div><% } %>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══ COMPOSE ══ -->
+<div class="page <%= activeTab === 'compose' ? 'active' : '' %>" id="page-compose">
+  <div class="card" style="max-width:520px">
+    <div class="card-head"><h3><i class="ti ti-send"></i> Send Notification</h3></div>
+    <form method="POST" action="/admin/notifications/send">
+      <div class="form-section">
+        <div class="form-grid cols-1">
+          <div class="form-group">
+            <label>Send To <span class="req">*</span></label>
+            <select name="targetType">
+              <option value="students">All Students</option>
+              <option value="wardens">All Wardens</option>
+              <option value="all">Everyone</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Title <span class="req">*</span></label>
+            <input type="text" name="title" required>
+          </div>
+          <div class="form-group">
+            <label>Message <span class="req">*</span></label>
+            <textarea name="message" rows="4" required></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="form-footer">
+        <button type="submit" class="btn-primary"><i class="ti ti-send"></i> Send</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+window.PAGE_TITLES = window.PAGE_TITLES || {};
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.page-tabs .act-btn').forEach(b => {
+    b.classList.remove('btn-view','btn-approve');
+    b.style.background = '#f5f5f5'; b.style.color = '#555';
+  });
+  if (el) { el.style.background = 'var(--green)'; el.style.color = 'white'; }
+}
+(function() {
+  const tab = '<%= activeTab %>';
+  const btns = document.querySelectorAll('.page-tabs .act-btn');
+  const idx = { action:0, general:1, all:2, compose:3 }[tab] ?? 0;
+  showPage(tab, btns[idx]);
+})();
+</script>
+
+<%- include('admin-footer') %>

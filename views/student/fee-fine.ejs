@@ -1,0 +1,221 @@
+<%
+  const activePage   = 'fee-fine';
+  const pageTitle    = 'Fee & Fine';
+  const pageSubtitle = 'View your hostel fee and fine records';
+%>
+<%- include('student-header') %>
+
+<!-- ── Sub-nav ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
+  <button class="act-btn btn-view" id="btn-fees" onclick="showPage('fees', this)">
+    <i class="ti ti-receipt"></i> Fees
+  </button>
+  <button class="act-btn" style="background:#FFEBEE;color:#C62828" id="btn-fines" onclick="showPage('fines', this)">
+    <i class="ti ti-alert-triangle"></i> Fines
+  </button>
+</div>
+
+<!-- ══ FEES PAGE ══ -->
+<div class="page active" id="page-fees">
+
+  <!-- Summary stats -->
+  <div class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:1.2rem">
+    <%
+      const totalFeeAmt   = dues.reduce(function(s,d){ return s + d.amount; }, 0);
+      const unpaidFeeAmt  = unpaidFees.reduce(function(s,d){ return s + d.amount; }, 0);
+      const paidFeeAmt    = paidFees.reduce(function(s,d){ return s + d.amount; }, 0);
+      const overdueFees   = unpaidFees.filter(function(d){ return d.status === 'Overdue'; });
+    %>
+    <div class="stat-card">
+      <div class="s-icon <%= unpaidFees.length > 0 ? 'red' : 'green' %>"><i class="ti ti-wallet"></i></div>
+      <div class="s-info">
+        <h4>Unpaid Fees</h4>
+        <h3><%= unpaidFees.length %></h3>
+        <p>Rs <%= unpaidFeeAmt.toLocaleString() %></p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon green"><i class="ti ti-check"></i></div>
+      <div class="s-info">
+        <h4>Paid Fees</h4>
+        <h3><%= paidFees.length %></h3>
+        <p>Rs <%= paidFeeAmt.toLocaleString() %></p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon <%= overdueFees.length > 0 ? 'orange' : 'green' %>"><i class="ti ti-alert-circle"></i></div>
+      <div class="s-info">
+        <h4>Overdue</h4>
+        <h3><%= overdueFees.length %></h3>
+        <p><%= overdueFees.length > 0 ? 'Action required' : 'All on time' %></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Unpaid Fees -->
+  <% if (unpaidFees.length > 0) { %>
+  <div class="card" style="margin-bottom:1.2rem">
+    <div class="card-head">
+      <h3><i class="ti ti-clock"></i> Outstanding Fees</h3>
+      <a href="/student/pending-payments" class="add-btn" style="text-decoration:none"><i class="ti ti-credit-card"></i> Pay Now</a>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Description</th><th>Amount</th><th>Due Date</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <% unpaidFees.forEach(function(d, i) {
+               const isOverdue = new Date(d.dueDate) < new Date() && d.status !== 'Paid';
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td style="font-size:.78rem"><%= d.description || d.dueType %></td>
+            <td style="font-weight:700;color:var(--text-primary)">Rs <%= d.amount.toLocaleString() %></td>
+            <td style="font-size:.75rem">
+              <span style="color:<%= isOverdue ? '#C62828' : 'var(--text-primary)' %>">
+                <%= isOverdue ? '⚠ ' : '' %><%= new Date(d.dueDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+              </span>
+            </td>
+            <td>
+              <span class="badge <%= d.status === 'Overdue' ? 'badge-danger' : d.status === 'Partially Paid' ? 'badge-warning' : 'badge-neutral' %>"><%= d.status %></span>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- Paid Fees -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-check"></i> Paid Fees</h3>
+      <span class="count-pill"><%= paidFees.length %> records</span>
+    </div>
+    <% if (paidFees.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Description</th><th>Amount</th><th>Due Date</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <% paidFees.forEach(function(d, i) { %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td style="font-size:.78rem"><%= d.description || d.dueType %></td>
+            <td style="font-weight:600">Rs <%= d.amount.toLocaleString() %></td>
+            <td style="font-size:.75rem;color:var(--text-muted)"><%= new Date(d.dueDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td><span class="badge badge-success">Paid</span></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state" style="padding:2rem">
+      <i class="ti ti-receipt-off"></i>
+      <h4>No paid fees yet</h4>
+    </div>
+    <% } %>
+  </div>
+
+</div><!-- /page-fees -->
+
+<!-- ══ FINES PAGE ══ -->
+<div class="page" id="page-fines">
+
+  <!-- Summary -->
+  <%
+    const unpaidFineAmt = unpaidFines.reduce(function(s,f){ return s + f.amount; }, 0);
+    const paidFineAmt   = paidFines.reduce(function(s,f){ return s + f.amount; }, 0);
+  %>
+  <div class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:1.2rem">
+    <div class="stat-card">
+      <div class="s-icon <%= unpaidFines.length > 0 ? 'red' : 'green' %>"><i class="ti ti-alert-triangle"></i></div>
+      <div class="s-info">
+        <h4>Pending Fines</h4>
+        <h3><%= unpaidFines.length %></h3>
+        <p>Rs <%= unpaidFineAmt.toLocaleString() %></p>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon green"><i class="ti ti-check"></i></div>
+      <div class="s-info">
+        <h4>Paid / Waived</h4>
+        <h3><%= paidFines.length %></h3>
+        <p>Rs <%= paidFineAmt.toLocaleString() %></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Unpaid Fines -->
+  <% if (unpaidFines.length > 0) { %>
+  <div class="card" style="margin-bottom:1.2rem">
+    <div class="card-head">
+      <h3><i class="ti ti-alert-triangle"></i> Pending Fines</h3>
+      <a href="/student/pending-payments" class="add-btn" style="text-decoration:none;background:#C62828"><i class="ti ti-credit-card"></i> Pay Now</a>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Reason</th><th>Amount</th><th>Imposed</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <% unpaidFines.forEach(function(f, i) { %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td style="font-size:.78rem"><%= f.reason %></td>
+            <td style="font-weight:700;color:#C62828">Rs <%= f.amount.toLocaleString() %></td>
+            <td style="font-size:.75rem;color:var(--text-muted)"><%= new Date(f.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td><span class="badge badge-danger">Pending</span></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- Paid / Waived Fines -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-check"></i> Paid / Waived Fines</h3>
+      <span class="count-pill"><%= paidFines.length %> records</span>
+    </div>
+    <% if (paidFines.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Reason</th><th>Amount</th><th>Date</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <% paidFines.forEach(function(f, i) { %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td style="font-size:.78rem"><%= f.reason %></td>
+            <td style="font-weight:600">Rs <%= f.amount.toLocaleString() %></td>
+            <td style="font-size:.75rem;color:var(--text-muted)"><%= new Date(f.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td><span class="badge <%= f.status === 'Paid' ? 'badge-success' : 'badge-neutral' %>"><%= f.status %></span></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state" style="padding:2rem">
+      <i class="ti ti-check"></i>
+      <h4>No fines on record</h4>
+      <p>Keep it up!</p>
+    </div>
+    <% } %>
+  </div>
+
+</div><!-- /page-fines -->
+
+<script>
+document.getElementById('btn-fees').classList.add('active');
+</script>
+
+<%- include('student-footer') %>

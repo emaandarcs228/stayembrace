@@ -1,0 +1,397 @@
+<%
+  const activePage   = 'attendance';
+  const pageTitle    = 'Attendance';
+  const pageSubtitle = typeof selectedMonth !== 'undefined'
+    ? new Date(selectedYear, selectedMonth - 1, 1).toLocaleString('default', { month: 'long' }) + ' ' + selectedYear
+    : 'This Month';
+
+  // Determine active tab from query param
+  const _activeTab = (typeof locals.query !== 'undefined' && locals.query && locals.query.page === 'disputes')
+                   ? 'disputes' : 'log';
+
+  // Today's attendance record (if any) — injected by controller as todayRecord
+  const _todayRecord = typeof todayRecord !== 'undefined' ? todayRecord : null;
+
+  // Dispute outcome helper: infer status from notes
+  function disputeStatus(r) {
+    if (!r.notes) return 'Pending';
+    if (r.notes.startsWith('[DISPUTE]')) return 'Pending';
+    if (r.notes.includes('Corrected by warden')) return 'Accepted';
+    if (r.notes.startsWith('Dispute rejected')) return 'Rejected';
+    return 'Pending';
+  }
+%>
+<%- include('student-header') %>
+
+<!-- ── Today's Status Banner ── -->
+<%
+  const _todayStatusMap = {
+    'In'     : { cls: 'badge-success', label: 'Present',  bg: '#E8F5E9', border: '#A5D6A7', color: '#2E7D32', icon: 'ti-login' },
+    'Late'   : { cls: 'badge-warning', label: 'Late',     bg: '#FFF8E1', border: '#FFE082', color: '#E65100', icon: 'ti-clock' },
+    'Out'    : { cls: 'badge-info',    label: 'Checked Out', bg: '#E3F2FD', border: '#90CAF9', color: '#1565C0', icon: 'ti-logout' },
+    'Missed' : { cls: 'badge-danger',  label: 'Absent',   bg: '#FFEBEE', border: '#FFCDD2', color: '#C62828', icon: 'ti-x' },
+    'Leave'  : { cls: 'badge-purple',  label: 'On Leave', bg: '#F3E5F5', border: '#CE93D8', color: '#7B1FA2', icon: 'ti-calendar-off' }
+  };
+  const _ts = _todayRecord ? (_todayStatusMap[_todayRecord.status] || null) : null;
+%>
+
+<% if (_ts) { %>
+<div style="background:<%= _ts.bg %>;border:1px solid <%= _ts.border %>;border-radius:var(--radius-md);padding:.9rem 1.2rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:.9rem">
+  <div style="width:2.4rem;height:2.4rem;border-radius:50%;background:<%= _ts.color %>22;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+    <i class="ti <%= _ts.icon %>" style="color:<%= _ts.color %>;font-size:1.1rem"></i>
+  </div>
+  <div style="flex:1">
+    <div style="font-size:.82rem;font-weight:600;color:<%= _ts.color %>">Today's Attendance: <%= _ts.label %></div>
+    <div style="font-size:.7rem;color:var(--text-muted);margin-top:.1rem">
+      <% if (_todayRecord.entryTime) { %>
+        Checked in at <%= new Date(_todayRecord.entryTime).toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit' }) %>
+      <% } %>
+      <% if (_todayRecord.notes && _todayRecord.notes.startsWith('[DISPUTE]')) { %>
+        &nbsp;·&nbsp;<span style="color:#E65100"><i class="ti ti-flag" style="font-size:.65rem"></i> Dispute submitted — awaiting review</span>
+      <% } else if (_todayRecord.notes && _todayRecord.notes.includes('Corrected by warden')) { %>
+        &nbsp;·&nbsp;<span style="color:var(--green)"><i class="ti ti-check" style="font-size:.65rem"></i> Dispute resolved</span>
+      <% } %>
+    </div>
+  </div>
+  <% if (_todayRecord.notes && _todayRecord.notes.startsWith('[DISPUTE]')) { %>
+    <span class="badge badge-warning" style="flex-shrink:0"><i class="ti ti-flag"></i> Disputed</span>
+  <% } else { %>
+    <span class="badge <%= _ts.cls %>" style="flex-shrink:0"><%= _ts.label %></span>
+  <% } %>
+</div>
+<% } else { %>
+<div style="background:#F5F5F5;border:1px solid #E0E0E0;border-radius:var(--radius-md);padding:.9rem 1.2rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:.9rem">
+  <div style="width:2.4rem;height:2.4rem;border-radius:50%;background:#EEE;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+    <i class="ti ti-calendar" style="color:#999;font-size:1.1rem"></i>
+  </div>
+  <div>
+    <div style="font-size:.82rem;font-weight:600;color:var(--text-secondary)">Not marked yet today</div>
+    <div style="font-size:.7rem;color:var(--text-muted);margin-top:.1rem">Your attendance for today has not been recorded yet.</div>
+  </div>
+</div>
+<% } %>
+
+<!-- ── Sub-nav ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
+  <button class="act-btn btn-view <%= _activeTab === 'log' ? 'active' : '' %>" id="btn-log" onclick="showPage('log', this)">
+    <i class="ti ti-calendar-check"></i> Monthly Log
+  </button>
+  <button class="act-btn <%= _activeTab === 'disputes' ? 'active' : '' %>" style="background:#FFF8E1;color:#E65100" id="btn-disputes" onclick="showPage('disputes', this)">
+    <i class="ti ti-flag"></i> Disputes
+    <% if (disputes.length > 0) { %>
+      <span style="background:#E65100;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= disputes.length %></span>
+    <% } %>
+  </button>
+</div>
+
+<!-- ══ MONTHLY LOG PAGE ══ -->
+<div class="page <%= _activeTab === 'log' ? 'active' : '' %>" id="page-log">
+
+  <!-- Month Selector -->
+  <form method="GET" action="/student/attendance" style="display:flex;gap:.6rem;align-items:center;margin-bottom:1.2rem;flex-wrap:wrap">
+    <select name="month" class="filter-sel">
+      <% const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+         for (let m = 1; m <= 12; m++) { %>
+        <option value="<%= m %>" <%= selectedMonth === m ? 'selected' : '' %>><%= monthNames[m-1] %></option>
+      <% } %>
+    </select>
+    <select name="year" class="filter-sel">
+      <% for (let y = new Date().getFullYear(); y >= new Date().getFullYear() - 2; y--) { %>
+        <option value="<%= y %>" <%= selectedYear === y ? 'selected' : '' %>><%= y %></option>
+      <% } %>
+    </select>
+    <button type="submit" class="add-btn"><i class="ti ti-search"></i> View</button>
+  </form>
+
+  <!-- Stats Row -->
+  <div class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:1.2rem">
+    <div class="stat-card">
+      <div class="s-icon green"><i class="ti ti-check"></i></div>
+      <div class="s-info"><h4>Present</h4><h3><%= counts.In %></h3><p>On time</p></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon orange"><i class="ti ti-clock"></i></div>
+      <div class="s-info"><h4>Late</h4><h3><%= counts.Late %></h3><p>Counted present</p></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon red"><i class="ti ti-x"></i></div>
+      <div class="s-info"><h4>Missed</h4><h3><%= counts.Missed %></h3><p>Absent</p></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon" style="background:#F3E5F5;color:#7B1FA2"><i class="ti ti-calendar-off"></i></div>
+      <div class="s-info"><h4>On Leave</h4><h3><%= counts.Leave %></h3><p>Approved leave</p></div>
+    </div>
+    <div class="stat-card">
+      <div class="s-icon <%= pct >= 75 ? 'green' : 'red' %>"><i class="ti ti-chart-pie"></i></div>
+      <div class="s-info">
+        <h4>Attendance</h4>
+        <h3 style="color:<%= pct >= 75 ? 'var(--green)' : '#C62828' %>"><%= pct %>%</h3>
+        <p><%= present %> / <%= total %> days</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Attendance Progress Bar -->
+  <% if (total > 0) { %>
+  <div class="card" style="margin-bottom:1.2rem">
+    <div class="card-body" style="padding:1rem 1.2rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+        <span style="font-size:.75rem;font-weight:600;color:var(--text-primary)">Monthly Attendance</span>
+        <span style="font-size:.75rem;font-weight:700;color:<%= pct >= 75 ? 'var(--green)' : '#C62828' %>"><%= pct %>%</span>
+      </div>
+      <div style="height:8px;background:#eee;border-radius:99px;overflow:hidden">
+        <div style="height:100%;width:<%= pct %>%;background:<%= pct >= 75 ? 'var(--green)' : '#C62828' %>;border-radius:99px;transition:width .6s ease"></div>
+      </div>
+      <% if (pct < 75) { %>
+      <p style="font-size:.68rem;color:#C62828;margin-top:.4rem">
+        <i class="fas fa-exclamation-triangle"></i>
+        Below 75% minimum. <%= Math.ceil(((0.75 * total) - present)) %> more present day(s) needed to reach 75%.
+      </p>
+      <% } else { %>
+      <p style="font-size:.68rem;color:var(--green);margin-top:.4rem">
+        <i class="fas fa-check-circle"></i> Attendance requirement met.
+      </p>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- Daily Log Table -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-list-details"></i> Daily Log</h3>
+      <span class="count-pill"><%= total %> records</span>
+    </div>
+
+    <% if (records.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Date</th>
+            <th>Day</th>
+            <th>Status</th>
+            <th>Entry Time</th>
+            <th>Exit Time</th>
+            <th>Notes</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% records.forEach(function(r, i) {
+               const d = new Date(r.date);
+               const statusMap = {
+                 'In'     : { cls: 'badge-success', label: 'Present' },
+                 'Out'    : { cls: 'badge-info',    label: 'Out' },
+                 'Late'   : { cls: 'badge-warning', label: 'Late' },
+                 'Leave'  : { cls: 'badge-purple',  label: 'On Leave' },
+                 'Missed' : { cls: 'badge-danger',  label: 'Absent' }
+               };
+               const s = statusMap[r.status] || { cls: 'badge-neutral', label: r.status };
+
+               // Determine dispute state from notes
+               var dStatus = 'none';
+               if (r.notes && r.notes.startsWith('[DISPUTE]'))              dStatus = 'pending';
+               else if (r.notes && r.notes.includes('Corrected by warden')) dStatus = 'accepted';
+               else if (r.notes && r.notes.startsWith('Dispute rejected'))  dStatus = 'rejected';
+          %>
+          <tr style="<%= dStatus === 'pending' ? 'background:#FFFDE7;' : dStatus === 'accepted' ? 'background:#F1F8E9;' : dStatus === 'rejected' ? 'background:#FFF5F5;' : '' %>">
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td style="font-weight:500"><%= d.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td style="color:var(--text-muted);font-size:.72rem"><%= d.toLocaleDateString('en-PK', { weekday:'long' }) %></td>
+            <td><span class="badge <%= s.cls %>"><%= s.label %></span></td>
+            <td style="font-size:.75rem">
+              <%= r.entryTime ? new Date(r.entryTime).toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit' }) : '—' %>
+            </td>
+            <td style="font-size:.75rem">
+              <%= r.exitTime ? new Date(r.exitTime).toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit' }) : '—' %>
+            </td>
+            <td>
+              <% if (dStatus === 'pending') { %>
+                <span class="badge badge-warning" style="font-size:.62rem"><i class="ti ti-flag"></i> Dispute Pending</span>
+              <% } else if (dStatus === 'accepted') { %>
+                <span class="badge badge-success" style="font-size:.62rem"><i class="ti ti-check"></i> Dispute Accepted</span>
+              <% } else if (dStatus === 'rejected') { %>
+                <span class="badge badge-danger" style="font-size:.62rem"><i class="ti ti-x"></i> Dispute Rejected</span>
+                <div style="font-size:.65rem;color:#999;margin-top:.2rem"><%= r.notes.replace('Dispute rejected: ', '') %></div>
+              <% } else if (r.notes) { %>
+                <span class="remarks-text" title="<%= r.notes %>"><%= r.notes %></span>
+              <% } else { %>
+                <span style="color:#ccc;font-size:.7rem">—</span>
+              <% } %>
+            </td>
+            <td>
+              <% if (dStatus === 'none' && (r.status === 'Missed' || r.status === 'Late')) { %>
+               <%
+  const formattedDate = d.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' });
+%>
+<button class="act-btn" style="font-size:.65rem;padding:.2rem .6rem;background:#FFF8E1;color:#E65100"
+        onclick="prefillDispute('<%= r._id %>', '<%= formattedDate %>', '<%= r.status %>')">
+  <i class="ti ti-flag"></i> Dispute
+</button>
+              <% } else if (dStatus === 'pending') { %>
+                <span style="font-size:.65rem;color:var(--text-muted)">Awaiting</span>
+              <% } else if (dStatus === 'accepted' || dStatus === 'rejected') { %>
+                <span style="font-size:.65rem;color:var(--text-muted)">Resolved</span>
+              <% } else { %>
+                <span style="color:#ccc;font-size:.7rem">—</span>
+              <% } %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-calendar-off"></i>
+      <h4>No records for this month</h4>
+      <p>Select a different month or check back later.</p>
+    </div>
+    <% } %>
+  </div>
+
+</div><!-- /page-log -->
+
+<!-- ══ DISPUTES PAGE ══ -->
+<div class="page <%= _activeTab === 'disputes' ? 'active' : '' %>" id="page-disputes">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem">
+
+    <!-- Raise Dispute Form -->
+    <div class="card">
+      <div class="card-head">
+        <h3><i class="ti ti-flag"></i> Raise a Dispute</h3>
+      </div>
+      <% if (records.length > 0) { %>
+      <form action="/student/attendance/dispute" method="POST" id="disputeForm">
+        <div class="form-section">
+          <div class="form-grid cols-1">
+            <div class="form-group">
+              <label>Select Date <span class="req">*</span></label>
+              <select name="attendanceId" id="disputeSelect" required>
+                <option value="">— Pick a record —</option>
+                <% records.forEach(function(r) {
+                     const d = new Date(r.date);
+                     const isAlready = r.notes && r.notes.startsWith('[DISPUTE]');
+                     const isResolved = r.notes && (r.notes.includes('Corrected by warden') || r.notes.startsWith('Dispute rejected'));
+                %>
+                <option value="<%= r._id %>"
+                        <%= (isAlready || isResolved) ? 'disabled' : '' %>>
+                  <%= d.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+                  — <%= r.status %>
+                  <%= isAlready ? '(pending review)' : isResolved ? '(resolved)' : '' %>
+                </option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Reason for Dispute <span class="req">*</span></label>
+              <textarea name="reason" id="disputeReason" rows="4" placeholder="Explain why you believe this record is incorrect..." required></textarea>
+            </div>
+          </div>
+        </div>
+        <div style="padding:.8rem 1.2rem 1.2rem">
+          <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);padding:.7rem 1rem;font-size:.72rem;color:#5D4037;margin-bottom:1rem">
+            <i class="fas fa-info-circle"></i>
+            Disputes are reviewed by the warden. You will be notified once resolved.
+          </div>
+          <div style="display:flex;gap:.7rem">
+            <button type="submit" class="btn-primary"><i class="ti ti-flag"></i> Submit Dispute</button>
+            <button type="button" class="btn-sec" onclick="showPage('log', document.getElementById('btn-log'))">Cancel</button>
+          </div>
+        </div>
+      </form>
+      <% } else { %>
+      <div class="empty-state" style="padding:2rem">
+        <i class="ti ti-calendar-off"></i>
+        <h4>No records to dispute</h4>
+        <p>Select a month that has attendance records first.</p>
+      </div>
+      <% } %>
+    </div>
+
+    <!-- My Disputes with outcome -->
+    <div class="card">
+      <div class="card-head">
+        <h3><i class="ti ti-list-check"></i> My Disputes</h3>
+        <span class="count-pill"><%= disputes.length %> raised</span>
+      </div>
+      <% if (disputes.length > 0) { %>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Status</th><th>Outcome</th><th>Reason</th></tr>
+          </thead>
+          <tbody>
+            <% disputes.forEach(function(r) {
+                 const d = new Date(r.date);
+                 const sm = { 'In':'badge-success','Out':'badge-info','Late':'badge-warning','Leave':'badge-purple','Missed':'badge-danger' };
+
+                 // Determine outcome
+                 var outcome = 'Pending';
+                 var outcomeCls = 'badge-warning';
+                 var outcomeIcon = 'ti-clock';
+                 var outcomeNote = '';
+
+                 if (r.notes && r.notes.startsWith('[DISPUTE]')) {
+                   outcome = 'Pending'; outcomeCls = 'badge-warning'; outcomeIcon = 'ti-clock';
+                 } else if (r.notes && r.notes.includes('Corrected by warden')) {
+                   outcome = 'Accepted'; outcomeCls = 'badge-success'; outcomeIcon = 'ti-check';
+                 } else if (r.notes && r.notes.startsWith('Dispute rejected')) {
+                   outcome = 'Rejected'; outcomeCls = 'badge-danger'; outcomeIcon = 'ti-x';
+                   outcomeNote = r.notes.replace('Dispute rejected: ', '');
+                 }
+
+                 const reason = r.notes && r.notes.startsWith('[DISPUTE]')
+                   ? r.notes.replace('[DISPUTE] ', '')
+                   : '—';
+            %>
+            <tr>
+              <td style="font-weight:500;font-size:.75rem;white-space:nowrap">
+                <%= d.toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %>
+              </td>
+              <td>
+                <span class="badge <%= sm[r.status] || 'badge-neutral' %>"><%= r.status %></span>
+              </td>
+              <td>
+                <span class="badge <%= outcomeCls %>" style="font-size:.62rem">
+                  <i class="ti <%= outcomeIcon %>"></i> <%= outcome %>
+                </span>
+                <% if (outcomeNote) { %>
+                  <div style="font-size:.62rem;color:#999;margin-top:.2rem"><%= outcomeNote %></div>
+                <% } %>
+              </td>
+              <td>
+                <span class="remarks-text" style="max-width:160px" title="<%= reason %>"><%= reason %></span>
+              </td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <% } else { %>
+      <div class="empty-state" style="padding:2rem">
+        <i class="ti ti-check"></i>
+        <h4>No disputes raised</h4>
+        <p>All records look correct? Great!</p>
+      </div>
+      <% } %>
+    </div>
+
+  </div>
+</div><!-- /page-disputes -->
+
+<script>
+/* Pre-fill dispute form from the monthly log "Dispute" button */
+function prefillDispute(id, dateStr, status) {
+  document.getElementById('disputeSelect').value = id;
+  document.getElementById('disputeReason').value = '';
+  document.getElementById('disputeReason').placeholder =
+    'Why is your ' + status + ' status on ' + dateStr + ' incorrect?';
+  showPage('disputes', document.getElementById('btn-disputes'));
+  document.getElementById('disputeReason').focus();
+}
+</script>
+
+<%- include('student-footer') %>

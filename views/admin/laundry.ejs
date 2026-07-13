@@ -1,0 +1,228 @@
+<%
+  const activePage   = 'ops-laundry';
+  const pageTitle    = 'Laundry Oversight';
+  const pageSubtitle = "View warden's weekly laundry pickups and override stuck requests";
+%>
+<%- include('admin-header') %>
+
+<!-- ── Week Selector ── -->
+<div style="display:flex;gap:.6rem;align-items:center;margin-bottom:1.2rem;flex-wrap:wrap">
+  <div style="font-size:.75rem;font-weight:600;color:var(--text-secondary)">
+    <i class="ti ti-calendar-week"></i> Week:
+  </div>
+  <select class="filter-sel" onchange="location.href='/admin/operations/laundry?week='+this.value">
+    <% weekOptions.forEach(function(wk) { %>
+      <option value="<%= wk %>" <%= weekKey === wk ? 'selected' : '' %>><%= wk %></option>
+    <% }); %>
+  </select>
+  <span class="count-pill" style="margin-left:auto">
+    <%= freeRequests.length + paidRequests.length %> request<%= (freeRequests.length + paidRequests.length) !== 1 ? 's' : '' %> this week
+  </span>
+</div>
+
+<!-- ══════════════════════════════════════
+     FREE REQUESTS (Weekly auto-enrolled)
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="ti ti-wash"></i> Free Weekly Requests</h3>
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <span class="badge badge-success">Free</span>
+      <span class="count-pill"><%= freeRequests.length %></span>
+    </div>
+  </div>
+
+  <% if (freeRequests.length === 0) { %>
+  <div class="empty-state" style="padding:2rem">
+    <i class="ti ti-wash"></i>
+    <h4>No free requests this week</h4>
+    <p>Auto-enrollment runs every Monday.</p>
+  </div>
+  <% } else { %>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Student</th>
+          <th>Pickup Date</th>
+          <th>Delivery Date</th>
+          <th>Items</th>
+          <th>Status</th>
+          <th>Opted Out</th>
+          <th class="actions-th">Override</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% freeRequests.forEach(function(lr, i) {
+             const statusMap = {
+               'Pending Pickup': { cls: 'badge-warning', label: 'Pending Pickup' },
+               'Picked Up'     : { cls: 'badge-info',    label: 'Picked Up'     },
+               'Processing'    : { cls: 'badge-purple',  label: 'Processing'    },
+               'Delivered'     : { cls: 'badge-success', label: 'Delivered'     },
+               'Cancelled'     : { cls: 'badge-neutral', label: 'Opted Out'     }
+             };
+             const s          = statusMap[lr.status] || { cls: 'badge-neutral', label: lr.status };
+             const isOptedOut = lr.status === 'Cancelled' || !lr.requested;
+             const isDone     = lr.status === 'Delivered';
+        %>
+        <tr style="opacity:<%= isOptedOut ? '.55' : '1' %>">
+          <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+          <td>
+            <div class="user-cell">
+              <div class="u-av s"><%= lr.student?.user?.fullname?.charAt(0) || '?' %></div>
+              <div>
+                <div class="u-name"><%= lr.student?.user?.fullname || '—' %></div>
+                <div class="u-sub"><%= lr.student?.user?.userId || '—' %></div>
+              </div>
+            </div>
+          </td>
+          <td style="font-size:.75rem"><%= new Date(lr.pickupDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
+          <td style="font-size:.75rem"><%= new Date(lr.deliveryDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
+          <td style="font-size:.78rem"><%= lr.itemCount > 0 ? lr.itemCount + ' item(s)' : '—' %></td>
+          <td><span class="badge <%= s.cls %>"><%= s.label %></span></td>
+          <td style="text-align:center">
+            <% if (isOptedOut) { %>
+              <span class="badge badge-neutral"><i class="ti ti-x"></i> Yes</span>
+            <% } else { %>
+              <span style="color:#ccc;font-size:.7rem">—</span>
+            <% } %>
+          </td>
+          <td>
+            <% if (!isOptedOut && !isDone) { %>
+            <form method="POST" action="/admin/operations/laundry/update-status/<%= lr._id %>?week=<%= weekKey %>" style="display:inline-flex;gap:.3rem;align-items:center">
+              <select name="newStatus" class="filter-sel" style="font-size:.65rem;padding:.18rem .4rem">
+                <% ['Picked Up','Processing','Delivered'].forEach(function(st) { %>
+                  <option value="<%= st %>" <%= lr.status === st ? 'selected' : '' %>><%= st %></option>
+                <% }); %>
+              </select>
+              <button type="submit" class="btn-override-action" style="padding:.22rem .5rem;font-size:.65rem">
+                <i class="ti ti-shield-check"></i>
+              </button>
+            </form>
+            <% } else if (isDone) { %>
+              <span style="font-size:.7rem;color:var(--green)"><i class="ti ti-circle-check"></i> Done</span>
+            <% } else { %>
+              <span style="font-size:.7rem;color:#bbb">N/A</span>
+            <% } %>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══════════════════════════════════════
+     PAID REQUESTS (Second pickup)
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="ti ti-wash"></i> Paid Requests (2nd Pickup)</h3>
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <span class="badge badge-warning">Paid</span>
+      <span class="count-pill"><%= paidRequests.length %></span>
+    </div>
+  </div>
+
+  <% if (paidRequests.length === 0) { %>
+  <div class="empty-state" style="padding:2rem">
+    <i class="ti ti-wash"></i>
+    <h4>No paid requests this week</h4>
+    <p>Students who request a second pickup will appear here.</p>
+  </div>
+  <% } else { %>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Student</th>
+          <th>Pickup Date</th>
+          <th>Items</th>
+          <th>Payment</th>
+          <th>Status</th>
+          <th class="actions-th">Override</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% paidRequests.forEach(function(lr, i) {
+             const statusMap = {
+               'Pending Pickup': { cls: 'badge-warning', label: 'Pending Pickup' },
+               'Picked Up'     : { cls: 'badge-info',    label: 'Picked Up'     },
+               'Processing'    : { cls: 'badge-purple',  label: 'Processing'    },
+               'Delivered'     : { cls: 'badge-success', label: 'Delivered'     },
+               'Cancelled'     : { cls: 'badge-neutral', label: 'Cancelled'     }
+             };
+             const s         = statusMap[lr.status] || { cls: 'badge-neutral', label: lr.status };
+             const dueStatus = lr.due ? lr.due.status : 'Pending';
+             const isPaid    = dueStatus === 'Paid';
+             const isDone    = lr.status === 'Delivered' || lr.status === 'Cancelled';
+             const dueStatusMap = {
+               'Pending'       : 'badge-danger',
+               'Partially Paid': 'badge-warning',
+               'Paid'          : 'badge-success',
+               'Overdue'       : 'badge-danger'
+             };
+        %>
+        <tr>
+          <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+          <td>
+            <div class="user-cell">
+              <div class="u-av s"><%= lr.student?.user?.fullname?.charAt(0) || '?' %></div>
+              <div>
+                <div class="u-name"><%= lr.student?.user?.fullname || '—' %></div>
+                <div class="u-sub"><%= lr.student?.user?.userId || '—' %></div>
+              </div>
+            </div>
+          </td>
+          <td style="font-size:.75rem"><%= new Date(lr.pickupDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
+          <td style="font-size:.78rem"><%= lr.itemCount > 0 ? lr.itemCount + ' item(s)' : '—' %></td>
+          <td>
+            <span class="badge <%= dueStatusMap[dueStatus] || 'badge-neutral' %>" style="font-size:.62rem"><%= dueStatus %></span>
+            <% if (lr.due && lr.due.amount) { %>
+              <div style="font-size:.65rem;color:var(--text-muted);margin-top:.15rem">Rs. <%= lr.due.amount %></div>
+            <% } %>
+          </td>
+          <td>
+            <span class="badge <%= s.cls %>"><%= s.label %></span>
+            <% if (!isPaid) { %>
+              <div style="font-size:.6rem;color:#C62828;margin-top:.15rem">
+                <i class="ti ti-lock"></i> Payment not confirmed
+              </div>
+            <% } %>
+          </td>
+          <td>
+            <% if (!isDone) { %>
+            <form method="POST" action="/admin/operations/laundry/update-status/<%= lr._id %>?week=<%= weekKey %>" style="display:flex;flex-direction:column;gap:.3rem;align-items:flex-start">
+              <div style="display:flex;gap:.3rem;align-items:center">
+                <select name="newStatus" class="filter-sel" style="font-size:.65rem;padding:.18rem .4rem">
+                  <% ['Picked Up','Processing','Delivered'].forEach(function(st) { %>
+                    <option value="<%= st %>" <%= lr.status === st ? 'selected' : '' %>><%= st %></option>
+                  <% }); %>
+                </select>
+                <button type="submit" class="btn-override-action" style="padding:.22rem .5rem;font-size:.65rem">
+                  <i class="ti ti-shield-check"></i>
+                </button>
+              </div>
+              <% if (!isPaid) { %>
+              <label style="display:flex;align-items:center;gap:.3rem;font-size:.62rem;color:#3949AB;cursor:pointer">
+                <input type="checkbox" name="override" style="margin:0">
+                Override payment lock
+              </label>
+              <% } %>
+            </form>
+            <% } else { %>
+              <span style="font-size:.7rem;color:var(--green)"><i class="ti ti-circle-check"></i> Done</span>
+            <% } %>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+
+<%- include('admin-footer') %>

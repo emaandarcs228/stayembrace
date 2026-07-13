@@ -1,0 +1,319 @@
+<%
+  const activePage   = 'notifications';
+  const pageTitle    = 'Notifications';
+  const pageSubtitle = 'Action required, general updates, and broadcasts';
+%>
+<%- include('warden-header') %>
+
+<!-- ── Sub-nav tabs ── -->
+<div class="page-tabs" style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
+  <button class="act-btn <%= activeTab === 'action' ? 'btn-view' : '' %>"
+          style="<%= activeTab !== 'action' ? 'background:#f5f5f5;color:#555' : '' %>"
+          onclick="showPage('action', this)">
+    <i class="fas fa-exclamation-circle"></i> Action Required
+    <% if (typeof unreadCount !== 'undefined' && unreadCount > 0) { %>
+      <span style="background:#C62828;color:white;font-size:.55rem;padding:.05rem .32rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= unreadCount %></span>
+    <% } %>
+  </button>
+  <button class="act-btn <%= activeTab === 'general' ? 'btn-approve' : '' %>"
+          style="<%= activeTab !== 'general' ? 'background:#f5f5f5;color:#555' : '' %>"
+          onclick="showPage('general', this)">
+    <i class="fas fa-bullhorn"></i> General
+  </button>
+  <button class="act-btn <%= activeTab === 'all' ? '' : '' %>"
+          style="<%= activeTab === 'all' ? 'background:var(--green);color:white' : 'background:#f5f5f5;color:#555' %>"
+          onclick="showPage('all', this)">
+    <i class="ti ti-list"></i> All
+  </button>
+  <div style="margin-left:auto">
+    <button class="act-btn btn-approve" onclick="showPage('compose', this)">
+      <i class="ti ti-send"></i> Compose
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     PAGE: ACTION REQUIRED
+══════════════════════════════════════ -->
+<div class="page <%= activeTab === 'action' ? 'active' : '' %>" id="page-action">
+  <% var actionNotifs = notifications.filter(function(n) { return n.category === 'Requests' || n.category === 'Payments'; }); %>
+  <% if (actionNotifs.length === 0) { %>
+  <div class="card">
+    <div class="empty-state" style="padding:3rem">
+      <i class="fas fa-check-circle" style="color:var(--green);opacity:.4"></i>
+      <h4>All clear!</h4>
+      <p>No action-required notifications right now.</p>
+    </div>
+  </div>
+  <% } else { %>
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="fas fa-exclamation-circle" style="color:#C62828"></i> Action Required</h3>
+      <span class="count-pill"><%= actionNotifs.length %></span>
+    </div>
+    <div class="activity-list">
+      <% actionNotifs.forEach(function(n) {
+           const iconMap = {
+             'Payments': { cls: 'payments', icon: 'fas fa-wallet' },
+             'Requests': { cls: 'requests', icon: 'fas fa-paper-plane' }
+           };
+           const ic = iconMap[n.category] || { cls: 'requests', icon: 'fas fa-paper-plane' };
+           const isUnread = n._isUnread;
+           const linkMap = {
+             'LeaveRequest'   : '/warden/leave-requests',
+             'Complaint'      : '/warden/complaints',
+             'FoodOrder'      : '/warden/mess',
+             'LaundryRequest' : '/warden/laundry',
+             'MobileLoad'     : '/warden/mobile-load'
+           };
+           const deepLink = (n.relatedTo && n.relatedTo.model) ? (linkMap[n.relatedTo.model] || '/warden/notifications') : '/warden/notifications';
+      %>
+      <a href="<%= deepLink %>" class="notif-item <%= isUnread ? 'unread' : '' %>" style="text-decoration:none">
+        <div class="notif-icon <%= ic.cls %>"><i class="<%= ic.icon %>"></i></div>
+        <div class="notif-body">
+          <div class="notif-title"><%= n.title %></div>
+          <div class="notif-msg"><%= n.message %></div>
+          <div class="notif-time"><%= n._timeAgo %></div>
+        </div>
+        <% if (isUnread) { %><div class="notif-dot"></div><% } %>
+        <% if (n.relatedTo && n.relatedTo.model) { %>
+          <span class="act-btn btn-view" style="font-size:.62rem;padding:.18rem .5rem;margin-left:.3rem;flex-shrink:0">View</span>
+        <% } %>
+      </a>
+      <% }); %>
+    </div>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══════════════════════════════════════
+     PAGE: GENERAL
+══════════════════════════════════════ -->
+<div class="page <%= activeTab === 'general' ? 'active' : '' %>" id="page-general">
+  <% var generalNotifs = notifications.filter(function(n) { return n.category === 'Announcements' || n.category === 'General'; }); %>
+  <% if (generalNotifs.length === 0) { %>
+  <div class="card">
+    <div class="empty-state" style="padding:3rem">
+      <i class="fas fa-bell-slash"></i>
+      <h4>No general notifications</h4>
+      <p>Admin broadcasts and system messages will appear here.</p>
+    </div>
+  </div>
+  <% } else { %>
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="fas fa-bullhorn"></i> General Notifications</h3>
+      <span class="count-pill"><%= generalNotifs.length %></span>
+    </div>
+    <div class="activity-list">
+      <% generalNotifs.forEach(function(n) {
+           const isUnread = n._isUnread;
+      %>
+      <div class="notif-item <%= isUnread ? 'unread' : '' %>">
+        <div class="notif-icon announcements"><i class="fas fa-bullhorn"></i></div>
+        <div class="notif-body">
+          <div class="notif-title"><%= n.title %></div>
+          <div class="notif-msg"><%= n.message %></div>
+          <div class="notif-time"><%= n._timeAgo %></div>
+        </div>
+        <% if (isUnread) { %><div class="notif-dot"></div><% } %>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══════════════════════════════════════
+     PAGE: ALL
+══════════════════════════════════════ -->
+<div class="page <%= activeTab === 'all' ? 'active' : '' %>" id="page-all">
+  <% if (notifications.length === 0) { %>
+  <div class="card">
+    <div class="empty-state" style="padding:3rem">
+      <i class="ti ti-bell-off"></i>
+      <h4>No notifications</h4>
+      <p>Nothing here yet.</p>
+    </div>
+  </div>
+  <% } else { %>
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-list"></i> All Notifications</h3>
+      <span class="count-pill"><%= notifications.length %></span>
+    </div>
+    <div class="activity-list">
+      <% notifications.forEach(function(n) {
+           const iconMap = {
+             'Payments'     : { cls: 'payments',      icon: 'fas fa-wallet'        },
+             'Requests'     : { cls: 'requests',      icon: 'fas fa-paper-plane'   },
+             'Announcements': { cls: 'announcements', icon: 'fas fa-bullhorn'      },
+             'General'      : { cls: 'announcements', icon: 'fas fa-bell'          }
+           };
+           const ic = iconMap[n.category] || { cls: 'announcements', icon: 'fas fa-bell' };
+           const isUnread = n._isUnread;
+      %>
+      <div class="notif-item <%= isUnread ? 'unread' : '' %>" style="text-decoration:none">
+        <div class="notif-icon <%= ic.cls %>"><i class="<%= ic.icon %>"></i></div>
+        <div class="notif-body">
+          <div class="notif-title"><%= n.title %></div>
+          <div class="notif-msg"><%= n.message %></div>
+          <div class="notif-time"><%= n._timeAgo %></div>
+        </div>
+        <% if (isUnread) { %><div class="notif-dot"></div><% } %>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══════════════════════════════════════
+     PAGE: COMPOSE
+══════════════════════════════════════ -->
+<div class="page <%= activeTab === 'compose' ? 'active' : '' %>" id="page-compose">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem">
+
+    <!-- Compose Form -->
+    <div class="card" style="margin-bottom:0">
+      <div class="card-head">
+        <h3><i class="ti ti-send"></i> Send Notification</h3>
+      </div>
+      <form method="POST" action="/warden/notifications/send">
+        <div class="form-section">
+          <div class="form-grid cols-1">
+
+            <div class="form-group">
+              <label>Send To <span class="req">*</span></label>
+              <select name="targetType" id="targetType" onchange="toggleStudentPicker()">
+                <option value="broadcast">All Students (Broadcast)</option>
+                <option value="individual">Specific Student</option>
+              </select>
+            </div>
+
+            <!-- Student picker (shown only for individual) -->
+            <div class="form-group" id="studentPickerWrap" style="display:none">
+              <label>Select Student <span class="req">*</span></label>
+              <div style="display:flex;gap:.5rem">
+                <input type="text" id="studentPickerSearch" placeholder="Type name or ID…" style="flex:1;border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.45rem .7rem;font-size:.78rem;font-family:inherit;outline:none" oninput="searchStudentForNotif(this.value)">
+              </div>
+              <div id="studentPickerResult" style="margin-top:.4rem"></div>
+              <input type="hidden" name="studentId" id="selectedStudentId">
+            </div>
+
+            <div class="form-group">
+              <label>Title <span class="req">*</span></label>
+              <input type="text" name="title" placeholder="Notification title" required>
+            </div>
+
+            <div class="form-group">
+              <label>Message <span class="req">*</span></label>
+              <textarea name="message" rows="4" placeholder="Write your message here…" required></textarea>
+            </div>
+
+          </div>
+        </div>
+        <div class="form-footer">
+          <button type="submit" class="btn-primary" style="display:flex;align-items:center;gap:.35rem">
+            <i class="ti ti-send"></i> Send Notification
+          </button>
+          <button type="button" class="btn-sec" onclick="showPage('action', document.querySelector('.page-tabs .act-btn'))">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Tips card -->
+    <div class="card" style="margin-bottom:0">
+      <div class="card-head">
+        <h3><i class="fas fa-info-circle"></i> Notification Tips</h3>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:.8rem">
+
+          <div style="display:flex;gap:.75rem;align-items:flex-start">
+            <div class="s-icon green" style="width:32px;height:32px;font-size:.8rem;flex-shrink:0">
+              <i class="fas fa-users"></i>
+            </div>
+            <div>
+              <div style="font-size:.78rem;font-weight:600;color:var(--text-primary);margin-bottom:.2rem">Broadcast</div>
+              <div style="font-size:.72rem;color:var(--text-muted)">Sends to all active students. Use for announcements like mess changes, laundry schedule updates, or hostel notices.</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:.75rem;align-items:flex-start">
+            <div class="s-icon blue" style="width:32px;height:32px;font-size:.8rem;flex-shrink:0">
+              <i class="fas fa-user"></i>
+            </div>
+            <div>
+              <div style="font-size:.78rem;font-weight:600;color:var(--text-primary);margin-bottom:.2rem">Individual</div>
+              <div style="font-size:.72rem;color:var(--text-muted)">Sends to one specific student. Use for personal follow-ups, reminders about dues, or complaint updates.</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:.75rem;align-items:flex-start">
+            <div class="s-icon orange" style="width:32px;height:32px;font-size:.8rem;flex-shrink:0">
+              <i class="fas fa-bell"></i>
+            </div>
+            <div>
+              <div style="font-size:.78rem;font-weight:600;color:var(--text-primary);margin-bottom:.2rem">Delivery</div>
+              <div style="font-size:.72rem;color:var(--text-muted)">Notifications appear in the student's bell dropdown instantly. Email is sent only for critical system events.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ── Tab activation on load ── */
+(function() {
+  var tab = '<%= activeTab %>';
+  if (tab === 'action')  { showPage('action',  document.querySelectorAll('.page-tabs .act-btn')[0]); }
+  else if (tab === 'general') { showPage('general', document.querySelectorAll('.page-tabs .act-btn')[1]); }
+  else if (tab === 'all')     { showPage('all',     document.querySelectorAll('.page-tabs .act-btn')[2]); }
+  else if (tab === 'compose') { showPage('compose', document.querySelectorAll('.page-tabs .act-btn')[3]); }
+})();
+
+/* ── Individual vs broadcast toggle ── */
+function toggleStudentPicker() {
+  var val  = document.getElementById('targetType').value;
+  var wrap = document.getElementById('studentPickerWrap');
+  wrap.style.display = val === 'individual' ? 'flex' : 'none';
+  if (val !== 'individual') document.getElementById('selectedStudentId').value = '';
+}
+
+/* ── Live student search for compose ── */
+var searchTimer;
+function searchStudentForNotif(q) {
+  clearTimeout(searchTimer);
+  if (!q || q.length < 2) {
+    document.getElementById('studentPickerResult').innerHTML = '';
+    return;
+  }
+  searchTimer = setTimeout(async function() {
+    var res  = await fetch('/warden/attendance/search?q=' + encodeURIComponent(q));
+    var data = await res.json();
+    var div  = document.getElementById('studentPickerResult');
+    if (data.student) {
+      div.innerHTML = '<div style="display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;background:var(--green-lighter);border:1px solid #c8e6cf;border-radius:var(--radius-md);cursor:pointer" onclick="selectStudent(\'' + data.student._id + '\',\'' + data.student.fullname.replace(/\'/g, "\\'") + '\')">'
+        + '<div class="u-av s">' + data.student.fullname.charAt(0) + '</div>'
+        + '<div><div class="u-name">' + data.student.fullname + '</div><div class="u-sub">' + data.student.userId + '</div></div>'
+        + '<i class="ti ti-check" style="margin-left:auto;color:var(--green)"></i>'
+        + '</div>';
+    } else {
+      div.innerHTML = '<div style="font-size:.72rem;color:#C62828;padding:.3rem"><i class="fas fa-times"></i> No student found</div>';
+    }
+  }, 350);
+}
+
+function selectStudent(id, name) {
+  document.getElementById('selectedStudentId').value = id;
+  document.getElementById('studentPickerSearch').value = name;
+  document.getElementById('studentPickerResult').innerHTML = '<div style="font-size:.7rem;color:var(--green);margin-top:.2rem"><i class="ti ti-circle-check"></i> ' + name + ' selected</div>';
+}
+</script>
+
+<%- include('warden-footer') %>

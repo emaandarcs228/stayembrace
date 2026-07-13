@@ -1,0 +1,362 @@
+<%
+  const activePage   = 'leave';
+  const pageTitle    = 'Leave Requests';
+  const pageSubtitle = 'Apply and track your leave applications';
+%>
+<%- include('student-header') %>
+
+<!-- ── Sub-nav ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
+  <button class="act-btn btn-view" id="btn-list" onclick="showPage('list', this)">
+    <i class="ti ti-list"></i> My Leaves
+  </button>
+  <button class="act-btn" style="background:var(--green-light);color:var(--green-dark)" id="btn-apply" onclick="showPage('apply', this)">
+    <i class="ti ti-plus"></i> Apply Leave
+  </button>
+</div>
+
+<!-- ══ MY LEAVES PAGE ══ -->
+<div class="page active" id="page-list">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-calendar-off"></i> All Leave Requests</h3>
+      <span class="count-pill"><%= leaves.length %> total</span>
+    </div>
+
+    <% if (leaves.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Type</th>
+            <th>From</th>
+            <th>To</th>
+            <th>Days</th>
+            <th>Status</th>
+            <th>Guardian</th>
+            <th>Applied</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% leaves.forEach(function(lv, i) {
+               const typeMap = {
+                 'Home'       : 'badge-info',
+                 'Local'      : 'badge-neutral',
+                 'Medical'    : 'badge-danger',
+                 'Emergency'  : { cls: 'badge-danger', label: '🚨 Emergency' }
+               };
+               const statusMap = {
+                 'Pending'   : 'badge-warning',
+                 'Approved'  : 'badge-success',
+                 'Rejected'  : 'badge-danger',
+                 'Cancelled' : 'badge-neutral'
+               };
+               const from = new Date(lv.fromDate);
+               const to   = new Date(lv.toDate);
+               const days = Math.ceil((to - from) / 86400000) + 1;
+               const tc   = typeof typeMap[lv.leaveType] === 'object' ? typeMap[lv.leaveType] : { cls: typeMap[lv.leaveType] || 'badge-neutral', label: lv.leaveType };
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td><span class="badge <%= tc.cls %>"><%= tc.label || lv.leaveType %></span></td>
+            <td style="font-size:.75rem;font-weight:500"><%= from.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td style="font-size:.75rem"><%= to.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td style="text-align:center"><span class="count-pill"><%= days %>d</span></td>
+            <td><span class="badge <%= statusMap[lv.status] || 'badge-neutral' %>"><%= lv.status %></span></td>
+            <td>
+              <% if (lv.guardianVerified) { %>
+                <span class="badge badge-success"><i class="fas fa-check" style="font-size:.55rem"></i> Yes</span>
+              <% } else { %>
+                <span class="badge badge-neutral">Pending</span>
+              <% } %>
+            </td>
+            <td style="font-size:.7rem;color:var(--text-muted)"><%= new Date(lv.appliedAt || lv.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
+            <td>
+              <% if (lv.status === 'Pending') { %>
+              <form action="/student/leave/cancel/<%= lv._id %>" method="POST" id="cancelForm-<%= lv._id %>">
+                <button type="button" class="act-btn btn-cancel" onclick="openCancelModal('<%= lv._id %>')">
+                <i class="ti ti-x"></i> Cancel
+                </button>
+              </form>
+              <% } else if (lv.status === 'Approved') { %>
+              <%
+                const approvedDate = lv.approvedAt
+                  ? new Date(lv.approvedAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' })
+                  : null;
+              %>
+              <button
+                class="act-btn btn-approve"
+                onclick="openApprovedModal(this)"
+                data-approved="<%= approvedDate || 'N/A' %>"
+                data-note="<%= lv.remarks ? lv.remarks.replace(/"/g, '&quot;') : '' %>"
+              >
+                <i class="ti ti-circle-check"></i> Details
+              </button>
+              <% } else if (lv.status === 'Rejected' && lv.rejectionReason) { %>
+              <button class="act-btn btn-view" onclick="openRejectModal(this)" data-reason="<%= lv.rejectionReason %>">
+                <i class="ti ti-info-circle"></i> Reason
+              </button>
+              <% } else { %>
+              <span style="color:#ccc;font-size:.7rem">—</span>
+              <% } %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-calendar-off"></i>
+      <h4>No leave requests yet</h4>
+      <p>Tap "Apply Leave" to submit your first request.</p>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /page-list -->
+
+<!-- ══ APPLY LEAVE PAGE ══ -->
+<div class="page" id="page-apply">
+  <div class="card" style="max-width:600px">
+    <div class="card-head">
+      <h3><i class="ti ti-calendar-plus"></i> Apply for Leave</h3>
+    </div>
+
+    <form action="/student/leave/apply" method="POST" id="leaveForm">
+      <div class="form-section">
+        <div class="form-grid">
+
+          <div class="form-group">
+            <label>Leave Type <span class="req">*</span></label>
+            <select name="leaveType" id="leaveTypeSelect" required onchange="handleTypeChange(this.value)">
+              <option value="">— Select type —</option>
+              <option value="Home">Home</option>
+              <option value="Local">Local</option>
+              <option value="Medical">Medical</option>
+              <option value="Emergency">Emergency</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Destination</label>
+            <input type="text" name="destination" placeholder="e.g. Karachi, Home" value="Home">
+          </div>
+
+          <div class="form-group">
+            <label>From Date <span class="req">*</span></label>
+            <input type="date" name="fromDate" id="fromDate" required min="<%= today %>" onchange="validateDates()">
+          </div>
+
+          <div class="form-group">
+            <label>To Date <span class="req">*</span></label>
+            <input type="date" name="toDate" id="toDate" required min="<%= today %>" onchange="validateDates()">
+          </div>
+
+          <div class="form-group full">
+            <label>Emergency Contact <span class="req">*</span></label>
+            <input type="text" name="emergencyContact" placeholder="03XX-XXXXXXX" required>
+            <span class="field-hint">Contact reachable during your leave.</span>
+          </div>
+
+          <div class="form-group full">
+            <label>Reason <span class="req">*</span></label>
+            <textarea name="reason" rows="4" placeholder="Briefly explain why you need this leave..." required></textarea>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Advance notice warning (shown dynamically) -->
+      <div id="advanceWarning" style="display:none;margin:0 1.2rem .8rem;background:#FFEBEE;border:1px solid #FFCDD2;border-radius:var(--radius-md);padding:.75rem 1rem;font-size:.72rem;color:#C62828">
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>3-day advance notice required.</strong> Home and Local leave must be applied at least 3 days before the start date.
+      </div>
+
+      <!-- Emergency note (shown dynamically) -->
+      <div id="emergencyNote" style="display:none;margin:0 1.2rem .8rem;background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);padding:.75rem 1rem;font-size:.72rem;color:#5D4037">
+        <i class="fas fa-info-circle"></i>
+        Emergency leave requires <strong>Warden approval + Guardian verification</strong>. Please keep your emergency contact reachable.
+      </div>
+
+      <!-- Medical note (shown dynamically) -->
+      <div id="medicalNote" style="display:none;margin:0 1.2rem .8rem;background:#E3F2FD;border:1px solid #BBDEFB;border-radius:var(--radius-md);padding:.75rem 1rem;font-size:.72rem;color:#1565C0">
+        <i class="fas fa-info-circle"></i>
+        Medical leave can be applied same-day. Please bring a medical certificate upon return.
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" class="btn-primary" id="submitBtn"><i class="ti ti-send"></i> Submit Request</button>
+        <button type="button" class="btn-sec" onclick="showPage('list')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div><!-- /page-apply -->
+
+<!-- Rejection Reason Modal -->
+<div class="modal-overlay" id="rejectModal" onclick="if(event.target===this)closeModal('rejectModal')">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-info-circle"></i> Rejection Reason</h3>
+      <button class="modal-close" onclick="closeModal('rejectModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <p id="rejectReasonText" style="font-size:.82rem;color:var(--text-secondary);line-height:1.6"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-modal-cancel" onclick="closeModal('rejectModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Approval Details Modal -->
+<div class="modal-overlay" id="approvedModal" onclick="if(event.target===this)closeModal('approvedModal')">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-circle-check" style="color:var(--green)"></i> Leave Approved</h3>
+      <button class="modal-close" onclick="closeModal('approvedModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:.9rem">
+
+      <!-- Approval date row -->
+      <div style="display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;background:var(--green-lighter);border:1px solid #c8e6cf;border-radius:var(--radius-md)">
+        <div style="width:36px;height:36px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="ti ti-calendar-check" style="color:var(--green);font-size:1rem"></i>
+        </div>
+        <div>
+          <div style="font-size:.62rem;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.1rem">Approved On</div>
+          <div id="approvedDateText" style="font-size:.82rem;font-weight:600;color:var(--green-dark)"></div>
+        </div>
+      </div>
+
+      <!-- Warden note row (hidden when empty) -->
+      <div id="wardenNoteRow" style="display:none;padding:.75rem 1rem;background:#F5FAF6;border:1px solid var(--border);border-radius:var(--radius-md)">
+        <div style="font-size:.62rem;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.35rem">
+          <i class="ti ti-message-circle" style="font-size:.7rem"></i> Warden Note
+        </div>
+        <p id="wardenNoteText" style="font-size:.8rem;color:var(--text-secondary);line-height:1.6;margin:0"></p>
+      </div>
+
+      <!-- No note fallback -->
+      <div id="wardenNoNote" style="display:none;font-size:.75rem;color:var(--text-muted);text-align:center;padding:.4rem 0">
+        <i class="ti ti-notes" style="margin-right:.3rem"></i> No additional note from warden.
+      </div>
+
+    </div>
+    <div class="modal-foot">
+      <button class="btn-modal-cancel" onclick="closeModal('approvedModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cancel Leave Confirmation Modal -->
+<div class="modal-overlay" id="cancelLeaveModal">
+  <div class="del-modal-box">
+    <div class="del-icon"><i class="ti ti-x"></i></div>
+    <h3>Cancel this leave request?</h3>
+    <p>This action can't be undone. You'll need to reapply if you change your mind.</p>
+    <div class="del-btns">
+      <button class="btn-cancel-del" onclick="closeModal('cancelLeaveModal')">Keep Request</button>
+      <button class="btn-confirm-del" id="confirmCancelBtn">Yes, Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Activate first tab
+document.getElementById('btn-list').classList.add('active');
+
+// ── If URL has ?page=apply, switch to apply page ──
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('page') === 'apply') {
+    showPage('apply');
+    document.getElementById('btn-apply').classList.add('active');
+    document.getElementById('btn-list').classList.remove('active');
+  }
+})();
+
+function handleTypeChange(type) {
+  document.getElementById('emergencyNote').style.display = type === 'Emergency' ? 'block' : 'none';
+  document.getElementById('medicalNote').style.display   = type === 'Medical'   ? 'block' : 'none';
+  validateDates();
+}
+
+function validateDates() {
+  const type     = document.getElementById('leaveTypeSelect').value;
+  const fromVal  = document.getElementById('fromDate').value;
+  const submitBtn = document.getElementById('submitBtn');
+  const warning   = document.getElementById('advanceWarning');
+
+  if (!fromVal || type === 'Medical' || type === 'Emergency') {
+    warning.style.display = 'none';
+    submitBtn.disabled = false;
+    return;
+  }
+
+  const from  = new Date(fromVal);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.ceil((from - today) / 86400000);
+
+  if (['Home', 'Local'].includes(type) && diffDays < 3) {
+    warning.style.display = 'block';
+    submitBtn.disabled = true;
+  } else {
+    warning.style.display = 'none';
+    submitBtn.disabled = false;
+  }
+
+  // Ensure toDate >= fromDate
+  const toInput = document.getElementById('toDate');
+  if (toInput.value && new Date(toInput.value) < from) {
+    toInput.value = fromVal;
+  }
+  toInput.min = fromVal;
+}
+
+function openRejectModal(button) {
+  const reason = button.getAttribute('data-reason');
+  document.getElementById('rejectReasonText').textContent = reason;
+  openModal('rejectModal');
+}
+
+function openApprovedModal(button) {
+  const approvedDate = button.getAttribute('data-approved');
+  const note         = button.getAttribute('data-note');
+
+  document.getElementById('approvedDateText').textContent = approvedDate;
+
+  const noteRow   = document.getElementById('wardenNoteRow');
+  const noteText  = document.getElementById('wardenNoteText');
+  const noNote    = document.getElementById('wardenNoNote');
+
+  if (note && note.trim()) {
+    noteText.textContent  = note;
+    noteRow.style.display = 'block';
+    noNote.style.display  = 'none';
+  } else {
+    noteRow.style.display = 'none';
+    noNote.style.display  = 'block';
+  }
+
+  openModal('approvedModal');
+}
+
+let cancelTargetId = null;
+
+function openCancelModal(leaveId) {
+  cancelTargetId = leaveId;
+  openModal('cancelLeaveModal');
+}
+
+document.getElementById('confirmCancelBtn').addEventListener('click', function() {
+  if (cancelTargetId) {
+    document.getElementById('cancelForm-' + cancelTargetId).submit();
+  }
+});
+
+</script>
+
+<%- include('student-footer') %>

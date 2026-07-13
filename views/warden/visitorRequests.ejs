@@ -1,0 +1,182 @@
+<%
+  const activePage   = 'visitors';
+  const pageTitle    = 'Visitor Requests';
+  const pageSubtitle = 'Approve or reject student visitor requests';
+%>
+<%- include('warden-header') %>
+
+<!-- ── Filter Tabs ── -->
+<div class="filter-tabs" style="margin-bottom:1.2rem">
+
+  <a href="/warden/visitor-requests?filter=all"
+     class="filter-tab filter-tab-neutral <%= activeFilter === 'all' ? 'is-active' : '' %>">
+    All <span class="tab-count"><%= counts.all %></span>
+  </a>
+
+  <a href="/warden/visitor-requests?filter=pending"
+     class="filter-tab filter-tab-orange <%= activeFilter === 'pending' ? 'is-active' : '' %>">
+    <i class="ti ti-clock"></i> Pending
+    <% if (counts.pending > 0) { %><span class="tab-count"><%= counts.pending %></span><% } %>
+  </a>
+
+  <a href="/warden/visitor-requests?filter=approved"
+     class="filter-tab filter-tab-blue <%= activeFilter === 'approved' ? 'is-active' : '' %>">
+    Approved
+  </a>
+
+  <a href="/warden/visitor-requests?filter=rejected"
+     class="filter-tab filter-tab-neutral <%= activeFilter === 'rejected' ? 'is-active' : '' %>">
+    Rejected
+  </a>
+
+  <a href="/warden/visitor-requests?filter=cancelled"
+     class="filter-tab filter-tab-neutral <%= activeFilter === 'cancelled' ? 'is-active' : '' %>">
+    Cancelled
+  </a>
+
+</div>
+
+<% if (visitorRequests.length === 0) { %>
+<div class="card">
+  <div class="empty-state">
+    <i class="ti ti-users"></i>
+    <h4>No visitor requests</h4>
+    <p>No requests match the selected filter.</p>
+  </div>
+</div>
+<% } else { %>
+
+<div style="display:flex;flex-direction:column;gap:1rem">
+  <% visitorRequests.forEach(function(vr) {
+       const statusMap = {
+         'Pending'   : 'badge-warning',
+         'Approved'  : 'badge-success',
+         'Rejected'  : 'badge-danger',
+         'Cancelled' : 'badge-neutral'
+       };
+       const visitDate    = new Date(vr.visitDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' });
+       const appliedDate  = new Date(vr.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short' });
+       const isPending    = vr.status === 'Pending';
+  %>
+  <div class="card" style="margin-bottom:0">
+
+    <!-- Card Header -->
+    <div class="card-head">
+      <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap">
+        <div class="u-av s"><%= vr.student?.user?.fullname?.charAt(0) || '?' %></div>
+        <div>
+          <div style="font-size:.85rem;font-weight:600;color:var(--text-primary)">
+            <%= vr.student?.user?.fullname || '—' %>
+          </div>
+          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.1rem">
+            <span class="uid-code"><%= vr.student?.user?.userId || '—' %></span>
+            &nbsp;·&nbsp; Applied <%= appliedDate %>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <span class="badge badge-info"><i class="ti ti-user"></i> <%= vr.numberOfGuests %> guest<%= vr.numberOfGuests > 1 ? 's' : '' %></span>
+        <span class="badge <%= statusMap[vr.status] || 'badge-neutral' %>"><%= vr.status %></span>
+      </div>
+    </div>
+
+    <!-- Visitor Details -->
+    <div class="detail-grid" style="padding:.8rem 1.2rem">
+      <div class="detail-field">
+        <label>Visitor Name</label>
+        <span style="font-weight:600;color:var(--green-dark)"><%= vr.visitorName %></span>
+      </div>
+      <div class="detail-field">
+        <label>CNIC</label>
+        <span style="font-family:monospace;font-weight:500"><%= vr.visitorCNIC %></span>
+      </div>
+      <div class="detail-field">
+        <label>Relation</label>
+        <span><%= vr.relation %></span>
+      </div>
+      <div class="detail-field">
+        <label>Visit Date</label>
+        <span style="font-weight:600"><%= visitDate %><% if (vr.visitTime) { %> · <%= vr.visitTime %><% } %></span>
+      </div>
+      <% if (vr.purpose) { %>
+      <div class="detail-field full">
+        <label>Purpose</label>
+        <span><%= vr.purpose %></span>
+      </div>
+      <% } %>
+    </div>
+
+    <!-- Student contact info -->
+    <% if (vr.student) { %>
+    <div style="padding:.5rem 1.2rem .8rem">
+      <div style="background:#EEF5F0;border:1px solid #c8e6cf;border-radius:var(--radius-md);padding:.65rem 1rem;font-size:.75rem;display:flex;flex-wrap:wrap;gap:.3rem .9rem;align-items:center">
+        <span>
+          <strong style="color:var(--green-dark)"><i class="fas fa-phone"></i> Student Phone:</strong>
+          <span style="font-family:monospace;font-weight:600"><%= vr.student.user?.phoneNumber || '—' %></span>
+        </span>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Rejection reason (if rejected) -->
+    <% if (vr.status === 'Rejected' && vr.wardenDecision && vr.wardenDecision.note) { %>
+    <div style="padding:0 1.2rem .8rem">
+      <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);padding:.6rem 1rem;font-size:.73rem;color:#5D4037">
+        <i class="ti ti-x"></i> <strong>Rejection Reason:</strong> <%= vr.wardenDecision.note %>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Action Forms (only for pending) -->
+    <% if (isPending) { %>
+    <div style="border-top:1px solid var(--border);padding:1rem 1.2rem;display:flex;gap:1rem;flex-wrap:wrap">
+
+      <!-- Approve Form -->
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:.7rem;font-weight:700;color:#2E7D32;text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+          <i class="ti ti-circle-check"></i> Approve Request
+        </div>
+        <form method="POST" action="/warden/visitor-requests/approve/<%= vr._id %>">
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <input type="text" name="note" placeholder="Optional note for student" style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+            <button type="submit" class="act-btn btn-approve" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+              <i class="ti ti-check"></i> Approve
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Reject Form -->
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:.7rem;font-weight:700;color:#C62828;text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+          <i class="ti ti-x"></i> Reject Request
+        </div>
+        <form method="POST" action="/warden/visitor-requests/reject/<%= vr._id %>">
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <input type="text" name="reason" placeholder="Reason for rejection" required style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+            <button type="submit" class="act-btn btn-reject" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+              <i class="ti ti-x"></i> Reject
+            </button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+    <% } %>
+
+    <!-- Approved details footer -->
+    <% if (vr.status === 'Approved' && vr.wardenDecision && vr.wardenDecision.at) { %>
+    <div style="border-top:1px solid var(--border);padding:.6rem 1.2rem;background:var(--green-lighter);font-size:.72rem;color:var(--green-dark)">
+      <i class="ti ti-circle-check"></i>
+      Approved on <%= new Date(vr.wardenDecision.at).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+      <% if (vr.wardenDecision.note) { %> &nbsp;·&nbsp; Note: <%= vr.wardenDecision.note %><% } %>
+    </div>
+    <% } %>
+
+  </div>
+  <% }); %>
+</div>
+
+<% } %>
+
+<%- include('warden-footer') %>

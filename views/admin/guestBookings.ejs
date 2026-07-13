@@ -1,0 +1,356 @@
+<%
+  const activePage   = 'ops-guest-bookings';
+  const pageTitle    = 'Visitors & Guest Room Bookings';
+  const pageSubtitle = "Oversee warden's visitor approvals and manage guest room bookings";
+%>
+<%- include('admin-header') %>
+
+<!-- ── Sub-nav tabs ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.8rem;flex-wrap:wrap">
+  <button class="act-btn tab-btn-visitors" id="btn-visitors" onclick="showPage('visitors', this)">
+    <i class="ti ti-user-check"></i> Visitor Requests
+    <% if (vCounts.pending > 0) { %><span class="tab-count" style="margin-left:.3rem"><%= vCounts.pending %></span><% } %>
+  </button>
+  <button class="act-btn tab-btn-bookings" id="btn-bookings" onclick="showPage('bookings', this)">
+    <i class="ti ti-home-2"></i> Guest Room Bookings
+    <% if (bCounts.pending > 0) { %><span class="tab-count" style="margin-left:.3rem"><%= bCounts.pending %></span><% } %>
+  </button>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     TAB 1 — VISITOR REQUESTS
+═══════════════════════════════════════════════ -->
+<div class="page" id="page-visitors">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:1.2rem">
+    <div class="filter-tabs" style="margin-bottom:0">
+      <a class="filter-tab filter-tab-neutral <%= vFilter === 'all' ? 'is-active' : '' %>"
+         href="/admin/operations/guest-bookings?tab=visitors&vFilter=all">
+        <i class="ti ti-list"></i> All <span class="tab-count"><%= vCounts.all %></span>
+      </a>
+      <a class="filter-tab filter-tab-orange <%= vFilter === 'pending' ? 'is-active' : '' %>"
+         href="/admin/operations/guest-bookings?tab=visitors&vFilter=pending">
+        <i class="ti ti-clock"></i> Pending
+        <% if (vCounts.pending > 0) { %><span class="tab-count"><%= vCounts.pending %></span><% } %>
+      </a>
+      <a class="filter-tab filter-tab-green <%= vFilter === 'approved' ? 'is-active' : '' %>"
+         href="/admin/operations/guest-bookings?tab=visitors&vFilter=approved">
+        Approved
+      </a>
+      <a class="filter-tab filter-tab-red <%= vFilter === 'rejected' ? 'is-active' : '' %>"
+         href="/admin/operations/guest-bookings?tab=visitors&vFilter=rejected">
+        Rejected
+      </a>
+      <a class="filter-tab filter-tab-neutral <%= vFilter === 'cancelled' ? 'is-active' : '' %>"
+         href="/admin/operations/guest-bookings?tab=visitors&vFilter=cancelled">
+        Cancelled
+      </a>
+    </div>
+    <span class="count-pill"><%= visitorRequests.length %> request<%= visitorRequests.length !== 1 ? 's' : '' %></span>
+  </div>
+
+  <% if (visitorRequests.length === 0) { %>
+  <div class="card">
+    <div class="empty-state">
+      <i class="ti ti-users"></i>
+      <h4>No visitor requests</h4>
+      <p>No requests match the selected filter.</p>
+    </div>
+  </div>
+  <% } else { %>
+
+  <div style="display:flex;flex-direction:column;gap:1rem">
+    <% visitorRequests.forEach(function(vr) {
+         const statusMap  = { 'Pending':'badge-warning', 'Approved':'badge-success', 'Rejected':'badge-danger', 'Cancelled':'badge-neutral' };
+         const bkBadgeMap = { 'Pending':'badge-warning', 'Approved':'badge-success', 'Rejected':'badge-danger', 'Cancelled':'badge-neutral' };
+         const visitDate   = new Date(vr.visitDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' });
+         const appliedDate = new Date(vr.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short' });
+         const isPending = vr.status === 'Pending';
+         const isDecided = vr.status === 'Approved' || vr.status === 'Rejected';
+         const bkLive    = vr._bookingStatus && ['Pending','Approved'].includes(vr._bookingStatus);
+    %>
+    <div class="card" style="margin-bottom:0">
+
+      <div class="card-head">
+        <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap">
+          <div class="u-av s"><%= vr.student?.user?.fullname?.charAt(0) || '?' %></div>
+          <div>
+            <div style="font-size:.85rem;font-weight:600"><%= vr.student?.user?.fullname || '—' %></div>
+            <div style="font-size:.68rem;color:var(--text-muted);margin-top:.1rem">
+              <span class="uid-code"><%= vr.student?.user?.userId || '—' %></span>
+              &nbsp;·&nbsp; Applied <%= appliedDate %>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+          <span class="badge badge-info"><i class="ti ti-user"></i> <%= vr.numberOfGuests %> guest<%= vr.numberOfGuests > 1 ? 's' : '' %></span>
+          <span class="badge <%= statusMap[vr.status] || 'badge-neutral' %>"><%= vr.status %></span>
+          <% if (vr._bookingStatus) { %>
+          <a href="/admin/operations/guest-bookings?tab=bookings" class="badge <%= bkBadgeMap[vr._bookingStatus] || 'badge-neutral' %>" style="text-decoration:none;cursor:pointer" title="View in Guest Room Bookings tab">
+            <i class="ti ti-home-2"></i> Room: <%= vr._bookingStatus %>
+          </a>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="detail-grid" style="padding:.8rem 1.2rem">
+        <div class="detail-field">
+          <label>Visitor Name</label>
+          <span style="font-weight:600;color:var(--green-dark)"><%= vr.visitorName %></span>
+        </div>
+        <div class="detail-field">
+          <label>CNIC</label>
+          <span style="font-family:monospace"><%= vr.visitorCNIC %></span>
+        </div>
+        <div class="detail-field">
+          <label>Relation</label>
+          <span><%= vr.relation %></span>
+        </div>
+        <div class="detail-field">
+          <label>Visit Date</label>
+          <span style="font-weight:600"><%= visitDate %><% if (vr.visitTime) { %> · <%= vr.visitTime %><% } %></span>
+        </div>
+        <% if (vr.purpose) { %>
+        <div class="detail-field full">
+          <label>Purpose</label>
+          <span><%= vr.purpose %></span>
+        </div>
+        <% } %>
+      </div>
+
+      <% if (vr.wardenDecision && vr.wardenDecision.note) { %>
+      <div style="padding:0 1.2rem .8rem">
+        <div style="background:<%= vr.status === 'Rejected' ? '#FFF8E1' : '#EEF5F0' %>;border:1px solid <%= vr.status === 'Rejected' ? '#FFE082' : '#c8e6cf' %>;border-radius:var(--radius-md);padding:.6rem 1rem;font-size:.73rem;color:#444">
+          <i class="ti ti-notes"></i>
+          <strong><%= vr.wardenDecision.by && vr.wardenDecision.by.role === 'admin' ? 'Admin note:' : "Warden's note:" %></strong>
+          <%= vr.wardenDecision.note %>
+        </div>
+      </div>
+      <% } %>
+
+      <% if (isPending) { %>
+      <div style="border-top:1px solid var(--border);padding:1rem 1.2rem;display:flex;gap:1rem;flex-wrap:wrap;background:#fafcfb">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:.7rem;font-weight:700;color:#2E7D32;text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+            <i class="ti ti-circle-check"></i> Approve
+          </div>
+          <form method="POST" action="/admin/operations/guest-bookings/visitor/approve/<%= vr._id %>">
+            <div style="display:flex;flex-direction:column;gap:.5rem">
+              <input type="text" name="note" placeholder="Optional note for student" style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+              <button type="submit" class="act-btn btn-approve" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+                <i class="ti ti-check"></i> Approve
+              </button>
+            </div>
+          </form>
+        </div>
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:.7rem;font-weight:700;color:#C62828;text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+            <i class="ti ti-x"></i> Reject
+          </div>
+          <form method="POST" action="/admin/operations/guest-bookings/visitor/reject/<%= vr._id %>">
+            <div style="display:flex;flex-direction:column;gap:.5rem">
+              <input type="text" name="reason" placeholder="Reason for rejection" required style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+              <button type="submit" class="act-btn btn-reject" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+                <i class="ti ti-x"></i> Reject
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <% } else if (isDecided) { %>
+      <div style="border-top:1px solid var(--border);padding:.8rem 1.2rem;background:#F5F6FF">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+          <i class="ti ti-shield-lock" style="color:#3949AB"></i>
+          <span style="font-size:.7rem;font-weight:700;color:#3949AB;text-transform:uppercase;letter-spacing:.6px">Override Decision</span>
+        </div>
+        <% if (bkLive) { %>
+        <div style="font-size:.68rem;color:#C62828;margin-bottom:.5rem">
+          <i class="ti ti-alert-triangle"></i> Live guest room booking exists. Overriding to <strong>Rejected</strong> will auto-cancel it.
+        </div>
+        <% } %>
+        <form method="POST" action="/admin/operations/guest-bookings/visitor/override/<%= vr._id %>" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+          <select name="newStatus" required class="filter-sel" style="min-width:130px">
+            <option value="">Change to…</option>
+            <option value="Approved" <%= vr.status === 'Approved' ? 'disabled' : '' %>>Approved</option>
+            <option value="Rejected" <%= vr.status === 'Rejected' ? 'disabled' : '' %>>Rejected</option>
+          </select>
+          <input type="text" name="note" placeholder="Reason for override" style="flex:1;min-width:180px;border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+          <button type="submit" class="btn-override-action" onclick="return confirm('Override this decision? This action is logged.')">
+            <i class="ti ti-arrows-shuffle"></i> Override
+          </button>
+        </form>
+      </div>
+      <% } %>
+
+    </div>
+    <% }); %>
+  </div>
+  <% } %>
+
+</div><!-- /page-visitors -->
+
+<!-- ═══════════════════════════════════════════════
+     TAB 2 — GUEST ROOM BOOKINGS
+═══════════════════════════════════════════════ -->
+<div class="page" id="page-bookings">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:1.2rem">
+    <div class="filter-tabs" style="margin-bottom:0">
+      <a class="filter-tab filter-tab-neutral <%= bFilter === 'all' ? 'is-active' : '' %>"
+         href="/admin/operations/guest-bookings?tab=bookings&bFilter=all">
+        <i class="ti ti-list"></i> All <span class="tab-count"><%= bCounts.all %></span>
+      </a>
+      <a class="filter-tab filter-tab-orange <%= bFilter === 'Pending' ? 'is-active' : '' %>"
+         href="/admin/operations/guest-bookings?tab=bookings&bFilter=Pending">
+        <i class="ti ti-clock"></i> Pending
+        <% if (bCounts.pending > 0) { %><span class="tab-count"><%= bCounts.pending %></span><% } %>
+      </a>
+      <a class="filter-tab filter-tab-green <%= bFilter === 'Approved' ? 'is-active' : '' %>"
+         href="/admin/operations/guest-bookings?tab=bookings&bFilter=Approved">
+        Approved
+      </a>
+      <a class="filter-tab filter-tab-red <%= bFilter === 'Rejected' ? 'is-active' : '' %>"
+         href="/admin/operations/guest-bookings?tab=bookings&bFilter=Rejected">
+        Rejected
+      </a>
+      <a class="filter-tab filter-tab-neutral <%= bFilter === 'Cancelled' ? 'is-active' : '' %>"
+         href="/admin/operations/guest-bookings?tab=bookings&bFilter=Cancelled">
+        Cancelled
+      </a>
+    </div>
+    <span class="count-pill"><%= bookings.length %> booking<%= bookings.length !== 1 ? 's' : '' %></span>
+  </div>
+
+  <% if (bookings.length === 0) { %>
+  <div class="card">
+    <div class="empty-state">
+      <i class="ti ti-home-2"></i>
+      <h4>No guest room bookings</h4>
+      <p>No bookings match the selected filter.</p>
+    </div>
+  </div>
+  <% } else { %>
+
+  <div style="display:flex;flex-direction:column;gap:1rem">
+    <% bookings.forEach(function(bk) {
+         const statusMap = { 'Pending':'badge-warning', 'Approved':'badge-success', 'Rejected':'badge-danger', 'Cancelled':'badge-neutral' };
+         const from = new Date(bk.fromDate);
+         const to   = new Date(bk.toDate);
+         const vr   = bk.visitorRequest;
+         const isPending = bk.status === 'Pending';
+    %>
+    <div class="card" style="margin-bottom:0">
+
+      <div class="card-head">
+        <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap">
+          <div class="u-av s"><%= bk.student?.user?.fullname?.charAt(0) || '?' %></div>
+          <div>
+            <div style="font-size:.85rem;font-weight:600"><%= bk.student?.user?.fullname || '—' %></div>
+            <div style="font-size:.68rem;color:var(--text-muted);margin-top:.1rem">
+              <span class="uid-code"><%= bk.student?.user?.userId || '—' %></span>
+              &nbsp;·&nbsp; Requested <%= new Date(bk.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+          <span class="badge badge-info"><i class="ti ti-home-2"></i> <%= bk.room ? bk.room.roomNo : '—' %></span>
+          <span class="badge <%= statusMap[bk.status] || 'badge-neutral' %>"><%= bk.status %></span>
+        </div>
+      </div>
+
+      <div class="detail-grid" style="padding:.8rem 1.2rem">
+        <div class="detail-field">
+          <label>Visitor</label>
+          <span style="font-weight:600"><%= vr ? vr.visitorName : '—' %></span>
+        </div>
+        <div class="detail-field">
+          <label>Relation</label>
+          <span><%= vr ? vr.relation : '—' %></span>
+        </div>
+        <div class="detail-field">
+          <label>Guests</label>
+          <span><%= vr ? vr.numberOfGuests : '—' %></span>
+        </div>
+        <div class="detail-field">
+          <label>Room</label>
+          <span style="font-weight:600;color:var(--green-dark)">
+            <%= bk.room ? bk.room.roomNo + ' — Block ' + bk.room.block + ', Floor ' + bk.room.floor : '—' %>
+          </span>
+        </div>
+        <div class="detail-field">
+          <label>From</label>
+          <span style="font-weight:600"><%= from.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></span>
+        </div>
+        <div class="detail-field">
+          <label>To</label>
+          <span style="font-weight:600"><%= to.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></span>
+        </div>
+        <div class="detail-field">
+          <label>Rate</label>
+          <span>Rs <%= bk.room ? (bk.room.feePerNight || 0).toLocaleString() : 0 %> / night</span>
+        </div>
+      </div>
+
+      <% if (bk.status === 'Rejected' && bk.adminDecision && bk.adminDecision.note) { %>
+      <div style="padding:0 1.2rem .8rem">
+        <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);padding:.6rem 1rem;font-size:.73rem;color:#5D4037">
+          <i class="ti ti-x"></i> <strong>Rejection Reason:</strong> <%= bk.adminDecision.note %>
+        </div>
+      </div>
+      <% } %>
+
+      <% if (isPending) { %>
+      <div style="border-top:1px solid var(--border);padding:1rem 1.2rem;display:flex;gap:1rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:.7rem;font-weight:700;color:#2E7D32;text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+            <i class="ti ti-circle-check"></i> Approve Booking
+          </div>
+          <form method="POST" action="/admin/operations/guest-bookings/approve/<%= bk._id %>">
+            <div style="display:flex;flex-direction:column;gap:.5rem">
+              <input type="text" name="note" placeholder="Optional note for student" style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+              <button type="submit" class="act-btn btn-approve" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+                <i class="ti ti-check"></i> Approve
+              </button>
+            </div>
+          </form>
+        </div>
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:.7rem;font-weight:700;color:#C62828;text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+            <i class="ti ti-x"></i> Reject Booking
+          </div>
+          <form method="POST" action="/admin/operations/guest-bookings/reject/<%= bk._id %>">
+            <div style="display:flex;flex-direction:column;gap:.5rem">
+              <input type="text" name="reason" placeholder="Reason for rejection" required style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+              <button type="submit" class="act-btn btn-reject" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+                <i class="ti ti-x"></i> Reject
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <% } else if (bk.status === 'Approved' && bk.adminDecision && bk.adminDecision.at) { %>
+      <div style="border-top:1px solid var(--border);padding:.6rem 1.2rem;background:var(--green-lighter);font-size:.72rem;color:var(--green-dark)">
+        <i class="ti ti-circle-check"></i>
+        Approved on <%= new Date(bk.adminDecision.at).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+        <% if (bk.adminDecision.note) { %> &nbsp;·&nbsp; Note: <%= bk.adminDecision.note %><% } %>
+      </div>
+      <% } %>
+
+    </div>
+    <% }); %>
+  </div>
+  <% } %>
+
+</div><!-- /page-bookings -->
+
+<script>
+  window.addEventListener('DOMContentLoaded', function () {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab') === 'bookings' ? 'bookings' : 'visitors';
+    if (typeof showPage === 'function') {
+      showPage(tab, document.getElementById('btn-' + tab));
+    }
+  });
+</script>
+
+<%- include('admin-footer') %>

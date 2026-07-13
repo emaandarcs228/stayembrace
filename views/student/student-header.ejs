@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= typeof pageTitle !== 'undefined' ? pageTitle + ' – STAY EMBRACE' : 'STAY EMBRACE Student Portal' %></title>
+  <link rel="icon" href="/images/logo-brow.png">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <link rel="stylesheet" href="/css/student.css">
+  <% if (typeof extraCss !== 'undefined') { %>
+    <link rel="stylesheet" href="/css/<%= extraCss %>">
+  <% } %>
+</head>
+<body>
+<div class="dash">
+
+  <!-- ══════════════════════════════════════
+       SIDEBAR
+  ══════════════════════════════════════ -->
+  <aside class="sidebar">
+
+    <!-- Logo -->
+    <a href="/student/dashboard" class="s-logo">
+  <img src="/images/logo-sidebar.png" alt="Stay Embrace Logo" class="s-logo-img">
+  <span class="s-logo-text"><span class="s-logo-accent">S</span>TAY EMBRACE</span>
+</a>
+
+    <!-- User chip -->
+    <div class="s-user">
+      <div class="s-avatar"><%= student.user.fullname.charAt(0).toUpperCase() %></div>
+      <div class="s-user-info">
+        <h4><%= student.user.fullname %></h4>
+        <span><%= student.user.userId %></span>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="s-nav" tabindex="0">
+
+      <!-- Dashboard (no group label) -->
+      <a href="/student/dashboard"
+         class="nav-item <%= activePage === 'dashboard' ? 'active' : '' %>">
+        <i class="ti ti-layout-dashboard"></i>
+        <span>Dashboard</span>
+      </a>
+
+      <!-- ── Hostel Life ── -->
+      <div class="s-section">Hostel Life</div>
+
+      <a href="/student/room"
+         class="nav-item <%= activePage === 'room' ? 'active' : '' %>">
+        <i class="ti ti-door"></i>
+        <span>Room</span>
+      </a>
+
+      <a href="/student/attendance"
+         class="nav-item <%= activePage === 'attendance' ? 'active' : '' %>">
+        <i class="ti ti-calendar-check"></i>
+        <span>Attendance</span>
+      </a>
+
+      <a href="/student/leave"
+         class="nav-item <%= activePage === 'leave' ? 'active' : '' %>">
+        <i class="ti ti-calendar-off"></i>
+        <span>Leave</span>
+      </a>
+
+      <a href="/student/complaints"
+         class="nav-item <%= activePage === 'complaints' ? 'active' : '' %>">
+        <i class="ti ti-message-report"></i>
+        <span>Complaints</span>
+      </a>
+
+      <a href="/student/visitors"
+        class="nav-item <%= activePage === 'visitors' ? 'active' : '' %>">
+        <i class="ti ti-users"></i>
+        <span>Visitors</span>
+      </a>
+
+      <!-- ── Services ── -->
+      <div class="s-section">Services</div>
+
+      <a href="/student/mess"
+         class="nav-item <%= activePage === 'mess' ? 'active' : '' %>">
+        <i class="ti ti-tools-kitchen-2"></i>
+        <span>Mess</span>
+      </a>
+
+      <a href="/student/laundry"
+         class="nav-item <%= activePage === 'laundry' ? 'active' : '' %>">
+        <i class="ti ti-wash"></i>
+        <span>Laundry</span>
+      </a>
+
+      <a href="/student/mobile-load"
+         class="nav-item <%= activePage === 'mobile-load' ? 'active' : '' %>">
+        <i class="ti ti-device-mobile"></i>
+        <span>Mobile Load</span>
+      </a>
+
+      <!-- ── Finance ── -->
+      <div class="s-section">Finance</div>
+
+      <a href="/student/fee-fine"
+         class="nav-item <%= activePage === 'fee-fine' ? 'active' : '' %>">
+        <i class="ti ti-receipt"></i>
+        <span>Fee &amp; Fine</span>
+      </a>
+
+      <a href="/student/pending-payments"
+         class="nav-item <%= activePage === 'pending-payments' ? 'active' : '' %>">
+        <i class="ti ti-wallet"></i>
+        <span>Pending Payments</span>
+        <%
+          // pendingCount is passed from controller when there are outstanding dues
+          if (typeof pendingCount !== 'undefined' && pendingCount > 0) {
+        %>
+          <span class="nav-badge"><%= pendingCount %></span>
+        <% } %>
+      </a>
+
+    </nav>
+
+    <!-- Footer: back + logout -->
+    <div class="s-footer">
+      <a href="/logout" class="nav-item logout-item">
+        <i class="fas fa-sign-out-alt"></i>
+        <span>Logout</span>
+      </a>
+    </div>
+
+  </aside>
+
+  <!-- ══════════════════════════════════════
+       MAIN CONTENT
+  ══════════════════════════════════════ -->
+  <main class="main">
+
+    <!-- ── Topbar ── -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <%
+          /*
+            topbarGreeting takes priority over pageTitle so that pages like
+            the dashboard (which want "Welcome back, Name" instead of a
+            generic page label) aren't overridden by a pageTitle coming
+            from somewhere else in the render call. Mirrors the same
+            pattern used in admin-header.ejs.
+          */
+        %>
+        <h2>
+          <%= typeof topbarGreeting !== 'undefined'
+                ? topbarGreeting
+                : (typeof pageTitle !== 'undefined' ? pageTitle : 'Student Portal') %>
+        </h2>
+        <% if (typeof pageSubtitle !== 'undefined') { %>
+          <p><i class="ti ti-calendar-event" style="font-size:.7rem;"></i> <%= pageSubtitle %></p>
+        <% } %>
+      </div>
+
+      <div class="topbar-right">
+
+        <!-- ── Notification Bell (every page) ── -->
+        <div class="notif-wrap">
+          <button class="notif-btn" id="notifBtn" aria-label="Notifications">
+            <i class="ti ti-bell"></i>
+            <span class="notif-badge" id="notifBadge"
+                  data-count="<%= typeof unreadCount !== 'undefined' ? unreadCount : 0 %>">
+              <%= typeof unreadCount !== 'undefined' && unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : '' %>
+            </span>
+          </button>
+
+          <div class="notif-dropdown" id="notifDropdown">
+            <div class="notif-drop-head">
+              <h4>Notifications</h4>
+              <button class="notif-mark-all" id="markAllRead">Mark all read</button>
+            </div>
+
+            <div class="notif-list" id="notifList">
+              <% if (typeof recentNotifs !== 'undefined' && recentNotifs.length > 0) { %>
+                <% recentNotifs.forEach(function(n) {
+                     // Map category to icon class
+                     const iconMap = {
+                       'Payments':      { cls: 'payments',      icon: 'fas fa-wallet'       },
+                       'Requests':      { cls: 'requests',      icon: 'fas fa-paper-plane'  },
+                       'Announcements': { cls: 'announcements', icon: 'fas fa-bullhorn'      },
+                       'Alerts':        { cls: 'alerts',        icon: 'fas fa-exclamation-circle' }
+                     };
+                     const ic = iconMap[n.category] || { cls: 'announcements', icon: 'fas fa-bell' };
+                     // FIX: readBy holds Mongoose ObjectId objects, so
+                     // .includes(string) never matched — every notification
+                     // in this dropdown showed as "unread" (green highlight)
+                     // even after being read. Mirrors the .map(String)
+                     // pattern already used correctly in admin-header.ejs
+                     // and warden-header.ejs.
+                     const isUnread = !n.readBy || !n.readBy.map(String).includes(String(student.user._id));
+                     const timeAgo  = typeof formatTimeAgo === 'function' ? formatTimeAgo(n.createdAt) : new Date(n.createdAt).toLocaleDateString();
+                %>
+                <a href="/student/notifications" class="notif-item <%= isUnread ? 'unread' : '' %>">
+                  <div class="notif-icon <%= ic.cls %>">
+                    <i class="<%= ic.icon %>"></i>
+                  </div>
+                  <div class="notif-body">
+                    <div class="notif-title"><%= n.title %></div>
+                    <div class="notif-msg"><%= n.message %></div>
+                    <div class="notif-time"><%= timeAgo %></div>
+                  </div>
+                  <div class="notif-dot"></div>
+                </a>
+                <% }); %>
+              <% } else { %>
+                <div class="notif-empty">
+                  <i class="ti ti-bell-off"></i>
+                  You're all caught up!
+                </div>
+              <% } %>
+            </div>
+
+            <div class="notif-drop-foot">
+              <a href="/student/notifications" class="notif-view-all">
+                View all notifications <i class="fas fa-arrow-right" style="font-size:.6rem"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Profile Dropdown (dashboard only, injected per-page) ── -->
+        <%
+          // The dashboard EJS includes this partial and then adds its own profile
+          // dropdown after. For all other pages, nothing renders here.
+          // This block is intentionally empty — each page controls its own topbar-right additions.
+        %>
+
+        <% if (typeof showProfileDropdown !== 'undefined' && showProfileDropdown) { %>
+        <div class="profile-wrap">
+          <button class="profile-btn" id="profileBtn">
+            <div class="profile-btn-avatar"><%= student.user.fullname.charAt(0).toUpperCase() %></div>
+            <span class="profile-btn-name"><%= student.user.fullname.split(' ')[0] %></span>
+            <i class="fas fa-chevron-down profile-btn-chevron"></i>
+          </button>
+
+          <div class="profile-dropdown" id="profileDropdown">
+            <!-- Identity header -->
+            <div class="pd-header">
+              <div class="pd-avatar"><%= student.user.fullname.charAt(0).toUpperCase() %></div>
+              <div class="pd-info">
+                <div class="pd-name"><%= student.user.fullname %></div>
+                <div class="pd-role">Student</div>
+                <div class="pd-uid"><%= student.user.userId %></div>
+              </div>
+            </div>
+
+            <!-- Menu -->
+            <div class="pd-menu">
+              <a href="/student/profile" class="pd-item">
+                <i class="fas fa-id-card"></i>
+                View Profile
+              </a>
+              <a href="/student/notifications" class="pd-item">
+                <i class="ti ti-bell"></i>
+                Notifications
+                <% if (typeof unreadCount !== 'undefined' && unreadCount > 0) { %>
+                  <span style="margin-left:auto;background:#e53e3e;color:white;font-size:.55rem;padding:.1rem .38rem;border-radius:10px;font-weight:700;">
+                    <%= unreadCount %>
+                  </span>
+                <% } %>
+              </a>
+              <div class="pd-divider"></div>
+              <a href="/logout" class="pd-item pd-logout">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+              </a>
+            </div>
+          </div>
+        </div>
+        <% } %>
+
+      </div><!-- /topbar-right -->
+    </div><!-- /topbar -->
+
+    <!-- Flash message (success/error from controller redirects) -->
+    <% if (typeof successMessage !== 'undefined' && successMessage) { %>
+    <div class="modal-overlay open" id="flashModal">
+      <div class="flash-modal-box flash-success">
+        <div class="flash-icon"><i class="fas fa-check-circle"></i></div>
+        <h3>Success</h3>
+        <p><%= successMessage %></p>
+        <button class="flash-ok-btn btn-primary" onclick="document.getElementById('flashModal').remove()">OK</button>
+      </div>
+    </div>
+    <% } %>
+    <% if (typeof errorMessage !== 'undefined' && errorMessage) { %>
+    <div class="modal-overlay open" id="flashModal">
+      <div class="flash-modal-box flash-error">
+        <div class="flash-icon"><i class="fas fa-exclamation-circle"></i></div>
+        <h3>Error</h3>
+        <p><%= errorMessage %></p>
+        <button class="flash-ok-btn" style="background:#C62828;color:white;" onclick="document.getElementById('flashModal').remove()">OK</button>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Page body starts here — closed in student-footer.ejs -->
+    <div class="page-body">
+      
+      <script>
+  const sNav = document.querySelector('.s-nav');
+  
+  // Mouse wheel anywhere on sidebar scrolls the nav
+  document.querySelector('.sidebar').addEventListener('wheel', function(e) {
+    e.preventDefault();
+    sNav.scrollTop += e.deltaY;
+  }, { passive: false });
+
+  // Auto-focus nav when mouse enters sidebar
+  document.querySelector('.sidebar').addEventListener('mouseenter', function() {
+    sNav.focus({ preventScroll: true });
+  });
+</script>

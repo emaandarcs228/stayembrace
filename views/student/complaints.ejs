@@ -1,0 +1,399 @@
+<%
+  const activePage   = 'complaints';
+  const pageTitle    = 'Complaints';
+  const pageSubtitle = 'Submit and track your complaints';
+%>
+<%- include('student-header') %>
+
+<!-- ── Sub-nav ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
+  <button class="act-btn btn-view" id="btn-list" onclick="showPage('list', this)">
+    <i class="ti ti-list"></i> My Complaints
+  </button>
+  <button class="act-btn" style="background:#FFEBEE;color:#C62828" id="btn-submit" onclick="showPage('submit', this)">
+    <i class="ti ti-message-report"></i> Submit Complaint
+  </button>
+</div>
+
+<!-- ══ MY COMPLAINTS ══ -->
+<div class="page active" id="page-list">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-message-report"></i> All Complaints</h3>
+      <span class="count-pill"><%= complaints.length %> total</span>
+    </div>
+
+    <% if (complaints.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Subject</th>
+            <th>Category</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>SLA</th>
+            <th>Submitted</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% complaints.forEach(function(c, i) {
+               const catMap = {
+                 'Maintenance'         : 'badge-warning',
+                 'Mess'                : 'badge-info',
+                 'Laundry'             : 'badge-info',
+                 'Roommate Issue'      : 'badge-purple',
+                 'Cleanliness'         : 'badge-neutral',
+                 'Ragging/Harassment': 'badge-danger',
+                 'Other'               : 'badge-neutral'
+               };
+               const priorityMap = {
+                 'Low'    : 'badge-neutral',
+                 'Medium' : 'badge-info',
+                 'High'   : 'badge-warning',
+                 'Urgent' : 'badge-danger'
+               };
+               const statusMap = {
+                 'Submitted'    : 'badge-neutral',
+                 'Acknowledged' : 'badge-info',
+                 'In Progress'  : 'badge-warning',
+                 'Resolved'     : 'badge-success'
+               };
+               const slaDate = c.expectedResolutionDate ? new Date(c.expectedResolutionDate) : null;
+               const isOverdue = slaDate && slaDate < new Date() && c.status !== 'Resolved';
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td style="font-weight:500;font-size:.78rem;max-width:180px">
+              <% if (c.isAnonymous) { %>
+                <span class="badge badge-neutral" style="margin-right:.3rem;font-size:.55rem"><i class="fas fa-user-secret"></i> Anon</span>
+              <% } %>
+              <%= c.subject %>
+            </td>
+            <td><span class="badge <%= catMap[c.category] || 'badge-neutral' %>"><%= c.category %></span></td>
+            <td><span class="badge <%= priorityMap[c.priority] || 'badge-neutral' %>"><%= c.priority %></span></td>
+            <td><span class="badge <%= statusMap[c.status] || 'badge-neutral' %>"><%= c.status %></span></td>
+            <td style="font-size:.72rem">
+              <% if (slaDate) { %>
+                <span style="color:<%= isOverdue ? '#C62828' : 'var(--text-muted)' %>">
+                  <%= isOverdue ? '⚠ ' : '' %><%= slaDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %>
+                </span>
+              <% } else { %>
+                <span style="color:#ccc">—</span>
+              <% } %>
+            </td>
+            <td style="font-size:.7rem;color:var(--text-muted)"><%= new Date(c.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td>
+              <button class="act-btn btn-view" onclick="openComplaintModal(this)" 
+        data-subject="<%= c.subject %>"
+        data-category="<%= c.category %>"
+        data-priority="<%= c.priority %>"
+        data-status="<%= c.status %>"
+        data-description="<%= c.description.replace(/"/g, '&quot;').replace(/\n/g, '&#10;') %>"
+        data-adminresponse="<%= c.adminResponse ? c.adminResponse.replace(/"/g, '&quot;').replace(/\n/g, '&#10;') : '' %>"
+        data-resolvedat="<%= c.resolvedAt ? new Date(c.resolvedAt).toLocaleDateString() : '' %>"
+        data-createdat="<%= new Date(c.createdAt).toLocaleDateString() %>"
+        data-isanonymous="<%= c.isAnonymous %>"
+        data-attachment="<%= c.attachment || '' %>">
+  <i class="ti ti-eye"></i> View
+</button>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-message-off"></i>
+      <h4>No complaints submitted</h4>
+      <p>Use "Submit Complaint" if you need to report an issue.</p>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /page-list -->
+
+<!-- ══ SUBMIT COMPLAINT PAGE ══ -->
+<div class="page" id="page-submit">
+  <div class="card" style="max-width:600px">
+    <div class="card-head">
+      <h3><i class="ti ti-message-report"></i> Submit a Complaint</h3>
+    </div>
+
+    <form action="/student/complaints/submit" method="POST" enctype="multipart/form-data" id="complaintForm">
+      <div class="form-section">
+        <div class="form-grid">
+
+          <div class="form-group full">
+            <label>Subject <span class="req">*</span></label>
+            <input type="text" name="subject" placeholder="Brief title of your complaint" required maxlength="120">
+          </div>
+
+          <div class="form-group">
+            <label>Category <span class="req">*</span></label>
+            <select name="category" id="categorySelect" required onchange="handleCategoryChange(this.value)">
+              <option value="">— Select category —</option>
+              <option value="Maintenance">Maintenance</option>
+              <option value="Mess">Mess</option>
+              <option value="Laundry">Laundry</option>
+              <option value="Roommate Issue">Roommate Issue</option>
+              <option value="Cleanliness">Cleanliness</option>
+              <option value="Ragging/Harassment">Ragging / Harassment</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Priority</label>
+            <select name="priority">
+              <option value="Low">Low</option>
+              <option value="Medium" selected>Medium</option>
+              <option value="High">High</option>
+              <option value="Urgent">Urgent</option>
+            </select>
+          </div>
+
+          <!-- Other category text field -->
+          <div class="form-group full" id="otherCategoryGroup" style="display:none">
+            <label>Specify Category <span class="req">*</span></label>
+            <input type="text" name="otherCategory" id="otherCategoryInput" placeholder="Describe the category">
+          </div>
+
+          <div class="form-group full">
+            <label>Description <span class="req">*</span></label>
+            <textarea name="description" rows="5" placeholder="Describe the issue in detail..." required></textarea>
+          </div>
+
+          <!-- Photo upload (required for Maintenance, hidden for anonymous Ragging) -->
+          <div class="form-group full" id="photoGroup">
+            <label id="photoLabel">Photo Attachment <span id="photoReq" class="req" style="display:none">*</span> <span style="font-size:.65rem;color:var(--text-muted)">(optional)</span></label>
+            <input type="file" name="attachment" id="attachmentInput" accept="image/*,.pdf">
+            <span class="field-hint" id="photoHint">Attach a photo or PDF as evidence.</span>
+          </div>
+
+          <!-- Anonymous checkbox (Ragging / Harassment only) -->
+          <div class="form-group full" id="anonGroup" style="display:none">
+            <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+              <input type="checkbox" name="isAnonymous" id="anonCheck" onchange="handleAnonChange(this.checked)">
+              <span>Submit anonymously — hide my identity from the warden</span>
+            </label>
+            <span class="field-hint">Your identity is still visible to the admin for safety purposes.</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- SLA info box -->
+      <div id="slaInfo" style="display:none;margin:0 1.2rem .8rem;background:var(--green-light);border:1px solid #b8d9c0;border-radius:var(--radius-md);padding:.75rem 1rem;font-size:.72rem;color:var(--green-dark)">
+        <i class="fas fa-clock"></i> <strong>Expected resolution: <span id="slaText"></span></strong>
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" class="btn-primary"><i class="ti ti-send"></i> Submit Complaint</button>
+        <button type="button" class="btn-sec" onclick="showPage('list')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div><!-- /page-submit -->
+
+<!-- ── Complaint Detail Modal ── -->
+<div class="modal-overlay" id="complaintModal" onclick="if(event.target===this)closeModal('complaintModal')">
+  <div class="modal-box modal-box-wide">
+    <div class="modal-head">
+      <h3><i class="ti ti-message-report"></i> Complaint Details</h3>
+      <button class="modal-close" onclick="closeModal('complaintModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Status timeline -->
+      <div class="timeline" style="margin-bottom:1rem" id="cTimeline">
+        <div class="timeline-step">
+          <div class="timeline-dot done" id="ts-submitted"><i class="fas fa-check"></i></div>
+          <div class="timeline-body"><h5>Submitted</h5><p id="ts-submitted-date"></p></div>
+        </div>
+        <div class="timeline-step">
+          <div class="timeline-dot" id="ts-ack"><i class="ti ti-eye"></i></div>
+          <div class="timeline-body"><h5>Acknowledged</h5><p>Warden has seen your complaint</p></div>
+        </div>
+        <div class="timeline-step">
+          <div class="timeline-dot" id="ts-prog"><i class="ti ti-tool"></i></div>
+          <div class="timeline-body"><h5>In Progress</h5><p>Being addressed by the team</p></div>
+        </div>
+        <div class="timeline-step">
+          <div class="timeline-dot" id="ts-res"><i class="fas fa-check-circle"></i></div>
+          <div class="timeline-body"><h5>Resolved</h5><p id="ts-res-date"></p></div>
+        </div>
+      </div>
+
+      <div class="detail-grid">
+        <div class="detail-field">
+          <label>Category</label>
+          <span id="m-category">—</span>
+        </div>
+        <div class="detail-field">
+          <label>Priority</label>
+          <span id="m-priority">—</span>
+        </div>
+        <div class="detail-field full">
+          <label>Description</label>
+          <span id="m-description" style="white-space:pre-line;color:var(--text-secondary)"></span>
+        </div>
+        <div class="detail-field full" id="m-response-row" style="display:none">
+          <label>Admin / Warden Response</label>
+          <span id="m-response" style="white-space:pre-line;background:var(--green-lighter);padding:.6rem .8rem;border-radius:var(--radius-md);display:block;color:var(--green-dark);font-size:.8rem"></span>
+        </div>
+        <div class="detail-field full" id="m-attachment-row" style="display:none">
+          <label>Attachment</label>
+          <a id="m-attachment-link" href="#" target="_blank" class="act-btn btn-view" style="display:inline-flex">
+            <i class="fas fa-paperclip"></i> View Attachment
+          </a>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-foot">
+      <button class="btn-modal-cancel" onclick="closeModal('complaintModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('btn-list').classList.add('active');
+
+// ── If URL has ?page=submit, switch to submit page ──
+(function() {
+  const p = new URLSearchParams(window.location.search).get('page');
+  if (p === 'submit') {
+    showPage('submit');
+    document.getElementById('btn-submit').classList.add('active');
+    document.getElementById('btn-list').classList.remove('active');
+  }
+})();
+
+const slaHoursMap = {
+  'Maintenance'         : 48,
+  'Mess'                : 24,
+  'Laundry'             : 48,
+  'Roommate Issue'      : 72,
+  'Ragging/Harassment': 12,
+  'Cleanliness'         : 24,
+  'Other'               : 72
+};
+
+function handleCategoryChange(cat) {
+  const otherGrp  = document.getElementById('otherCategoryGroup');
+  const otherInp  = document.getElementById('otherCategoryInput');
+  const anonGrp   = document.getElementById('anonGroup');
+  const photoGrp  = document.getElementById('photoGroup');
+  const photoReq  = document.getElementById('photoReq');
+  const photoHint = document.getElementById('photoHint');
+  const slaBox    = document.getElementById('slaInfo');
+  const slaText   = document.getElementById('slaText');
+  const attachInp = document.getElementById('attachmentInput');
+
+  // Reset
+  otherGrp.style.display  = 'none';
+  otherInp.required        = false;
+  anonGrp.style.display   = 'none';
+  document.getElementById('anonCheck').checked = false;
+  photoGrp.style.display  = 'block';
+  photoReq.style.display  = 'none';
+  attachInp.required       = false;
+
+  if (cat === 'Other') {
+    otherGrp.style.display = 'block';
+    otherInp.required      = true;
+  }
+  if (cat === 'Ragging/Harassment') {
+    anonGrp.style.display = 'block';
+  }
+  if (cat === 'Maintenance') {
+    photoReq.style.display = 'inline';
+    photoHint.textContent  = 'A photo is required for maintenance complaints.';
+    attachInp.required     = true;
+  } else {
+    photoHint.textContent  = 'Attach a photo or PDF as evidence (optional).';
+  }
+
+  // SLA info
+  const hours = slaHoursMap[cat];
+  if (hours) {
+    const deadline = new Date(Date.now() + hours * 3600000);
+    slaText.textContent = deadline.toLocaleDateString('en-PK', { weekday:'short', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+    slaBox.style.display = 'block';
+  } else {
+    slaBox.style.display = 'none';
+  }
+}
+
+function handleAnonChange(isAnon) {
+  const photoGrp  = document.getElementById('photoGroup');
+  const attachInp = document.getElementById('attachmentInput');
+  if (isAnon) {
+    photoGrp.style.display = 'none';
+    attachInp.required     = false;
+    attachInp.value        = '';
+  } else {
+    photoGrp.style.display = 'block';
+  }
+}
+
+function openComplaintModal(button) {
+  // Get all data attributes
+  const c = {
+    subject: button.getAttribute('data-subject'),
+    category: button.getAttribute('data-category'),
+    priority: button.getAttribute('data-priority'),
+    status: button.getAttribute('data-status'),
+    description: button.getAttribute('data-description'),
+    adminResponse: button.getAttribute('data-adminresponse') || null,
+    resolvedAt: button.getAttribute('data-resolvedat') || null,
+    createdAt: button.getAttribute('data-createdat'),
+    isAnonymous: button.getAttribute('data-isanonymous') === 'true',
+    attachment: button.getAttribute('data-attachment') || null
+  };
+
+  // Now use the same logic as before
+  document.getElementById('m-category').textContent = c.category;
+  document.getElementById('m-priority').textContent = c.priority;
+  document.getElementById('m-description').textContent = c.description;
+  document.getElementById('ts-submitted-date').textContent = 'Submitted ' + c.createdAt;
+
+  // Timeline stages
+  const stages = ['Submitted', 'Acknowledged', 'In Progress', 'Resolved'];
+  const stageIds = ['ts-submitted', 'ts-ack', 'ts-prog', 'ts-res'];
+  const stageIdx = stages.indexOf(c.status);
+  stageIds.forEach(function(id, i) {
+    const dot = document.getElementById(id);
+    dot.className = 'timeline-dot' + (i <= stageIdx ? ' done' : i === stageIdx + 1 ? ' active' : '');
+  });
+
+  // Resolved date
+  document.getElementById('ts-res-date').textContent = c.resolvedAt ? 'Resolved on ' + c.resolvedAt : '';
+
+  // Admin response
+  const respRow = document.getElementById('m-response-row');
+  if (c.adminResponse) {
+    document.getElementById('m-response').textContent = c.adminResponse;
+    respRow.style.display = 'block';
+  } else {
+    respRow.style.display = 'none';
+  }
+
+  // Attachment
+  const attRow = document.getElementById('m-attachment-row');
+  if (c.attachment) {
+    document.getElementById('m-attachment-link').href = '/' + c.attachment;
+    attRow.style.display = 'block';
+  } else {
+    attRow.style.display = 'none';
+  }
+
+  openModal('complaintModal');
+}
+
+</script>
+
+<%- include('student-footer') %>

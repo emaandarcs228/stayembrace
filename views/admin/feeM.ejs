@@ -1,0 +1,776 @@
+<%
+  // ── Slug helper: "Cash Received" -> "cash-received", used for status/type CSS classes ──
+  const slug = s => (s || '').toLowerCase().replace(/\s+/g, '-');
+  const money = n => 'Rs ' + Number(n || 0).toLocaleString();
+  // ── Source badge: distinguishes gateway-auto-verified payments from admin/warden-entered ones ──
+  const sourceBadge = src => src === 'Gateway'
+    ? '<span class="source-badge source-badge-gateway"><i class="ti ti-bolt"></i> Gateway</span>'
+    : '<span class="source-badge source-badge-manual"><i class="ti ti-pencil"></i> Manual</span>';
+%>
+<%- include('admin-header') %>
+
+<!-- ── Search ── -->
+<div style="display:flex;justify-content:flex-end;margin-bottom:1.2rem">
+  <div class="search-bar" style="max-width:320px;width:100%">
+    <i class="ti ti-search"></i>
+    <input type="text" placeholder="Search by student, txn ID..." id="globalSearch" oninput="globalSearchHandler()">
+  </div>
+</div>
+
+<!-- ── Sub-nav tabs ── -->
+<div class="page-tabs">
+  <button class="act-btn active" style="background:#E8EAF6;color:#3949AB" onclick="showPage('overview',this)"><i class="ti ti-layout-dashboard"></i> Overview</button>
+  <button class="act-btn" style="background:#EEF5F0;color:#2D5A3D" onclick="showPage('payments',this)"><i class="ti ti-receipt"></i> Payments</button>
+  <button class="act-btn" id="nav-pending" style="background:#FFF8E1;color:#E65100" onclick="showPage('pending',this)">
+    <i class="ti ti-clock-hour-4"></i> Pending Verification
+    <% if (stats.pendingPaymentsCount > 0) { %><span style="background:#E65100;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= stats.pendingPaymentsCount %></span><% } %>
+  </button>
+  <button class="act-btn" style="background:#E3F2FD;color:#1565C0" onclick="showPage('dues',this)">
+    <i class="ti ti-file-invoice"></i> Dues
+    <% if (stats.overdueDuesCount > 0) { %><span style="background:#C62828;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= stats.overdueDuesCount %></span><% } %>
+  </button>
+  <button class="act-btn" style="background:#F3E5F5;color:#7B1FA2" onclick="showPage('fines',this)"><i class="ti ti-gavel"></i> Fines</button>
+</div>
+
+<!-- ══════════════════════════════════════
+     OVERVIEW PAGE
+══════════════════════════════════════ -->
+<div class="page active" id="page-overview">
+  <div class="stats-row">
+    <div class="stat-card clickable" onclick="showPage('payments',null)">
+      <div class="s-icon income"><i class="ti ti-cash-banknote"></i></div>
+      <div class="s-info"><h4>Total Income</h4><h3><%= money(stats.totalIncome) %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="showPage('pending',null)">
+      <div class="s-icon pending"><i class="ti ti-clock-hour-4"></i></div>
+      <div class="s-info"><h4>Pending Verification</h4><h3><%= stats.pendingPaymentsCount %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="showPage('dues',null)">
+      <div class="s-icon overdue"><i class="ti ti-alert-triangle"></i></div>
+      <div class="s-info"><h4>Overdue Dues</h4><h3><%= stats.overdueDuesCount %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="showPage('dues',null)">
+      <div class="s-icon revenue"><i class="ti ti-hourglass"></i></div>
+      <div class="s-info"><h4>Pending Revenue</h4><h3><%= money(stats.pendingRevenue) %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="showPage('fines',null)">
+      <div class="s-icon fines"><i class="ti ti-gavel"></i></div>
+      <div class="s-info"><h4>Outstanding Fines</h4><h3><%= money(stats.totalFinesAmount) %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="showPage('payments',null)">
+      <div class="s-icon verified"><i class="ti ti-circle-check"></i></div>
+      <div class="s-info"><h4>Verified Payments</h4><h3><%= stats.verifiedCount %> / <%= stats.totalPaymentsCount %></h3></div>
+    </div>
+  </div>
+
+  <!-- ── Monthly Income ── -->
+  <div class="card">
+    <div class="card-head"><h3><i class="ti ti-chart-bar"></i> Monthly Income (Last 6 Months)</h3></div>
+    <div style="padding:1.2rem;">
+      <%
+        const maxMonth = Math.max(1, ...monthlyIncome.map(m => m.total));
+      %>
+      <div style="display:flex;align-items:flex-end;gap:1.2rem;height:160px;padding:0 .5rem;">
+        <% monthlyIncome.forEach(m => { %>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:.4rem;">
+            <div style="font-size:.68rem;font-weight:700;color:var(--green-dark)"><%= m.total > 0 ? money(m.total) : '' %></div>
+            <div style="width:100%;max-width:44px;background:linear-gradient(180deg,var(--green) 0%,var(--green-dark) 100%);border-radius:6px 6px 0 0;height:<%= Math.max(4, Math.round((m.total / maxMonth) * 110)) %>px;transition:height .3s ease;"></div>
+            <div style="font-size:.68rem;color:var(--text-muted);font-weight:600;"><%= m.label %></div>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Service-wise Earnings ── -->
+  <div class="card">
+    <div class="card-head"><h3><i class="ti ti-chart-pie"></i> Service-wise Earnings</h3></div>
+    <div style="padding:0 1.2rem 1.2rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.9rem;">
+      <% serviceWise.forEach(sw => { %>
+        <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.9rem;">
+          <span class="type-pill type-<%= slug(sw.type) %>"><%= sw.type %></span>
+          <h3 style="margin-top:.6rem;font-size:1.15rem;"><%= money(sw.total) %></h3>
+          <p style="font-size:.7rem;color:var(--text-muted);margin-top:.15rem;"><%= sw.count %> verified payment<%= sw.count === 1 ? '' : 's' %></p>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <!-- ── Defaulters ── -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-user-exclamation"></i> Defaulters (Overdue Dues)</h3>
+      <button class="add-btn" onclick="showPage('dues',null)">View All Dues</button>
+    </div>
+    <% if (defaulters.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Student</th><th>User ID</th><th>Overdue Items</th><th>Total Owed</th></tr></thead>
+        <tbody>
+          <% defaulters.forEach(d => { %>
+          <tr>
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= d.student.user.fullname.charAt(0).toUpperCase() %></div>
+                <div><div class="u-name"><%= d.student.user.fullname %></div></div>
+              </div>
+            </td>
+            <td><code class="uid-code"><%= d.student.user.userId %></code></td>
+            <td><span class="overdue-days"><%= d.count %> item<%= d.count === 1 ? '' : 's' %></span></td>
+            <td style="font-weight:700;color:#C62828;"><%= money(d.totalDue) %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state"><i class="fas fa-check-circle"></i><p>No defaulters right now.</p></div>
+    <% } %>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     PAYMENTS PAGE (all records)
+══════════════════════════════════════ -->
+<div class="page" id="page-payments">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-receipt"></i> All Payments</h3>
+      <button class="add-btn" onclick="openAddPaymentModal()"><i class="ti ti-plus"></i> Add Payment</button>
+    </div>
+    <% if (payments.length > 0) { %>
+    <div class="tbl-wrap">
+      <table id="tbl-payments">
+        <thead>
+          <tr>
+            <th>Student</th><th>Type</th><th>Method</th><th>Source</th><th>Amount</th>
+            <th>Transaction ID</th><th>Status</th><th>Date</th><th>Verified By</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% payments.forEach(p => { %>
+          <tr class="searchable-row" data-search="<%= (p.student && p.student.user ? p.student.user.fullname + ' ' + p.student.user.userId : '') + ' ' + (p.transactionId || '') %>">
+            <td>
+              <% if (p.student && p.student.user) { %>
+              <div class="user-cell">
+                <div class="u-av s"><%= p.student.user.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= p.student.user.fullname %></div>
+                  <div class="u-email"><%= p.student.user.userId %></div>
+                </div>
+              </div>
+              <% } else { %><span style="color:var(--text-muted)">Unknown student</span><% } %>
+            </td>
+            <td>
+              <span class="type-pill type-<%= slug(p.paymentType) %>"><%= p.paymentType %></span>
+              <% if (p.paymentType === 'Multiple' && p.dues && p.dues.length) { %>
+                <span style="font-size:.65rem;color:var(--text-muted);display:block;margin-top:.15rem;">covers <%= p.dues.length %> dues</span>
+              <% } %>
+            </td>
+            <td><%= p.paymentMethod %></td>
+            <td><%- sourceBadge(p.source) %></td>
+            <td style="font-weight:700;"><%= money(p.amount) %></td>
+            <td><% if (p.transactionId) { %><code class="uid-code"><%= p.transactionId %></code><% } else { %><span style="color:var(--text-muted)">—</span><% } %></td>
+            <td><span class="pay-status pay-status-<%= slug(p.status) %>"><%= p.status %></span></td>
+            <td><%= new Date(p.createdAt).toLocaleDateString() %></td>
+            <td><%= p.verifiedBy ? p.verifiedBy.fullname : '—' %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state"><i class="fas fa-receipt"></i><p>No payment records yet.</p></div>
+    <% } %>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     PENDING VERIFICATION PAGE
+══════════════════════════════════════ -->
+<%
+  const pendingQueue = payments.filter(p => p.status === 'Pending' || p.status === 'Cash Received');
+%>
+<div class="page" id="page-pending">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-clock-hour-4"></i> Awaiting Verification</h3>
+    </div>
+    <% if (pendingQueue.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Student</th><th>Type</th><th>Method</th><th>Source</th><th>Amount</th>
+            <th>Proof</th><th>Status</th><th>Submitted</th><th class="actions-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% pendingQueue.forEach(p => { %>
+          <tr>
+            <td>
+              <% if (p.student && p.student.user) { %>
+              <div class="user-cell">
+                <div class="u-av s"><%= p.student.user.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= p.student.user.fullname %></div>
+                  <div class="u-email"><%= p.student.user.userId %></div>
+                </div>
+              </div>
+              <% } else { %><span style="color:var(--text-muted)">Unknown student</span><% } %>
+            </td>
+            <td><span class="type-pill type-<%= slug(p.paymentType) %>"><%= p.paymentType %></span></td>
+            <td><%= p.paymentMethod %></td>
+            <td><%- sourceBadge(p.source) %></td>
+            <td style="font-weight:700;"><%= money(p.amount) %></td>
+            <td>
+              <% if (p.paymentMethod === 'Cash') { %>
+                <span style="font-size:.7rem;color:var(--text-muted)">Cash — verify at office</span>
+              <% } else if (p.transactionId) { %>
+                <code class="uid-code"><%= p.transactionId %></code>
+              <% } else { %>
+                <span style="font-size:.7rem;color:#C62828">No transaction ID provided</span>
+              <% } %>
+            </td>
+            <td><span class="pay-status pay-status-<%= slug(p.status) %>"><%= p.status %></span></td>
+            <td><%= new Date(p.createdAt).toLocaleDateString() %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <% if (p.status === 'Pending' && p.paymentMethod === 'Cash') { %>
+                  <form action="/admin/fees/payments/cash-received/<%= p._id %>" method="POST" style="display:inline"
+                        onsubmit="return confirm('Confirm cash of ' + '<%= money(p.amount) %>' + ' was physically received?');">
+                    <button type="submit" class="act-btn btn-approve"><i class="ti ti-cash"></i> Cash Received</button>
+                  </form>
+                <% } else { %>
+                  <form action="/admin/fees/payments/verify/<%= p._id %>" method="POST" style="display:inline"
+                        onsubmit="return confirm('Verify this payment of ' + '<%= money(p.amount) %>' + '? Linked dues will be settled.');">
+                    <button type="submit" class="act-btn btn-approve"><i class="ti ti-check"></i> Verify</button>
+                  </form>
+                <% } %>
+                <button type="button" class="act-btn btn-reject" data-id="<%= p._id %>" data-name="<%= (p.student && p.student.user ? p.student.user.fullname : 'this student') %>" onclick="openRejectModal(this.dataset.id, this.dataset.name)">
+                  <i class="ti ti-x"></i> Reject
+                </button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state"><i class="fas fa-check-circle"></i><p>Nothing awaiting verification.</p></div>
+    <% } %>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     DUES PAGE
+══════════════════════════════════════ -->
+<div class="page" id="page-dues">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-file-invoice"></i> All Dues</h3>
+      <button class="add-btn" onclick="openGenerateDueModal()"><i class="ti ti-plus"></i> Generate Due</button>
+    </div>
+    <% if (dues.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Student</th><th>Type</th><th>Amount</th><th>Due Date</th>
+            <th>Description</th><th>Status</th><th class="actions-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% dues.forEach(d => { %>
+          <tr>
+            <td>
+              <% if (d.student && d.student.user) { %>
+              <div class="user-cell">
+                <div class="u-av s"><%= d.student.user.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= d.student.user.fullname %></div>
+                  <div class="u-email"><%= d.student.user.userId %></div>
+                </div>
+              </div>
+              <% } else { %><span style="color:var(--text-muted)">Unknown student</span><% } %>
+            </td>
+            <td><span class="type-pill type-<%= slug(d.dueType) %>"><%= d.dueType %></span></td>
+            <td style="font-weight:700;"><%= money(d.amount) %></td>
+            <td><%= new Date(d.dueDate).toLocaleDateString() %></td>
+            <td><%= d.description || '<span style="color:var(--text-muted)">—</span>' %></td>
+            <td><span class="due-status due-status-<%= slug(d.status) %>"><%= d.status %></span></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <% if (d.status !== 'Paid') { %>
+                  <button type="button" class="act-btn btn-approve" data-type="due" data-id="<%= d._id %>" data-name="<%= (d.student && d.student.user ? d.student.user.fullname : 'student') %>" data-amount="<%= d.amount %>" onclick="openMarkPaidModal(this.dataset.type, this.dataset.id, this.dataset.name, this.dataset.amount)">
+                    <i class="ti ti-check"></i> Mark Paid
+                  </button>
+                  <% if (!d.sourceRef) { %>
+                    <button type="button" class="act-btn btn-del" data-id="<%= d._id %>" data-name="<%= (d.student && d.student.user ? d.student.user.fullname : 'student') %>" onclick="openDeleteDueModal(this.dataset.id, this.dataset.name)">
+                      <i class="ti ti-trash"></i> Delete
+                    </button>
+                  <% } %>
+                <% } else { %>
+                  <span style="font-size:.7rem;color:var(--text-muted)">Settled</span>
+                <% } %>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state"><i class="fas fa-file-invoice"></i><p>No dues generated yet.</p></div>
+    <% } %>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     FINES PAGE
+══════════════════════════════════════ -->
+<div class="page" id="page-fines">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-gavel"></i> All Fines</h3>
+      <button class="add-btn" onclick="openApplyFineModal()"><i class="ti ti-plus"></i> Apply Fine</button>
+    </div>
+    <% if (fines.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Student</th><th>Reason</th><th>Amount</th><th>Status</th>
+            <th>Applied By</th><th>Date</th><th class="actions-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% fines.forEach(f => { %>
+          <tr>
+            <td>
+              <% if (f.student && f.student.user) { %>
+              <div class="user-cell">
+                <div class="u-av s"><%= f.student.user.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= f.student.user.fullname %></div>
+                  <div class="u-email"><%= f.student.user.userId %></div>
+                </div>
+              </div>
+              <% } else { %><span style="color:var(--text-muted)">Unknown student</span><% } %>
+            </td>
+            <td><%= f.reason %></td>
+            <td style="font-weight:700;"><%= money(f.amount) %></td>
+            <td><span class="fine-status fine-status-<%= slug(f.status) %>"><%= f.status %></span></td>
+            <td><%= f.imposedBy ? f.imposedBy.fullname : '—' %></td>
+            <td><%= new Date(f.createdAt).toLocaleDateString() %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <% if (f.status === 'Pending') { %>
+                  <button type="button" class="act-btn btn-approve" data-type="fine" data-id="<%= f._id %>" data-name="<%= (f.student && f.student.user ? f.student.user.fullname : 'student') %>" data-amount="<%= f.amount %>" onclick="openMarkPaidModal(this.dataset.type, this.dataset.id, this.dataset.name, this.dataset.amount)">
+                    <i class="ti ti-check"></i> Mark Paid
+                  </button>
+                  <form action="/admin/fees/fines/waive/<%= f._id %>" method="POST" style="display:inline"
+                        onsubmit="return confirm('Waive this fine of ' + '<%= money(f.amount) %>' + '?');">
+                    <button type="submit" class="act-btn" style="background:#F0F0F0;color:#666;"><i class="ti ti-eraser"></i> Waive</button>
+                  </form>
+                <% } else { %>
+                  <span style="font-size:.7rem;color:var(--text-muted)">Closed</span>
+                <% } %>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state"><i class="fas fa-gavel"></i><p>No fines applied yet.</p></div>
+    <% } %>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     ADD PAYMENT MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="addPaymentModal" onclick="if(event.target===this) closeAddPaymentModal()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="ti ti-receipt"></i> Add Payment</h3>
+      <button class="modal-close" onclick="closeAddPaymentModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <form action="/admin/fees/payments/add" method="POST" id="add-payment-form">
+      <div class="form-section">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Student <span class="req">*</span></label>
+            <select name="studentId" id="ap-student" required onchange="loadOutstandingDues()">
+              <option value="">Select student</option>
+              <% students.forEach(s => { %>
+                <option value="<%= s._id %>"><%= s.user.fullname %> (<%= s.user.userId %>)</option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Payment Type <span class="req">*</span></label>
+            <select name="paymentType" id="ap-type" required onchange="loadOutstandingDues()">
+              <option value="Hostel Fee">Hostel Fee</option>
+              <option value="Mess Order">Mess Order</option>
+              <option value="Laundry">Laundry</option>
+              <option value="Mobile Load">Mobile Load</option>
+              <option value="Fine">Fine</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Payment Method <span class="req">*</span></label>
+            <select name="paymentMethod" required>
+              <option value="Cash">Cash</option>
+              <option value="Easypaisa">Easypaisa</option>
+              <option value="JazzCash">JazzCash</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Amount (Rs) <span class="req">*</span></label>
+            <input type="number" name="amount" min="1" step="1" required>
+          </div>
+          <div class="form-group">
+            <label>Record Status <span class="req">*</span></label>
+            <select name="status" required>
+              <option value="Verified">Verified (settle immediately)</option>
+              <option value="Pending">Pending</option>
+              <option value="Cash Received">Cash Received</option>
+            </select>
+          </div>
+          <div class="form-group full" id="ap-due-wrap" style="display:none">
+            <label>Link to Outstanding Due (optional)</label>
+            <select name="dueId" id="ap-due-select">
+              <option value="">— None —</option>
+            </select>
+            <span class="field-hint">Only shown if this student has a matching outstanding due. Linking it will settle the due when the payment is Verified.</span>
+          </div>
+          <div class="form-group">
+            <label>Transaction ID</label>
+            <input type="text" name="transactionId" placeholder="Optional">
+          </div>
+          <div class="form-group full">
+            <label>Remarks</label>
+            <textarea name="remarks" rows="2" placeholder="Optional notes"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-sec" onclick="closeAddPaymentModal()">Cancel</button>
+        <button type="submit" class="btn-primary"><i class="ti ti-check"></i> Save Payment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     GENERATE DUE MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="generateDueModal" onclick="if(event.target===this) closeGenerateDueModal()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="ti ti-file-invoice"></i> Generate Due</h3>
+      <button class="modal-close" onclick="closeGenerateDueModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <form action="/admin/fees/dues/generate" method="POST">
+      <div class="form-section">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Student <span class="req">*</span></label>
+            <select name="studentId" required>
+              <option value="">Select student</option>
+              <% students.forEach(s => { %>
+                <option value="<%= s._id %>"><%= s.user.fullname %> (<%= s.user.userId %>)</option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Due Type <span class="req">*</span></label>
+            <select name="dueType" required>
+              <option value="Hostel Fee">Hostel Fee</option>
+              <option value="Mess Order">Mess Order</option>
+              <option value="Laundry">Laundry</option>
+              <option value="Mobile Load">Mobile Load</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Amount (Rs) <span class="req">*</span></label>
+            <input type="number" name="amount" min="1" step="1" required>
+          </div>
+          <div class="form-group full">
+            <label>Due Date <span class="req">*</span></label>
+            <input type="date" name="dueDate" required>
+          </div>
+          <div class="form-group full">
+            <label>Description</label>
+            <textarea name="description" rows="2" placeholder="Optional notes"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-sec" onclick="closeGenerateDueModal()">Cancel</button>
+        <button type="submit" class="btn-primary"><i class="ti ti-check"></i> Generate Due</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     APPLY FINE MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="applyFineModal" onclick="if(event.target===this) closeApplyFineModal()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="ti ti-gavel"></i> Apply Fine</h3>
+      <button class="modal-close" onclick="closeApplyFineModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <form action="/admin/fees/fines/apply" method="POST">
+      <div class="form-section">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Student <span class="req">*</span></label>
+            <select name="studentId" required>
+              <option value="">Select student</option>
+              <% students.forEach(s => { %>
+                <option value="<%= s._id %>"><%= s.user.fullname %> (<%= s.user.userId %>)</option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Reason <span class="req">*</span></label>
+            <textarea name="reason" rows="2" required placeholder="e.g. Damage to room furniture"></textarea>
+          </div>
+          <div class="form-group full">
+            <label>Amount (Rs) <span class="req">*</span></label>
+            <input type="number" name="amount" min="1" step="1" required>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-sec" onclick="closeApplyFineModal()">Cancel</button>
+        <button type="submit" class="btn-primary"><i class="ti ti-check"></i> Apply Fine</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     MARK PAID MODAL (shared: Due / Fine)
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="markPaidModal" onclick="if(event.target===this) closeMarkPaidModal()">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-cash"></i> Mark as Paid</h3>
+      <button class="modal-close" onclick="closeMarkPaidModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="mark-paid-form" method="POST">
+      <div class="form-section">
+        <p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:.8rem;">
+          Marking <strong id="mp-student">—</strong>'s <span id="mp-amount">—</span> item as paid.
+        </p>
+        <div class="form-grid cols-1">
+          <div class="form-group">
+            <label>Payment Method <span class="req">*</span></label>
+            <select name="paymentMethod" required>
+              <option value="Cash">Cash</option>
+              <option value="Easypaisa">Easypaisa</option>
+              <option value="JazzCash">JazzCash</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Transaction ID</label>
+            <input type="text" name="transactionId" placeholder="Optional">
+          </div>
+          <div class="form-group" id="mp-remarks-wrap">
+            <label>Remarks</label>
+            <input type="text" name="remarks" placeholder="Optional">
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-sec" onclick="closeMarkPaidModal()">Cancel</button>
+        <button type="submit" class="btn-primary"><i class="ti ti-check"></i> Confirm Paid</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     REJECT PAYMENT MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="rejectModal" onclick="if(event.target===this) closeRejectModal()">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-x"></i> Reject Payment</h3>
+      <button class="modal-close" onclick="closeRejectModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="reject-form" method="POST">
+      <div class="form-section">
+        <p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:.8rem;">
+          Rejecting <strong id="rj-student">—</strong>'s payment. They'll be notified to resubmit.
+        </p>
+        <div class="form-grid cols-1">
+          <div class="form-group">
+            <label>Reason</label>
+            <textarea name="remarks" rows="3" placeholder="e.g. Transaction ID does not match our records"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-sec" onclick="closeRejectModal()">Cancel</button>
+        <button type="submit" class="btn-modal-del"><i class="ti ti-x"></i> Reject Payment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     DELETE DUE CONFIRM MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="deleteDueModal" onclick="if(event.target===this) closeDeleteDueModal()">
+  <div class="del-modal-box">
+    <div class="del-icon"><i class="fas fa-exclamation-triangle"></i></div>
+    <h3>Delete Due?</h3>
+    <p id="dd-msg">This action cannot be undone.</p>
+    <div class="del-btns">
+      <button class="btn-cancel-del" onclick="closeDeleteDueModal()">Cancel</button>
+      <form id="delete-due-form" method="POST" style="display:inline">
+        <button type="submit" class="btn-confirm-del">Yes, Delete</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+/* window.showPage / window.openModal / window.closeModal are defined
+   globally in admin-footer.ejs — reused here rather than redefined. */
+
+window.PAGE_TITLES = {
+  'overview' : 'Fee & Payment Management',
+  'payments' : 'Payments',
+  'pending'  : 'Pending Verification',
+  'dues'     : 'Dues',
+  'fines'    : 'Fines'
+};
+
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const page   = params.get('page');
+  const validPages = ['overview', 'payments', 'pending', 'dues', 'fines'];
+  if (page && validPages.includes(page)) {
+    const navMap = { 'pending': document.getElementById('nav-pending') };
+    showPage(page, navMap[page] || null);
+  }
+});
+
+/* ═══════════════════════════════════════════════
+   GLOBAL SEARCH (Payments tab)
+═══════════════════════════════════════════════ */
+function globalSearchHandler() {
+  const term = document.getElementById('globalSearch').value.trim().toLowerCase();
+  document.querySelectorAll('.searchable-row').forEach(row => {
+    const hay = (row.dataset.search || '').toLowerCase();
+    row.style.display = !term || hay.includes(term) ? '' : 'none';
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   ADD PAYMENT MODAL
+═══════════════════════════════════════════════ */
+function openAddPaymentModal() {
+  document.getElementById('add-payment-form').reset();
+  document.getElementById('ap-due-wrap').style.display = 'none';
+  openModal('addPaymentModal');
+}
+function closeAddPaymentModal() { closeModal('addPaymentModal'); }
+
+async function loadOutstandingDues() {
+  const studentId = document.getElementById('ap-student').value;
+  const type      = document.getElementById('ap-type').value;
+  const wrap      = document.getElementById('ap-due-wrap');
+  const select    = document.getElementById('ap-due-select');
+
+  if (!studentId) { wrap.style.display = 'none'; return; }
+
+  try {
+    const res  = await fetch('/admin/fees/student/' + studentId + '/dues');
+    const data = await res.json();
+    const dues = (data.dues || []).filter(d => d.dueType === type);
+
+    select.innerHTML = '<option value="">— None —</option>';
+    if (dues.length === 0) { wrap.style.display = 'none'; return; }
+
+    dues.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d._id;
+      const dateStr = new Date(d.dueDate).toLocaleDateString();
+      opt.textContent = 'Rs ' + Number(d.amount).toLocaleString() + ' — due ' + dateStr + ' (' + d.status + ')';
+      select.appendChild(opt);
+    });
+    wrap.style.display = '';
+  } catch (err) {
+    console.error('loadOutstandingDues failed:', err);
+    wrap.style.display = 'none';
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   GENERATE DUE MODAL
+═══════════════════════════════════════════════ */
+function openGenerateDueModal() { openModal('generateDueModal'); }
+function closeGenerateDueModal() { closeModal('generateDueModal'); }
+
+/* ═══════════════════════════════════════════════
+   APPLY FINE MODAL
+═══════════════════════════════════════════════ */
+function openApplyFineModal() { openModal('applyFineModal'); }
+function closeApplyFineModal() { closeModal('applyFineModal'); }
+
+/* ═══════════════════════════════════════════════
+   MARK PAID MODAL (shared: Due / Fine)
+═══════════════════════════════════════════════ */
+function openMarkPaidModal(type, id, studentName, amount) {
+  const form = document.getElementById('mark-paid-form');
+  form.action = type === 'due'
+    ? '/admin/fees/dues/mark-paid/' + id
+    : '/admin/fees/fines/mark-paid/' + id;
+
+  document.getElementById('mp-student').textContent = studentName;
+  document.getElementById('mp-amount').textContent = 'Rs ' + Number(amount).toLocaleString() + ' ' + (type === 'due' ? 'due' : 'fine');
+  document.getElementById('mp-remarks-wrap').style.display = type === 'due' ? '' : 'none';
+
+  openModal('markPaidModal');
+}
+function closeMarkPaidModal() { closeModal('markPaidModal'); }
+
+/* ═══════════════════════════════════════════════
+   REJECT PAYMENT MODAL
+═══════════════════════════════════════════════ */
+function openRejectModal(id, studentName) {
+  document.getElementById('reject-form').action = '/admin/fees/payments/reject/' + id;
+  document.getElementById('rj-student').textContent = studentName;
+  openModal('rejectModal');
+}
+function closeRejectModal() { closeModal('rejectModal'); }
+
+/* ═══════════════════════════════════════════════
+   DELETE DUE MODAL
+═══════════════════════════════════════════════ */
+function openDeleteDueModal(id, studentName) {
+  document.getElementById('delete-due-form').action = '/admin/fees/dues/delete/' + id;
+  document.getElementById('dd-msg').textContent = 'This will permanently delete this due for ' + studentName + '. This action cannot be undone.';
+  openModal('deleteDueModal');
+}
+function closeDeleteDueModal() { closeModal('deleteDueModal'); }
+</script>
+
+<%- include('admin-footer') %>

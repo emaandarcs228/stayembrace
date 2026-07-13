@@ -1,0 +1,239 @@
+<%
+  const activePage   = 'ops-room-requests';
+  const pageTitle    = 'Room Requests';
+  const pageSubtitle = 'Review warden-recommended transfer and vacate requests';
+%>
+<%- include('admin-header') %>
+
+<!-- ── Row 1: Status filter tabs (top) ── -->
+<div class="filter-tabs" style="margin-bottom:.9rem">
+  <a class="filter-tab filter-tab-neutral <%= statusFilter === 'all' ? 'is-active' : '' %>"
+     href="javascript:void(0)" onclick="applyFilter('status','all')">
+    <i class="ti ti-list"></i> All
+  </a>
+  <a class="filter-tab filter-tab-blue <%= statusFilter === 'Pending' ? 'is-active' : '' %>"
+     href="javascript:void(0)" onclick="applyFilter('status','Pending')">
+    <i class="ti ti-clock"></i> Pending Warden
+  </a>
+  <a class="filter-tab filter-tab-orange <%= statusFilter === 'Warden Reviewed' ? 'is-active' : '' %>"
+     href="javascript:void(0)" onclick="applyFilter('status','Warden Reviewed')">
+    <i class="ti ti-alert-circle"></i> Needs Your Decision
+  </a>
+  <a class="filter-tab filter-tab-green <%= statusFilter === 'Approved' ? 'is-active' : '' %>"
+     href="javascript:void(0)" onclick="applyFilter('status','Approved')">
+    <i class="ti ti-circle-check"></i> Approved
+  </a>
+  <a class="filter-tab filter-tab-red <%= statusFilter === 'Rejected' ? 'is-active' : '' %>"
+     href="javascript:void(0)" onclick="applyFilter('status','Rejected')">
+    <i class="ti ti-x"></i> Rejected
+  </a>
+</div>
+
+<!-- ── Row 2: Type dropdown (bottom-left) + count (right) ── -->
+<div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-bottom:1.2rem">
+  <select class="filter-sel" onchange="applyFilter('type', this.value)">
+    <option value="all"      <%= typeFilter === 'all'      ? 'selected' : '' %>>All Types</option>
+    <option value="Transfer" <%= typeFilter === 'Transfer' ? 'selected' : '' %>>Transfer</option>
+    <option value="Vacate"   <%= typeFilter === 'Vacate'   ? 'selected' : '' %>>Vacate</option>
+  </select>
+
+  <span class="count-pill"><%= requests.length %> request<%= requests.length !== 1 ? 's' : '' %></span>
+</div>
+
+<% if (requests.length === 0) { %>
+<div class="card">
+  <div class="empty-state">
+    <i class="ti ti-door"></i>
+    <h4>No room requests</h4>
+    <p>No requests match the selected filters.</p>
+  </div>
+</div>
+<% } else { %>
+
+<div style="display:flex;flex-direction:column;gap:1rem">
+  <% requests.forEach(function(rr) {
+       const wStatus = rr.wardenApproval && rr.wardenApproval.status;
+       const readyForAdmin = rr.status === 'Warden Reviewed' && wStatus === 'Recommended';
+       const isFinal = rr.status === 'Approved' || rr.status === 'Rejected';
+  %>
+  <div class="card" style="margin-bottom:0">
+
+    <!-- Header -->
+    <div class="card-head">
+      <div style="display:flex;align-items:center;gap:.8rem">
+        <div class="u-av s"><%= rr.student?.user?.fullname?.charAt(0) || '?' %></div>
+        <div>
+          <div style="font-size:.85rem;font-weight:600"><%= rr.student?.user?.fullname || '—' %></div>
+          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.1rem">
+            <span class="uid-code"><%= rr.student?.user?.userId || '—' %></span>
+            &nbsp;·&nbsp; <%= new Date(rr.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+        <span class="badge <%= rr.requestType === 'Transfer' ? 'badge-info' : 'badge-warning' %>">
+          <i class="<%= rr.requestType === 'Transfer' ? 'ti ti-arrows-exchange' : 'ti ti-door-exit' %>"></i>
+          <%= rr.requestType %>
+        </span>
+        <% if (rr.status === 'Pending') { %>
+          <span class="badge badge-neutral">Awaiting Warden</span>
+        <% } else if (readyForAdmin) { %>
+          <span class="badge badge-warning">Needs Your Decision</span>
+        <% } else if (rr.status === 'Approved') { %>
+          <span class="badge badge-success"><i class="ti ti-circle-check"></i> Approved</span>
+        <% } else if (rr.status === 'Rejected') { %>
+          <span class="badge badge-danger">Rejected</span>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Details -->
+    <div class="detail-grid" style="padding:.8rem 1.2rem">
+      <div class="detail-field">
+        <label>Request Type</label>
+        <span style="font-weight:600"><%= rr.requestType %></span>
+      </div>
+      <% if (rr.requestType === 'Transfer') { %>
+      <div class="detail-field">
+        <label>Student's Preferred Room</label>
+        <span><%= rr.preferredRoom ? rr.preferredRoom.roomNo + ' (Block ' + rr.preferredRoom.block + ')' : 'No preference specified' %></span>
+      </div>
+      <% } %>
+      <div class="detail-field full">
+        <label>Reason</label>
+        <span><%= rr.reason || '—' %></span>
+      </div>
+    </div>
+
+    <!-- Warden's note -->
+    <% if (rr.wardenApproval && rr.wardenApproval.note) { %>
+    <div style="padding:0 1.2rem .8rem">
+      <div style="background:<%= wStatus === 'Rejected' ? '#FFF8E1' : '#EEF5F0' %>;border:1px solid <%= wStatus === 'Rejected' ? '#FFE082' : '#c8e6cf' %>;border-radius:var(--radius-md);padding:.65rem 1rem;font-size:.73rem;color:<%= wStatus === 'Rejected' ? '#5D4037' : 'var(--green-dark)' %>">
+        <strong><i class="ti ti-message-circle"></i> Warden's Note:</strong> <%= rr.wardenApproval.note %>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Final outcome (if any) -->
+    <% if (isFinal) { %>
+    <div style="padding:0 1.2rem .8rem">
+      <div style="background:<%= rr.status === 'Approved' ? '#E8F5E9' : '#FFEBEE' %>;border:1px solid <%= rr.status === 'Approved' ? '#C8E6C9' : '#FFCDD2' %>;border-radius:var(--radius-md);padding:.65rem 1rem;font-size:.73rem;color:<%= rr.status === 'Approved' ? '#1B5E20' : '#B71C1C' %>">
+        <strong><i class="<%= rr.status === 'Approved' ? 'ti ti-circle-check' : 'ti ti-x' %>"></i> Your Decision:</strong>
+        <%= rr.status %><% if (rr.newRoom) { %> — moved to <%= rr.newRoom.roomNo %> (Bed <%= rr.newBedNo %>)<% } %>.
+        <% if (rr.adminApproval && rr.adminApproval.note) { %><%= rr.adminApproval.note %><% } %>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Action zone — only when warden has recommended and admin hasn't decided -->
+    <% if (readyForAdmin) { %>
+    <div style="border-top:1px solid var(--border);padding:1rem 1.2rem;background:var(--green-lighter);display:flex;gap:1rem;flex-wrap:wrap">
+
+      <% if (rr.requestType === 'Transfer') { %>
+      <!-- Transfer approval form — pick new room + bed -->
+      <div style="flex:1;min-width:280px">
+        <div style="font-size:.7rem;font-weight:700;color:var(--green-dark);text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+          <i class="ti ti-transfer"></i> Approve Transfer
+        </div>
+        <form method="POST" action="/admin/operations/room-requests/approve-transfer/<%= rr._id %>" class="transfer-approve-form">
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <select name="newRoomId" class="filter-sel room-select" required>
+              <option value="">— Select new room —</option>
+              <% availableRooms.forEach(function(room) { %>
+                <option value="<%= room._id %>" data-roomno="<%= room.roomNo %>">
+                  <%= room.roomNo %> — Block <%= room.block %>, Floor <%= room.floor %> (<%= room.capacity - room.occupiedBeds %> free)
+                </option>
+              <% }) %>
+            </select>
+            <select name="newBedNo" class="filter-sel bed-select" required>
+              <option value="">— Select room first —</option>
+            </select>
+            <input type="text" name="note" placeholder="Note for student (optional)" style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+            <button type="submit" class="act-btn btn-approve" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+              <i class="ti ti-check"></i> Approve &amp; Move Student
+            </button>
+          </div>
+        </form>
+      </div>
+      <% } else { %>
+      <!-- Vacate approval form -->
+      <div style="flex:1;min-width:220px">
+        <div style="font-size:.7rem;font-weight:700;color:var(--green-dark);text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+          <i class="ti ti-logout"></i> Approve Vacate
+        </div>
+        <form method="POST" action="/admin/operations/room-requests/approve-vacate/<%= rr._id %>">
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <input type="text" name="note" placeholder="Note for student (optional)" style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+            <button type="submit" class="act-btn btn-approve" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+              <i class="ti ti-check"></i> Approve &amp; Vacate Room
+            </button>
+          </div>
+        </form>
+      </div>
+      <% } %>
+
+      <!-- Reject form -->
+      <div style="flex:1;min-width:220px">
+        <div style="font-size:.7rem;font-weight:700;color:#C62828;text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+          <i class="ti ti-x"></i> Reject Request
+        </div>
+        <form method="POST" action="/admin/operations/room-requests/reject/<%= rr._id %>">
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <input type="text" name="reason" placeholder="Reason for rejection" required style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+            <button type="submit" class="act-btn btn-reject" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+              <i class="ti ti-x"></i> Reject
+            </button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+    <% } %>
+
+    <% if (rr.status === 'Pending') { %>
+    <div style="border-top:1px solid var(--border);padding:.65rem 1.2rem;background:#FAFAFA;font-size:.73rem;color:var(--text-muted)">
+      <i class="ti ti-clock"></i> Waiting for warden to review this request first.
+    </div>
+    <% } %>
+
+  </div>
+  <% }); %>
+</div>
+
+<% } %>
+
+<script>
+function applyFilter(key, val) {
+  var params = new URLSearchParams(window.location.search);
+  params.set(key, val);
+  window.location.href = '/admin/operations/room-requests?' + params.toString();
+}
+
+// Wire up each transfer form's room→bed dependent dropdown using the
+// existing free-beds endpoint from Room Management (no new API needed).
+document.querySelectorAll('.transfer-approve-form').forEach(function(form) {
+  var roomSel = form.querySelector('.room-select');
+  var bedSel  = form.querySelector('.bed-select');
+
+  roomSel.addEventListener('change', async function() {
+    var roomId = this.value;
+    bedSel.innerHTML = '<option value="">Loading…</option>';
+    if (!roomId) { bedSel.innerHTML = '<option value="">— Select room first —</option>'; return; }
+    try {
+      var res  = await fetch('/admin/rooms/' + roomId + '/free-beds');
+      var data = await res.json();
+      bedSel.innerHTML = '<option value="">— Select bed —</option>';
+      data.freeBeds.forEach(function(bed) {
+        var o = document.createElement('option');
+        o.value = bed;
+        o.textContent = 'Bed ' + bed;
+        bedSel.appendChild(o);
+      });
+    } catch (err) {
+      bedSel.innerHTML = '<option value="">Unable to load beds</option>';
+    }
+  });
+});
+</script>
+
+<%- include('admin-footer') %>

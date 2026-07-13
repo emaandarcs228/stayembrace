@@ -1,0 +1,211 @@
+<%
+  const activePage   = 'room-requests';
+  const pageTitle    = 'Room Requests';
+  const pageSubtitle = 'Transfer and vacate requests from students';
+%>
+<%- include('warden-header') %>
+
+<% if (typeof modelMissing !== 'undefined' && modelMissing) { %>
+<div class="card">
+  <div class="empty-state" style="padding:3rem">
+    <i class="ti ti-door-off"></i>
+    <h4>RoomRequest model not yet created</h4>
+    <p>This feature will be available once the RoomRequest model is added to the project.</p>
+  </div>
+</div>
+<%- include('warden-footer') %>
+<% } else { %>
+
+<!-- ── Row 1: Status filter tabs (top) ── -->
+<div class="filter-tabs" style="margin-bottom:.9rem">
+  <a class="filter-tab filter-tab-neutral <%= statusFilter === 'all' ? 'is-active' : '' %>"
+     href="javascript:void(0)" onclick="applyFilter('status','all')">
+    <i class="ti ti-list"></i> All
+  </a>
+  <a class="filter-tab filter-tab-orange <%= statusFilter === 'Pending' ? 'is-active' : '' %>"
+     href="javascript:void(0)" onclick="applyFilter('status','Pending')">
+    <i class="ti ti-clock"></i> Pending Your Review
+  </a>
+  <a class="filter-tab filter-tab-green <%= statusFilter === 'Recommended' ? 'is-active' : '' %>"
+     href="javascript:void(0)" onclick="applyFilter('status','Recommended')">
+    <i class="ti ti-thumb-up"></i> Recommended
+  </a>
+  <a class="filter-tab filter-tab-red <%= statusFilter === 'Rejected' ? 'is-active' : '' %>"
+     href="javascript:void(0)" onclick="applyFilter('status','Rejected')">
+    <i class="ti ti-x"></i> Rejected
+  </a>
+</div>
+
+<!-- ── Row 2: Type dropdown (bottom-left) + count (right) ── -->
+<div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-bottom:1.2rem">
+  <select class="filter-sel" onchange="applyFilter('type', this.value)">
+    <option value="all"      <%= typeFilter === 'all'      ? 'selected' : '' %>>All Types</option>
+    <option value="Transfer" <%= typeFilter === 'Transfer' ? 'selected' : '' %>>Transfer</option>
+    <option value="Vacate"   <%= typeFilter === 'Vacate'   ? 'selected' : '' %>>Vacate</option>
+  </select>
+
+  <span class="count-pill"><%= requests.length %> request<%= requests.length !== 1 ? 's' : '' %></span>
+</div>
+
+<% if (requests.length === 0) { %>
+<div class="card">
+  <div class="empty-state">
+    <i class="ti ti-door"></i>
+    <h4>No room requests</h4>
+    <p>No requests match the selected filters.</p>
+  </div>
+</div>
+<% } else { %>
+
+<div style="display:flex;flex-direction:column;gap:1rem">
+  <% requests.forEach(function(rr) {
+       const isPending    = rr.wardenApproval && rr.wardenApproval.status === 'Pending';
+       const isRecommend  = rr.wardenApproval && rr.wardenApproval.status === 'Recommended';
+       const isRejected   = rr.wardenApproval && rr.wardenApproval.status === 'Rejected';
+       const overallStatus = rr.status || 'Pending';
+  %>
+  <div class="card" style="margin-bottom:0">
+
+    <!-- Header -->
+    <div class="card-head">
+      <div style="display:flex;align-items:center;gap:.8rem">
+        <div class="u-av s"><%= rr.student?.user?.fullname?.charAt(0) || '?' %></div>
+        <div>
+          <div style="font-size:.85rem;font-weight:600"><%= rr.student?.user?.fullname || '—' %></div>
+          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.1rem">
+            <span class="uid-code"><%= rr.student?.user?.userId || '—' %></span>
+            &nbsp;·&nbsp; <%= new Date(rr.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+        <span class="badge <%= rr.requestType === 'Transfer' ? 'badge-info' : 'badge-warning' %>">
+          <i class="<%= rr.requestType === 'Transfer' ? 'ti ti-arrows-exchange' : 'ti ti-door-exit' %>"></i>
+          <%= rr.requestType %>
+        </span>
+        <% if (isPending) { %>
+          <span class="badge badge-warning">Pending Your Review</span>
+        <% } else if (isRecommend) { %>
+          <span class="badge badge-success">Recommended to Admin</span>
+        <% } else if (isRejected) { %>
+          <span class="badge badge-danger">Rejected</span>
+        <% } else { %>
+          <span class="badge badge-neutral"><%= overallStatus %></span>
+        <% } %>
+        <% if (overallStatus === 'Approved') { %>
+          <span class="badge badge-success"><i class="ti ti-circle-check"></i> Admin Approved</span>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Details -->
+    <div class="detail-grid" style="padding:.8rem 1.2rem">
+      <div class="detail-field">
+        <label>Request Type</label>
+        <span style="font-weight:600"><%= rr.requestType %></span>
+      </div>
+
+      <% if (rr.requestType === 'Transfer') { %>
+      <div class="detail-field">
+        <label>Preferred Room</label>
+        <span><%= rr.preferredRoom ? rr.preferredRoom.roomNo + ' (Block ' + rr.preferredRoom.block + ', Floor ' + rr.preferredRoom.floor + ')' : 'No preference specified' %></span>
+      </div>
+      <% } %>
+
+      <% if (rr.requestType === 'Vacate' && rr.vacateDate) { %>
+      <div class="detail-field">
+        <label>Requested Vacate Date</label>
+        <span style="font-weight:600;color:#C62828"><%= new Date(rr.vacateDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></span>
+      </div>
+      <% } %>
+
+      <div class="detail-field full">
+        <label>Reason</label>
+        <span><%= rr.reason || '—' %></span>
+      </div>
+    </div>
+
+    <!-- Warden note (if reviewed) -->
+    <% if (rr.wardenApproval && rr.wardenApproval.note) { %>
+    <div style="padding:0 1.2rem .8rem">
+      <div style="background:<%= isRejected ? '#FFF8E1' : '#EEF5F0' %>;border:1px solid <%= isRejected ? '#FFE082' : '#c8e6cf' %>;border-radius:var(--radius-md);padding:.65rem 1rem;font-size:.73rem;color:<%= isRejected ? '#5D4037' : 'var(--green-dark)' %>">
+        <strong><i class="ti ti-message-circle"></i> Your Note:</strong> <%= rr.wardenApproval.note %>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Admin decision (if any) -->
+    <% if (rr.adminApproval && rr.adminApproval.status && rr.adminApproval.status !== 'Pending') { %>
+    <div style="padding:0 1.2rem .8rem">
+      <div style="background:<%= rr.adminApproval.status === 'Approved' ? '#E8F5E9' : '#FFEBEE' %>;border:1px solid <%= rr.adminApproval.status === 'Approved' ? '#C8E6C9' : '#FFCDD2' %>;border-radius:var(--radius-md);padding:.65rem 1rem;font-size:.73rem;color:<%= rr.adminApproval.status === 'Approved' ? '#1B5E20' : '#B71C1C' %>">
+        <strong><i class="<%= rr.adminApproval.status === 'Approved' ? 'ti ti-circle-check' : 'ti ti-x' %>"></i> Admin Decision:</strong>
+        <%= rr.adminApproval.status %>.
+        <% if (rr.adminApproval.note) { %><%= rr.adminApproval.note %><% } %>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Action forms (only for pending warden review) -->
+    <% if (isPending) { %>
+    <div style="border-top:1px solid var(--border);padding:1rem 1.2rem;background:var(--green-lighter);display:flex;gap:1rem;flex-wrap:wrap">
+
+      <!-- Recommend form -->
+      <div style="flex:1;min-width:220px">
+        <div style="font-size:.7rem;font-weight:700;color:var(--green-dark);text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+          <i class="ti ti-thumb-up"></i> Recommend to Admin
+        </div>
+        <form method="POST" action="/warden/room-requests/recommend/<%= rr._id %>">
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <% if (rr.requestType === 'Transfer') { %>
+            <input type="text" name="note" placeholder="Your recommendation note (e.g. request seems valid)" required style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+            <% } else { %>
+            <input type="text" name="note" placeholder="Your recommendation note on this vacate request" required style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+            <% } %>
+            <button type="submit" class="act-btn btn-approve" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+              <i class="ti ti-send"></i> Recommend
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Reject form -->
+      <div style="flex:1;min-width:220px">
+        <div style="font-size:.7rem;font-weight:700;color:#C62828;text-transform:uppercase;letter-spacing:.6px;margin-bottom:.5rem">
+          <i class="ti ti-thumb-down"></i> Reject Request
+        </div>
+        <form method="POST" action="/warden/room-requests/reject/<%= rr._id %>">
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <input type="text" name="reason" placeholder="Reason for rejection" required style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.4rem .7rem;font-size:.75rem;font-family:inherit;outline:none">
+            <button type="submit" class="act-btn btn-reject" style="align-self:flex-start;font-size:.75rem;padding:.4rem .9rem">
+              <i class="ti ti-x"></i> Reject
+            </button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+    <% } %>
+
+    <!-- Waiting for admin -->
+    <% if (isRecommend && overallStatus !== 'Approved' && overallStatus !== 'Rejected') { %>
+    <div style="border-top:1px solid var(--border);padding:.65rem 1.2rem;background:#EEF5F0;font-size:.73rem;color:var(--green-dark)">
+      <i class="ti ti-clock"></i> Recommended to admin — awaiting admin decision.
+    </div>
+    <% } %>
+
+  </div>
+  <% }); %>
+</div>
+
+<% } %>
+
+<script>
+function applyFilter(key, val) {
+  var params = new URLSearchParams(window.location.search);
+  params.set(key, val);
+  window.location.href = '/warden/room-requests?' + params.toString();
+}
+</script>
+
+<%- include('warden-footer') %>
+<% } %>

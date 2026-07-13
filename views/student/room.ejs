@@ -1,0 +1,272 @@
+<%
+  const activePage   = 'room';
+  const pageTitle    = 'My Room';
+  const pageSubtitle = student.room ? 'Room ' + student.room.roomNo + ' · Block ' + student.room.block : 'No room assigned';
+%>
+<%- include('student-header') %>
+
+<!-- Sub-nav for in-page sections -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
+  <button class="act-btn btn-view" style="font-size:.75rem;padding:.4rem .9rem" onclick="showPage('info', this)" id="btn-info">
+    <i class="ti ti-door"></i> Room Info
+  </button>
+  <button class="act-btn" style="font-size:.75rem;padding:.4rem .9rem;background:#EEF5F0;color:var(--green-dark)" onclick="showPage('transfer', this)" id="btn-transfer">
+    <i class="ti ti-replace"></i> Request Transfer
+  </button>
+  <button class="act-btn" style="font-size:.75rem;padding:.4rem .9rem;background:#FFF8E1;color:#E65100" onclick="showPage('vacate', this)" id="btn-vacate">
+    <i class="ti ti-logout"></i> Vacate Request
+  </button>
+</div>
+
+<!-- ══ ROOM INFO PAGE ══ -->
+<div class="page active" id="page-info">
+
+<% if (student.room) { %>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.2rem">
+
+    <!-- Room Details -->
+    <div class="card">
+      <div class="card-head">
+        <h3><i class="ti ti-door"></i> Room Details</h3>
+        <span class="badge badge-success"><%= student.room.status %></span>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-field">
+          <label>Room Number</label>
+          <span style="font-size:1.3rem;font-weight:800;color:var(--green-dark);font-family:'Orbitron',monospace">
+            <%= student.room.roomNo %>
+          </span>
+        </div>
+        <div class="detail-field">
+          <label>Block / Floor</label>
+          <span>Block <%= student.room.block %>, Floor <%= student.room.floor %></span>
+        </div>
+        <div class="detail-field">
+          <label>Room Type</label>
+          <span><%= student.room.roomType %></span>
+        </div>
+        <div class="detail-field">
+          <label>My Bed No</label>
+          <span style="font-weight:700"><%= student.currentAllocation ? 'Bed ' + student.currentAllocation.bedNo : '—' %></span>
+        </div>
+        <div class="detail-field">
+          <label>Occupancy</label>
+          <span><%= student.room.occupiedBeds %> / <%= student.room.capacity %> beds</span>
+        </div>
+        <div class="detail-field">
+          <label>Monthly Fee</label>
+          <span>Rs <%= student.room.monthlyFee ? student.room.monthlyFee.toLocaleString() : '—' %></span>
+        </div>
+        <% if (student.room.description) { %>
+        <div class="detail-field full">
+          <label>Amenities / Notes</label>
+          <span><%= student.room.description %></span>
+        </div>
+        <% } %>
+      </div>
+
+      <!-- Bed visualiser -->
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;padding:.5rem 1.2rem 1rem">
+        <% for (let b = 1; b <= student.room.capacity; b++) {
+             const isMine = student.currentAllocation && student.currentAllocation.bedNo === b;
+             const isOcc  = b <= student.room.occupiedBeds;
+        %>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:.2rem;padding:.5rem .7rem;border-radius:var(--radius-md);min-width:54px;
+             background:<%= isMine ? 'var(--green-light)' : isOcc ? '#E3F2FD' : '#f9f9f9' %>;
+             border:1px solid <%= isMine ? '#b8d9c0' : isOcc ? '#BBDEFB' : '#e5e5e5' %>">
+          <i class="fas fa-bed" style="font-size:.9rem;color:<%= isMine ? 'var(--green)' : isOcc ? '#1565C0' : '#ccc' %>"></i>
+          <span style="font-size:.6rem;font-weight:700;color:<%= isMine ? 'var(--green-dark)' : '#888' %>">Bed <%= b %></span>
+          <% if (isMine) { %><span style="font-size:.55rem;color:var(--green);font-weight:600">Mine</span><% } %>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Roommates -->
+    <div class="card">
+      <div class="card-head">
+        <h3><i class="ti ti-users"></i> Roommates</h3>
+        <span class="count-pill"><%= roommates.length %> sharing</span>
+      </div>
+      <% if (roommates.length > 0) { %>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Name</th><th>Student ID</th><th>Bed</th></tr></thead>
+          <tbody>
+            <% roommates.forEach(function(rm, i) { %>
+            <tr>
+              <td><%= i + 1 %></td>
+              <td>
+                <div class="user-cell">
+                  <div class="u-av s"><%= rm.fullname.charAt(0).toUpperCase() %></div>
+                  <span class="u-name"><%= rm.fullname %></span>
+                </div>
+              </td>
+              <td><code class="uid-code"><%= rm.userId %></code></td>
+              <td>Bed <%= rm.bedNo %></td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <% } else { %>
+      <div class="empty-state" style="padding:1.5rem">
+        <i class="ti ti-user-off"></i>
+        <p>No roommates currently assigned.</p>
+      </div>
+      <% } %>
+    </div>
+
+  </div>
+
+<% } else { %>
+  <div class="card">
+    <div class="empty-state" style="padding:3rem">
+      <i class="ti ti-door-off" style="font-size:3rem;opacity:.3;display:block;margin-bottom:.8rem"></i>
+      <h4>No room assigned yet</h4>
+      <p>Please contact the admin office for room allocation.</p>
+    </div>
+  </div>
+<% } %>
+
+</div><!-- /page-info -->
+
+<!-- ══ TRANSFER REQUEST PAGE ══ -->
+<div class="page" id="page-transfer">
+  <div class="card" style="max-width:560px">
+    <div class="card-head">
+      <h3><i class="ti ti-replace"></i> Request Room Transfer</h3>
+    </div>
+
+    <% if (existingRequest && existingRequest.requestType === 'Transfer') { %>
+    <!-- Existing pending request -->
+    <div class="card-body">
+      <div style="background:var(--green-light);border:1px solid #b8d9c0;border-radius:var(--radius-md);padding:1rem;margin-bottom:1rem">
+        <div style="font-size:.75rem;font-weight:600;color:var(--green-dark);margin-bottom:.4rem">
+          <i class="fas fa-clock"></i> Transfer Request Pending
+        </div>
+        <div style="font-size:.72rem;color:#555">
+          Your transfer request is currently under review.
+          <strong>Status: <%= existingRequest.status %></strong>
+        </div>
+        <div style="font-size:.68rem;color:var(--text-muted);margin-top:.3rem">
+          Submitted: <%= new Date(existingRequest.createdAt).toLocaleDateString() %>
+        </div>
+      </div>
+      <div class="timeline">
+        <div class="timeline-step">
+          <div class="timeline-dot done"><i class="fas fa-check"></i></div>
+          <div class="timeline-body"><h5>Submitted</h5><p>Your request has been received</p></div>
+        </div>
+        <div class="timeline-step">
+          <div class="timeline-dot <%= ['Warden Reviewed','Approved'].includes(existingRequest.status) ? 'done' : '' %>">
+            <i class="ti ti-user-check"></i>
+          </div>
+          <div class="timeline-body"><h5>Warden Review</h5><p>Warden approves and forwards to admin</p></div>
+        </div>
+        <div class="timeline-step">
+          <div class="timeline-dot <%= existingRequest.status === 'Approved' ? 'done' : '' %>">
+            <i class="ti ti-shield"></i>
+          </div>
+          <div class="timeline-body"><h5>Admin Approval</h5><p>Admin confirms and reassigns room</p></div>
+        </div>
+      </div>
+    </div>
+
+    <% } else { %>
+    <!-- Transfer form -->
+    <form action="/student/room/request" method="POST">
+      <input type="hidden" name="requestType" value="Transfer">
+      <div class="form-section">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Reason for Transfer <span class="req">*</span></label>
+            <textarea name="reason" rows="4" placeholder="Please explain why you need to transfer rooms (e.g. noise issues, roommate conflict, medical requirement)..." required></textarea>
+          </div>
+          <div class="form-group full">
+            <label>Preferred Room <span style="font-size:.65rem;color:var(--text-muted)">(optional)</span></label>
+            <input type="text" name="preferredRoom" placeholder="Room number if you have a preference, e.g. A-101">
+          </div>
+        </div>
+      </div>
+      <div class="card-body" style="padding-top:0">
+        <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);padding:.75rem 1rem;font-size:.72rem;color:#5D4037;margin-bottom:1rem">
+          <i class="fas fa-info-circle"></i>
+          Transfer requests go through <strong>Warden → Admin</strong> two-step approval.
+          You will be notified at each stage.
+        </div>
+        <div style="display:flex;gap:.7rem">
+          <button type="submit" class="btn-primary">
+            <i class="ti ti-replace"></i> Submit Transfer Request
+          </button>
+          <button type="button" class="btn-sec" onclick="showPage('info')">Cancel</button>
+        </div>
+      </div>
+    </form>
+    <% } %>
+  </div>
+</div><!-- /page-transfer -->
+
+<!-- ══ VACATE REQUEST PAGE ══ -->
+<div class="page" id="page-vacate">
+  <div class="card" style="max-width:560px">
+    <div class="card-head">
+      <h3><i class="ti ti-logout"></i> Request to Vacate</h3>
+    </div>
+
+    <% if (existingRequest && existingRequest.requestType === 'Vacate') { %>
+    <div class="card-body">
+      <div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:var(--radius-md);padding:1rem">
+        <div style="font-size:.75rem;font-weight:600;color:#C62828;margin-bottom:.3rem">
+          <i class="fas fa-clock"></i> Vacate Request Pending
+        </div>
+        <div style="font-size:.72rem;color:#555">Status: <strong><%= existingRequest.status %></strong></div>
+        <div style="font-size:.68rem;color:var(--text-muted);margin-top:.3rem">
+          Submitted: <%= new Date(existingRequest.createdAt).toLocaleDateString() %>
+        </div>
+      </div>
+    </div>
+
+    <% } else { %>
+    <form action="/student/room/request" method="POST">
+      <input type="hidden" name="requestType" value="Vacate">
+      <div class="form-section">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Reason for Vacating <span class="req">*</span></label>
+            <textarea name="reason" rows="4" placeholder="Please state your reason for vacating the hostel..." required></textarea>
+          </div>
+          <div class="form-group full">
+            <label>Preferred Vacate Date <span style="font-size:.65rem;color:var(--text-muted)">(optional)</span></label>
+            <input type="date" name="vacateDate" min="<%= new Date().toISOString().split('T')[0] %>">
+          </div>  
+        </div>
+      </div>
+      <div class="card-body" style="padding-top:0">
+        <div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:var(--radius-md);padding:.75rem 1rem;font-size:.72rem;color:#C62828;margin-bottom:1rem">
+          <i class="fas fa-exclamation-triangle"></i>
+          Vacating requires <strong>Warden → Admin</strong> approval. You will be required to
+          physically hand over your room key and complete check-out before the allocation is closed.
+        </div>
+        <div style="display:flex;gap:.7rem">
+          <button type="submit" class="btn-primary" style="background:#C62828">
+            <i class="ti ti-logout"></i> Submit Vacate Request
+          </button>
+          <button type="button" class="btn-sec" onclick="showPage('info')">Cancel</button>
+        </div>
+      </div>
+    </form>
+    <% } %>
+  </div>
+</div><!-- /page-vacate -->
+
+<script>
+// Activate first sub-nav button on load
+document.getElementById('btn-info').classList.add('active');
+document.querySelectorAll('#btn-info, #btn-transfer, #btn-vacate').forEach(function(btn) {
+  btn.style.opacity = '1';
+});
+</script>
+
+<%- include('student-footer') %>

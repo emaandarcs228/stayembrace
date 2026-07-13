@@ -1,0 +1,240 @@
+<%
+  const activePage   = 'laundry';
+  const pageTitle    = 'Laundry';
+  const pageSubtitle = 'Weekly pickup & delivery service';
+%>
+<%- include('student-header') %>
+
+<!-- ── Sub-nav ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
+  <button class="act-btn btn-view" id="btn-week" onclick="showPage('week', this)">
+    <i class="ti ti-wash"></i> This Week
+  </button>
+  <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-history" onclick="showPage('history', this)">
+    <i class="ti ti-history"></i> History
+  </button>
+</div>
+
+<!-- ══ THIS WEEK PAGE ══ -->
+<div class="page active" id="page-week">
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.2rem">
+
+    <!-- FREE Weekly Request Card -->
+    <div class="card">
+      <div class="card-head">
+        <h3><i class="ti ti-wash"></i> Free Weekly Pickup</h3>
+        <span class="badge badge-success">Included</span>
+      </div>
+      <div class="card-body">
+
+        <% if (weeklyRequest) { %>
+        <!-- Dates -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1rem">
+          <div style="background:var(--green-light);border-radius:var(--radius-md);padding:.7rem .9rem;text-align:center">
+            <div style="font-size:.6rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.2rem">Pickup</div>
+            <div style="font-size:.85rem;font-weight:700;color:var(--green-dark)">
+              <%= new Date(weeklyRequest.pickupDate).toLocaleDateString('en-PK', { weekday:'short', day:'2-digit', month:'short' }) %>
+            </div>
+          </div>
+          <div style="background:#E3F2FD;border-radius:var(--radius-md);padding:.7rem .9rem;text-align:center">
+            <div style="font-size:.6rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.2rem">Delivery</div>
+            <div style="font-size:.85rem;font-weight:700;color:#1565C0">
+              <%= new Date(weeklyRequest.deliveryDate).toLocaleDateString('en-PK', { weekday:'short', day:'2-digit', month:'short' }) %>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status Timeline -->
+        <div class="timeline" style="margin-bottom:1rem">
+          <%
+            const stages = ['Pending Pickup', 'Picked Up', 'Processing', 'Delivered'];
+            const stageIdx = weeklyRequest.status === 'Cancelled' ? -1 : stages.indexOf(weeklyRequest.status);
+            const stageIcons = ['ti ti-package', 'ti ti-truck', 'ti ti-washing-machine', 'ti ti-home'];
+          %>
+          <% if (weeklyRequest.status === 'Cancelled') { %>
+          <div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:var(--radius-md);padding:.75rem 1rem;text-align:center;font-size:.75rem;color:#C62828">
+            <i class="fas fa-times-circle"></i> You opted out of this week's free pickup.
+          </div>
+          <% } else { %>
+          <% stages.forEach(function(stage, si) { %>
+          <div class="timeline-step">
+            <div class="timeline-dot <%= si < stageIdx ? 'done' : si === stageIdx ? 'active' : '' %>">
+              <i class="<%= stageIcons[si] %>"></i>
+            </div>
+            <div class="timeline-body">
+              <h5><%= stage %></h5>
+              <% if (si === stageIdx) { %><p style="color:var(--green);font-size:.65rem;font-weight:500">Current stage</p><% } %>
+            </div>
+          </div>
+          <% }); %>
+          <% } %>
+        </div>
+
+        <!-- Opt out button -->
+        <% if (weeklyRequest.status === 'Pending Pickup' && weeklyRequest.requested) { %>
+        <form action="/student/laundry/opt-out" method="POST" onsubmit="return confirm('Opt out of this week\'s free laundry pickup?')">
+          <button type="submit" class="btn-sec" style="width:100%;justify-content:center">
+            <i class="ti ti-x"></i> Opt Out This Week
+          </button>
+        </form>
+        <% } %>
+
+        <% } else { %>
+        <div class="empty-state" style="padding:1.5rem">
+          <i class="ti ti-wash"></i>
+          <h4>No weekly request</h4>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- PAID Second Request Card -->
+    <div class="card">
+      <div class="card-head">
+        <h3><i class="ti ti-plus"></i> Second Pickup</h3>
+        <span class="badge badge-warning">Rs 200</span>
+      </div>
+      <div class="card-body">
+
+        <% if (secondRequest) { %>
+        <!-- Already requested this week -->
+        <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);padding:.7rem .9rem;font-size:.72rem;color:#5D4037;margin-bottom:1rem">
+          <i class="fas fa-info-circle"></i> Second pickup requested. Check Pending Payments for the Rs 200 charge.
+        </div>
+
+        <% const s2stages = ['Pending Pickup', 'Picked Up', 'Processing', 'Delivered'];
+           const s2Idx = s2stages.indexOf(secondRequest.status); %>
+        <div class="timeline">
+          <% s2stages.forEach(function(stage, si) { %>
+          <div class="timeline-step">
+            <div class="timeline-dot <%= si < s2Idx ? 'done' : si === s2Idx ? 'active' : '' %>">
+              <i class="ti <%= si === 0 ? 'ti-package' : si === 1 ? 'ti-truck' : si === 2 ? 'ti-washing-machine' : 'ti-home' %>"></i>
+            </div>
+            <div class="timeline-body">
+              <h5><%= stage %></h5>
+              <% if (si === s2Idx) { %><p style="color:var(--green);font-size:.65rem;font-weight:500">Current</p><% } %>
+            </div>
+          </div>
+          <% }); %>
+        </div>
+
+        <% if (secondRequest.status === 'Pending Pickup') { %>
+<button type="button" class="btn-cancel-pickup" style="width:100%;margin-top:1rem"
+        onclick="openModal('cancelSecondPickupModal')">
+  <i class="ti ti-trash"></i> Cancel Second Pickup
+</button>
+<% } %>
+
+        <% } else { %>
+        <!-- Form to request second pickup -->
+        <p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:1rem;line-height:1.5">
+          Need a second pickup this week? A charge of <strong>Rs 200</strong> will be added to your Pending Payments.
+        </p>
+        <form action="/student/laundry/second" method="POST">
+          <div class="form-group" style="margin-bottom:.8rem">
+            <label style="font-size:.72rem">Number of Bags</label>
+            <select name="bagCount" class="filter-sel" style="width:100%">
+              <option value="1">1 bag</option>
+              <option value="2">2 bags</option>
+              <option value="3">3 bags</option>
+            </select>
+          </div>
+          <div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:var(--radius-md);padding:.6rem .8rem;font-size:.7rem;color:#C62828;margin-bottom:.8rem">
+            <i class="fas fa-exclamation-triangle"></i>
+            Rs 200 will be added to your pending dues immediately.
+          </div>
+          <button type="submit" class="btn-primary" style="width:100%;justify-content:center">
+            <i class="ti ti-plus"></i> Request Second Pickup
+          </button>
+        </form>
+        <% } %>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Week key indicator -->
+  <div style="text-align:center;font-size:.68rem;color:var(--text-muted)">
+    <i class="ti ti-calendar"></i> Current week: <strong><%= weekKey %></strong>
+  </div>
+
+</div><!-- /page-week -->
+
+<!-- ══ HISTORY PAGE ══ -->
+<div class="page" id="page-history">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-history"></i> Laundry History</h3>
+      <span class="count-pill"><%= history.length %> records</span>
+    </div>
+
+    <% if (history.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Week</th>
+            <th>Type</th>
+            <th>Pickup</th>
+            <th>Delivery</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% history.forEach(function(h, i) {
+               const statusMap = {
+                 'Pending Pickup' : 'badge-warning',
+                 'Picked Up'      : 'badge-info',
+                 'Processing'     : 'badge-info',
+                 'Delivered'      : 'badge-success',
+                 'Cancelled'      : 'badge-neutral'
+               };
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td style="font-family:monospace;font-size:.75rem"><%= h.weekKey %></td>
+            <td>
+              <span class="badge <%= h.isChargeable ? 'badge-warning' : 'badge-success' %>">
+                <%= h.isChargeable ? 'Paid' : 'Free' %>
+              </span>
+            </td>
+            <td style="font-size:.75rem"><%= new Date(h.pickupDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
+            <td style="font-size:.75rem"><%= new Date(h.deliveryDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
+            <td><span class="badge <%= statusMap[h.status] || 'badge-neutral' %>"><%= h.status %></span></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-history"></i>
+      <h4>No laundry history yet</h4>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /page-history -->
+<% if (secondRequest && secondRequest.status === 'Pending Pickup') { %>
+<div class="modal-overlay" id="cancelSecondPickupModal">
+  <div class="del-modal-box">
+    <div class="del-icon"><i class="ti ti-trash"></i></div>
+    <h3>Cancel Second Pickup?</h3>
+    <p>The Rs 200 charge will be removed from Pending Payments. This can't be undone.</p>
+    <div class="del-btns">
+      <button type="button" class="btn-cancel-del" onclick="closeModal('cancelSecondPickupModal')">
+        Keep Request
+      </button>
+      <form action="/student/laundry/second/cancel/<%= secondRequest._id %>" method="POST" style="display:inline">
+        <button type="submit" class="btn-confirm-del">Yes, Cancel</button>
+      </form>
+    </div>
+  </div>
+</div>
+<% } %>
+<script>
+document.getElementById('btn-week').classList.add('active');
+</script>
+
+<%- include('student-footer') %>

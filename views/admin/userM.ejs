@@ -1,0 +1,1352 @@
+<%
+  const activePage   = 'users';
+  const pageTitle    = 'User Management';
+  const pageSubtitle = 'Manage students, wardens, and admins';
+  const pendingApprovalsCount = stats.pending;
+%>
+<%- include('admin-header') %>
+
+<!-- ── Search ── -->
+<div style="display:flex;justify-content:flex-end;margin-bottom:1.2rem">
+  <div class="search-bar" style="max-width:320px;width:100%">
+    <i class="ti ti-search"></i>
+    <input type="text" placeholder="Search users..." id="globalSearch" oninput="globalSearchHandler()">
+  </div>
+</div>
+
+<!-- ── Sub-nav tabs ── -->
+<div class="page-tabs">
+  <button class="act-btn active" style="background:#E8EAF6;color:#3949AB" onclick="showPage('overview',this)"><i class="ti ti-layout-dashboard"></i> Overview</button>
+  <button class="act-btn" style="background:#E3F2FD;color:#1565C0" onclick="showPage('all-users',this)"><i class="ti ti-users"></i> All Users</button>
+  <button class="act-btn" style="background:#EEF5F0;color:#2D5A3D" onclick="showPage('students',this)"><i class="ti ti-school"></i> Students</button>
+  <button class="act-btn" style="background:#F3E5F5;color:#7B1FA2" onclick="showPage('admins',this)"><i class="ti ti-shield"></i> Admins</button>
+  <button class="act-btn" style="background:#FFF8E1;color:#E65100" onclick="showPage('wardens',this)"><i class="ti ti-user-check"></i> Wardens</button>
+  <button class="act-btn" id="nav-pending" style="background:#FFEBEE;color:#C62828" onclick="showPage('pending',this)">
+    <i class="ti ti-clock"></i> Pending Approvals
+    <% if (pendingStudents.length > 0) { %><span style="background:#C62828;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= pendingStudents.length %></span><% } %>
+  </button>
+  <button class="act-btn" id="nav-add-user" style="background:#E8F5E9;color:#2E7D32" onclick="showPage('add-user',this)"><i class="ti ti-user-plus"></i> Add User</button>
+</div>
+
+<!-- ══════════════════════════════════════
+     OVERVIEW PAGE
+══════════════════════════════════════ -->
+<div class="page active" id="page-overview">
+  <div class="stats-row">
+    <div class="stat-card clickable" onclick="showPage('all-users',null)">
+      <div class="s-icon all"><i class="ti ti-users"></i></div>
+      <div class="s-info"><h4>Total Users</h4><h3><%= stats.totalUsers %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="showPage('students',null)">
+      <div class="s-icon student"><i class="ti ti-school"></i></div>
+      <div class="s-info"><h4>Students</h4><h3><%= stats.students %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="showPage('admins',null)">
+      <div class="s-icon admin"><i class="ti ti-shield"></i></div>
+      <div class="s-info"><h4>Admins</h4><h3><%= stats.admins %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="showPage('wardens',null)">
+      <div class="s-icon warden"><i class="ti ti-user-check"></i></div>
+      <div class="s-info"><h4>Wardens</h4><h3><%= stats.wardens %></h3></div>
+    </div>
+    <div class="stat-card clickable" onclick="showPage('pending',null)">
+      <div class="s-icon pending"><i class="ti ti-clock"></i></div>
+      <div class="s-info"><h4>Pending</h4><h3><%= stats.pending %></h3></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-clock"></i> Pending Approvals</h3>
+      <button class="add-btn" onclick="showPage('pending',null)">View All</button>
+    </div>
+    <% if(pendingStudents.length > 0){ %>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Student</th><th>User ID</th><th>Email</th><th>ID Document</th><th>Registered</th><th class="actions-th">Actions</th></tr></thead>
+        <tbody>
+          <% pendingStudents.forEach(student => { %>
+          <tr class="pending-row">
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= student.fullname.charAt(0).toUpperCase() %></div>
+                <div><div class="u-name"><%= student.fullname %></div></div>
+              </div>
+            </td>
+            <td><code class="uid-code"><%= student.userId %></code></td>
+            <td><%= student.email %></td>
+            <td>
+              <%
+                const overviewIdUrl = student.idImage ? '/' + student.idImage : null;
+              %>
+              <% if (overviewIdUrl) { %>
+                <button class="act-btn btn-view-id" onclick="openImageLightbox('<%= overviewIdUrl %>', '<%= student.fullname %>')">
+                  <i class="fas fa-id-card"></i> View ID
+                </button>
+              <% } else { %>
+                <span class="no-id-badge"><i class="fas fa-exclamation-circle"></i> Not uploaded</span>
+              <% } %>
+            </td>
+            <td><%= new Date(student.createdAt).toLocaleDateString() %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <form action="/admin/approve/<%= student._id %>" method="POST" style="display:inline">
+                  <button type="submit" class="act-btn btn-approve">Approve</button>
+                </form>
+                <form action="/admin/reject/<%= student._id %>" method="POST" style="display:inline">
+                  <button type="submit" class="act-btn btn-reject">Reject</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state"><i class="fas fa-check-circle"></i><p>No pending approvals.</p></div>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3><i class="ti ti-users"></i> Recent Users</h3></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>User</th><th>User ID</th><th>Role</th><th>Status</th><th>Joined</th><th class="actions-th">Actions</th></tr></thead>
+        <tbody>
+          <% users.slice(0,5).forEach(u => { %>
+          <tr>
+            <td>
+              <div class="user-cell">
+                <div class="u-av"><%= u.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= u.fullname %></div>
+                  <div class="u-email"><%= u.email %></div>
+                </div>
+              </div>
+            </td>
+            <td><code class="uid-code"><%= u.userId %></code></td>
+            <td><span class="role-badge <%= u.role %>"><%= u.role %></span></td>
+            <td><span class="status-badge <%= u.status %>"><%= u.status %></span></td>
+            <td><%= new Date(u.createdAt).toLocaleDateString() %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <button class="act-btn btn-view" data-action="view"
+                  data-id="<%= u._id %>" data-fullname="<%= u.fullname %>" data-email="<%= u.email %>"
+                  data-role="<%= u.role %>" data-status="<%= u.status %>" data-userid="<%= u.userId %>"
+                  data-phone="<%= u.phoneNumber || '' %>" data-gender="<%= u.gender || '' %>"
+                  data-dob="<%= u.dateOfBirth ? new Date(u.dateOfBirth).toISOString().split('T')[0] : '' %>"
+                  data-joined="<%= new Date(u.createdAt).toLocaleDateString() %>">
+                  View
+                </button>
+                <button class="act-btn btn-del" data-action="delete" data-id="<%= u._id %>" data-name="<%= u.fullname %>">
+                  Delete
+                </button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     ALL USERS PAGE
+══════════════════════════════════════ -->
+<div class="page" id="page-all-users">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-users"></i> All Users</h3>
+      <div class="card-actions">
+        <select class="filter-sel" id="filter-role" onchange="applyFilters()">
+          <option value="all">All Roles</option>
+          <option value="student">Students</option>
+          <option value="admin">Admins</option>
+          <option value="warden">Wardens</option>
+        </select>
+        <select class="filter-sel" id="filter-status" onchange="applyFilters()">
+          <option value="all">All Status</option>
+          <option value="approved">Approved</option>
+          <option value="pending">Pending</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table id="all-table">
+        <thead><tr><th>#</th><th>User</th><th>User ID</th><th>Role</th><th>Status</th><th>Joined</th><th class="actions-th">Actions</th></tr></thead>
+        <tbody id="all-body">
+          <% users.forEach((u, index) => { %>
+          <tr data-role="<%= u.role %>" data-status="<%= u.status %>">
+            <td><%= index+1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av"><%= u.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= u.fullname %></div>
+                  <div class="u-email"><%= u.email %></div>
+                </div>
+              </div>
+            </td>
+            <td><code class="uid-code"><%= u.userId %></code></td>
+            <td><span class="role-badge <%= u.role %>"><%= u.role %></span></td>
+            <td><span class="status-badge <%= u.status %>"><%= u.status %></span></td>
+            <td><%= new Date(u.createdAt).toLocaleDateString() %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <button class="act-btn btn-view" data-action="view"
+                  data-id="<%= u._id %>" data-fullname="<%= u.fullname %>" data-email="<%= u.email %>"
+                  data-role="<%= u.role %>" data-status="<%= u.status %>" data-userid="<%= u.userId %>"
+                  data-phone="<%= u.phoneNumber || '' %>" data-gender="<%= u.gender || '' %>"
+                  data-dob="<%= u.dateOfBirth ? new Date(u.dateOfBirth).toISOString().split('T')[0] : '' %>"
+                  data-joined="<%= new Date(u.createdAt).toLocaleDateString() %>">
+                  View
+                </button>
+                <button class="act-btn btn-del" data-action="delete" data-id="<%= u._id %>" data-name="<%= u.fullname %>">
+                  Delete
+                </button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination" id="all-users-pagination">
+      <span id="all-users-page-info">Showing 1–13 of <%= users.length %> users</span>
+      <div class="page-btns" id="all-users-page-btns"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     STUDENTS PAGE
+══════════════════════════════════════ -->
+<div class="page" id="page-students">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-school"></i> Students</h3>
+      <span class="count-pill"><%= students.length %> total</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Student</th><th>Status</th>
+            <th>ID Document</th><th>Profile Info</th><th>Joined</th><th class="actions-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="students-body">
+          <% students.forEach((student, index) => {
+               const hasInfo = studentInfoMap && studentInfoMap[student._id.toString()];
+               const studentIdUrl = student.idImage ? '/' + student.idImage : null;
+          %>
+          <tr>
+            <td><%= index+1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= student.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= student.fullname %></div>
+                  <div class="u-sub"><code class="uid-code"><%= student.userId %></code> · <%= student.phoneNumber || 'No phone' %></div>
+                </div>
+              </div>
+            </td>
+            <td><span class="status-badge <%= student.status %>"><%= student.status %></span></td>
+            <td>
+              <% if (studentIdUrl) { %>
+                <button class="act-btn btn-view-id" onclick="openImageLightbox('<%= studentIdUrl %>', '<%= student.fullname %>')">
+                  <i class="fas fa-id-card"></i> View ID
+                </button>
+              <% } else { %>
+                <span class="no-id-badge"><i class="fas fa-exclamation-circle"></i> Not uploaded</span>
+              <% } %>
+            </td>
+            <td>
+              <% if (hasInfo) { %>
+                <span class="info-pill info-filled"><i class="fas fa-check-circle"></i> Filled</span>
+              <% } else { %>
+                <span class="info-pill info-empty"><i class="fas fa-exclamation-circle"></i> Missing</span>
+              <% } %>
+            </td>
+            <td><%= new Date(student.createdAt).toLocaleDateString() %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <button class="act-btn btn-view" data-action="view"
+                  data-id="<%= student._id %>" data-fullname="<%= student.fullname %>" data-email="<%= student.email %>"
+                  data-role="<%= student.role %>" data-status="<%= student.status %>" data-userid="<%= student.userId %>"
+                  data-phone="<%= student.phoneNumber || '' %>" data-gender="<%= student.gender || '' %>"
+                  data-dob="<%= student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split('T')[0] : '' %>"
+                  data-joined="<%= new Date(student.createdAt).toLocaleDateString() %>">
+                  View
+                </button>
+                <button class="act-btn btn-del" data-action="delete" data-id="<%= student._id %>" data-name="<%= student.fullname %>">
+                  Delete
+                </button>
+                <% if (student.status === 'approved') { %>
+                  <button class="act-btn btn-student-info" data-action="student-info"
+                    data-userid="<%= student._id %>" data-fullname="<%= student.fullname %>">
+                    <i class="fas fa-id-card"></i> Student Info
+                  </button>
+                <% } else { %>
+                  <button class="act-btn btn-student-info-locked" disabled
+                    title="Student info is only available after the account is approved">
+                    <i class="fas fa-lock"></i> Student Info
+                  </button>
+                <% } %>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+    ADMINS PAGE
+══════════════════════════════════════ -->
+<div class="page" id="page-admins">
+  <div class="card">
+    <div class="card-head"><h3><i class="ti ti-shield"></i> Admins</h3><span class="count-pill"><%= admins.length %> total</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Admin</th><th>User ID</th><th>Status</th><th>Phone</th><th>Joined</th><th class="actions-th">Actions</th></tr></thead>
+        <tbody id="admins-body">
+          <% admins.forEach((admin, index) => { %>
+          <tr>
+            <td><%= index+1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av a"><%= admin.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= admin.fullname %></div>
+                  <div class="u-email"><%= admin.email %></div>
+                </div>
+              </div>
+            </td>
+            <td><code class="uid-code"><%= admin.userId %></code></td>
+            <td><span class="status-badge approved"><%= admin.status %></span></td>
+            <td><%= admin.phoneNumber || '—' %></td>
+            <td><%= new Date(admin.createdAt).toLocaleDateString() %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <button class="act-btn btn-view" data-action="view"
+                  data-id="<%= admin._id %>" data-fullname="<%= admin.fullname %>" data-email="<%= admin.email %>"
+                  data-role="<%= admin.role %>" data-status="<%= admin.status %>" data-userid="<%= admin.userId %>"
+                  data-phone="<%= admin.phoneNumber || '' %>" data-gender="<%= admin.gender || '' %>"
+                  data-dob="<%= admin.dateOfBirth ? new Date(admin.dateOfBirth).toISOString().split('T')[0] : '' %>"
+                  data-joined="<%= new Date(admin.createdAt).toLocaleDateString() %>">
+                  View
+                </button>
+                <button class="act-btn btn-del" data-action="delete" data-id="<%= admin._id %>" data-name="<%= admin.fullname %>">
+                  Delete
+                </button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     WARDENS PAGE
+══════════════════════════════════════ -->
+<div class="page" id="page-wardens">
+  <div class="card">
+    <div class="card-head"><h3><i class="ti ti-user-check"></i> Wardens</h3><span class="count-pill"><%= wardens.length %> total</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Warden</th><th>User ID</th><th>Status</th><th>Phone</th><th>Joined</th><th class="actions-th">Actions</th></tr></thead>
+        <tbody id="wardens-body">
+          <% wardens.forEach((warden, index) => { %>
+          <tr>
+            <td><%= index+1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av w"><%= warden.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= warden.fullname %></div>
+                  <div class="u-email"><%= warden.email %></div>
+                </div>
+              </div>
+            </td>
+            <td><code class="uid-code"><%= warden.userId %></code></td>
+            <td><span class="status-badge approved"><%= warden.status %></span></td>
+            <td><%= warden.phoneNumber || '—' %></td>
+            <td><%= new Date(warden.createdAt).toLocaleDateString() %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <button class="act-btn btn-view" data-action="view"
+                  data-id="<%= warden._id %>" data-fullname="<%= warden.fullname %>" data-email="<%= warden.email %>"
+                  data-role="<%= warden.role %>" data-status="<%= warden.status %>" data-userid="<%= warden.userId %>"
+                  data-phone="<%= warden.phoneNumber || '' %>" data-gender="<%= warden.gender || '' %>"
+                  data-dob="<%= warden.dateOfBirth ? new Date(warden.dateOfBirth).toISOString().split('T')[0] : '' %>"
+                  data-joined="<%= new Date(warden.createdAt).toLocaleDateString() %>">
+                  View
+                </button>
+                <button class="act-btn btn-del" data-action="delete" data-id="<%= warden._id %>" data-name="<%= warden.fullname %>">
+                  Delete
+                </button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     PENDING APPROVALS PAGE
+══════════════════════════════════════ -->
+<div class="page" id="page-pending">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-clock"></i> Pending Approvals</h3>
+      <span style="font-size:.75rem;color:#C62828;font-weight:600"><%= pendingStudents.length %> awaiting review</span>
+    </div>
+    <% if(pendingStudents.length > 0){ %>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Student</th><th>User ID</th><th>Email</th><th>ID Document</th><th>Registered</th><th class="actions-th">Actions</th></tr></thead>
+        <tbody>
+          <% pendingStudents.forEach(student => {
+               const pendingIdUrl = student.idImage ? '/' + student.idImage : null;
+          %>
+          <tr class="pending-row">
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= student.fullname.charAt(0).toUpperCase() %></div>
+                <div><div class="u-name"><%= student.fullname %></div></div>
+              </div>
+            </td>
+            <td><code class="uid-code"><%= student.userId %></code></td>
+            <td><%= student.email %></td>
+            <td>
+              <% if (pendingIdUrl) { %>
+                <button class="act-btn btn-view-id" onclick="openImageLightbox('<%= pendingIdUrl %>', '<%= student.fullname %>')">
+                  <i class="fas fa-id-card"></i> View ID
+                </button>
+              <% } else { %>
+                <span class="no-id-badge"><i class="fas fa-exclamation-circle"></i> Not uploaded</span>
+              <% } %>
+            </td>
+            <td><%= new Date(student.createdAt).toLocaleDateString() %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <form action="/admin/approve/<%= student._id %>" method="POST" style="display:inline">
+                  <button type="submit" class="act-btn btn-approve">Approve</button>
+                </form>
+                <form action="/admin/reject/<%= student._id %>" method="POST" style="display:inline">
+                  <button type="submit" class="act-btn btn-reject">Reject</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state"><i class="fas fa-check-circle"></i><p>No pending approvals.</p></div>
+    <% } %>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     ADD USER PAGE
+══════════════════════════════════════ -->
+<div class="page" id="page-add-user">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-user-plus"></i> Add New User</h3>
+    </div>
+    <form action="/admin/users/add" method="POST" id="add-user-form" novalidate>
+      <div class="form-section">
+        <h4 class="form-section-title">Account Details</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Full Name <span class="req">*</span></label>
+            <input type="text" name="fullname" id="au-fullname" placeholder="Enter full name" required>
+          </div>
+          <div class="form-group">
+            <label>Email Address <span class="req">*</span></label>
+            <input type="email" name="email" id="au-email" placeholder="Enter email" required>
+          </div>
+          <div class="form-group">
+            <label>Phone Number <span class="req">*</span></label>
+            <input type="tel" name="phoneNumber" id="au-phone" placeholder="Enter phone number" required>
+          </div>
+          <div class="form-group">
+            <label>Gender <span class="req">*</span></label>
+            <select name="gender" id="au-gender" required>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="form-section">
+        <h4 class="form-section-title">Role &amp; Access</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Role <span class="req">*</span></label>
+            <select name="role" id="au-role" required onchange="updateUserIdPreview()">
+              <option value="student">Student</option>
+              <option value="admin">Admin</option>
+              <option value="warden">Warden</option>
+            </select>
+          </div>
+          <div class="form-group" id="uid-preview" style="display:none">
+            <label>Generated User ID</label>
+            <div class="uid-preview-box">
+              <i class="ti ti-id"></i>
+              <span id="uid-preview-val">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="form-section">
+        <h4 class="form-section-title">Security</h4>
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Password <span class="req">*</span></label>
+            <div class="pw-wrap">
+              <input type="password" name="password" id="au-password"
+                placeholder="Min 8 chars, mixed case + symbol" required
+                pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$"
+                oninput="validatePasswordField()">
+              <button type="button" class="pw-toggle" onclick="togglePw('au-password', this)">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
+            <span class="field-hint" id="au-password-hint">Must include uppercase, lowercase, number and special character.</span>
+          </div>
+        </div>
+      </div>
+      <div class="form-footer">
+        <button type="submit" class="btn-primary"><i class="ti ti-user-plus"></i> Create User</button>
+        <button type="button" class="btn-sec" onclick="clearAddForm()">Clear</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     VIEW / EDIT USER MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="userModal" onclick="handleOverlayClick(event)">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="modal-title"><i class="fas fa-user"></i> User Details</h3>
+      <button class="modal-close" onclick="closeUserModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-view" id="modal-view-section">
+      <div class="mv-avatar" id="mv-avatar">A</div>
+      <div class="mv-name"  id="mv-name">—</div>
+      <div class="mv-uid"   id="mv-uid">—</div>
+      <div class="mv-badges">
+        <span class="role-badge"   id="mv-role-badge">—</span>
+        <span class="status-badge" id="mv-status-badge">—</span>
+      </div>
+      <div class="mv-grid">
+        <div class="mv-field"><label>Email</label><span id="mv-email">—</span></div>
+        <div class="mv-field"><label>Phone</label><span id="mv-phone">—</span></div>
+        <div class="mv-field"><label>Gender</label><span id="mv-gender">—</span></div>
+        <div class="mv-field"><label>Date of Birth</label><span id="mv-dob">—</span></div>
+        <div class="mv-field"><label>Joined</label><span id="mv-joined">—</span></div>
+        <div class="mv-field"><label>Role</label><span id="mv-role">—</span></div>
+        <div class="mv-field"><label>Status</label><span id="mv-status">—</span></div>
+      </div>
+    </div>
+    <form class="modal-edit" id="modal-edit-section" method="POST">
+      <div class="edit-grid">
+        <div class="edit-group full">
+          <label>Full Name</label>
+          <input type="text" id="edit-fullname" name="fullname" required>
+        </div>
+        <div class="edit-group full">
+          <label>Email Address</label>
+          <input type="email" id="edit-email" name="email" required>
+        </div>
+        <div class="edit-group">
+          <label>Phone Number</label>
+          <input type="tel" id="edit-phone" name="phoneNumber">
+        </div>
+        <div class="edit-group">
+          <label>Gender</label>
+          <select id="edit-gender" name="gender">
+            <option value="">—</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+        <div class="edit-group">
+          <label>Date of Birth</label>
+          <input type="date" id="edit-dob" name="dateOfBirth">
+        </div>
+        <div class="edit-group">
+          <label>Role</label>
+          <select id="edit-role" name="role">
+            <option value="student">Student</option>
+            <option value="admin">Admin</option>
+            <option value="warden">Warden</option>
+          </select>
+        </div>
+        <div class="edit-group">
+          <label>Status</label>
+          <select id="edit-status" name="status">
+            <option value="approved">Approved</option>
+            <option value="pending">Pending</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+      </div>
+    </form>
+    <div class="modal-foot">
+      <div class="mf-left">
+        <button class="btn-modal-edit" id="btn-switch-edit" onclick="switchToEdit()">
+          <i class="fas fa-pen"></i> Edit
+        </button>
+        <button class="btn-modal-save" id="btn-save-edit" style="display:none" onclick="submitEdit()">
+          <i class="fas fa-save"></i> Save Changes
+        </button>
+        <button class="btn-modal-cancel" id="btn-cancel-edit" style="display:none" onclick="switchToView()">
+          Cancel
+        </button>
+      </div>
+      <button class="btn-modal-del" onclick="triggerDeleteFromModal()">
+        <i class="fas fa-trash"></i> Delete
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     STUDENT INFO MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="studentInfoModal" onclick="handleSIOverlayClick(event)">
+  <div class="modal-box modal-box-wide">
+    <div class="modal-head">
+      <h3 id="si-modal-title"><i class="fas fa-id-card"></i> Student Information</h3>
+      <button class="modal-close" onclick="closeStudentInfoModal()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div id="si-loading" class="si-loading-state">
+      <i class="fas fa-spinner fa-spin"></i> Loading student information…
+    </div>
+
+    <div id="si-content" style="display:none">
+
+      <div class="si-user-banner">
+        <div class="si-avatar" id="si-avatar">A</div>
+        <div class="si-user-info">
+          <div class="si-user-name" id="si-user-name">—</div>
+          <div class="si-user-meta">
+            <code class="uid-code" id="si-user-id">—</code>
+            <span class="role-badge student">student</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="si-view-section">
+
+        <div class="si-section-title"><i class="fas fa-fingerprint"></i> ID Document</div>
+        <div class="si-id-doc-wrap" id="si-id-doc-wrap"></div>
+
+        <div class="si-section-title"><i class="fas fa-graduation-cap"></i> Academic Details</div>
+        <div class="si-grid">
+          <div class="si-field"><label>Department</label><span id="sv-department">—</span></div>
+          <div class="si-field"><label>Institution</label><span id="sv-institution">—</span></div>
+          <div class="si-field"><label>Admission Date</label><span id="sv-admissionDate">—</span></div>
+        </div>
+
+        <div class="si-section-title"><i class="fas fa-id-badge"></i> Identity</div>
+        <div class="si-grid">
+          <div class="si-field"><label>CNIC</label><span id="sv-cnic">—</span></div>
+          <div class="si-field"><label>Blood Group</label><span id="sv-bloodGroup">—</span></div>
+          <div class="si-field si-field-full"><label>Home Address</label><span id="sv-homeAddress">—</span></div>
+          <div class="si-field"><label>Emergency Contact</label><span id="sv-emergencyContact">—</span></div>
+        </div>
+
+        <div class="si-section-title"><i class="fas fa-users"></i> Guardian</div>
+        <div class="si-grid">
+          <div class="si-field"><label>Guardian Name</label><span id="sv-guardianName">—</span></div>
+          <div class="si-field"><label>Guardian Contact</label><span id="sv-guardianContact">—</span></div>
+          <div class="si-field"><label>Relation</label><span id="sv-guardianRelation">—</span></div>
+        </div>
+
+        <div class="si-section-title"><i class="fas fa-door-open"></i> Hostel</div>
+        <div class="si-grid">
+          <div class="si-field"><label>Room</label><span id="sv-room">Not assigned</span></div>
+          <div class="si-field"><label>Hostel</label><span id="sv-hostel">—</span></div>
+          <div class="si-field"><label>Hostel Status</label><span id="sv-hostelStatus">—</span></div>
+        </div>
+      </div>
+
+      <form id="si-edit-section" method="POST" style="display:none">
+        <div class="si-section-title"><i class="fas fa-graduation-cap"></i> Academic Details</div>
+        <div class="si-form-grid">
+          <div class="si-form-group">
+            <label>Department</label>
+            <input type="text" name="department" id="se-department" placeholder="e.g. Computer Science">
+          </div>
+          <div class="si-form-group">
+            <label>Institution</label>
+            <input type="text" name="institution" id="se-institution" placeholder="e.g. University of Karachi">
+          </div>
+          <div class="si-form-group">
+            <label>Admission Date</label>
+            <input type="date" name="admissionDate" id="se-admissionDate">
+          </div>
+        </div>
+
+        <div class="si-section-title"><i class="fas fa-id-badge"></i> Identity</div>
+        <div class="si-form-grid">
+          <div class="si-form-group">
+            <label>CNIC</label>
+            <input type="text" name="cnic" id="se-cnic" placeholder="XXXXX-XXXXXXX-X">
+          </div>
+          <div class="si-form-group">
+            <label>Blood Group</label>
+            <select name="bloodGroup" id="se-bloodGroup">
+              <option value="">— Select —</option>
+              <option value="A+">A+</option><option value="A-">A-</option>
+              <option value="B+">B+</option><option value="B-">B-</option>
+              <option value="AB+">AB+</option><option value="AB-">AB-</option>
+              <option value="O+">O+</option><option value="O-">O-</option>
+            </select>
+          </div>
+          <div class="si-form-group si-form-group-full">
+            <label>Home Address</label>
+            <input type="text" name="homeAddress" id="se-homeAddress" placeholder="Full home address">
+          </div>
+          <div class="si-form-group">
+            <label>Emergency Contact</label>
+            <input type="tel" name="emergencyContact" id="se-emergencyContact" placeholder="Emergency phone number">
+          </div>
+        </div>
+
+        <div class="si-section-title"><i class="fas fa-users"></i> Guardian</div>
+        <div class="si-form-grid">
+          <div class="si-form-group">
+            <label>Guardian Name</label>
+            <input type="text" name="guardianName" id="se-guardianName" placeholder="Guardian full name">
+          </div>
+          <div class="si-form-group">
+            <label>Guardian Contact</label>
+            <input type="tel" name="guardianContact" id="se-guardianContact" placeholder="Guardian phone number">
+          </div>
+          <div class="si-form-group">
+            <label>Guardian Relation</label>
+            <input type="text" name="guardianRelation" id="se-guardianRelation" placeholder="e.g. Father, Mother, Brother">
+          </div>
+        </div>
+      </form>
+
+    </div>
+
+    <div class="modal-foot" id="si-modal-foot">
+      <div class="mf-left">
+        <button class="btn-modal-edit" id="si-btn-edit" onclick="siSwitchToEdit()">
+          <i class="fas fa-pen"></i> Edit Info
+        </button>
+        <button class="btn-modal-save" id="si-btn-save" style="display:none" onclick="siSubmit()">
+          <i class="fas fa-save"></i> Save Info
+        </button>
+        <button class="btn-modal-cancel" id="si-btn-cancel" style="display:none" onclick="siSwitchToView()">
+          Cancel
+        </button>
+      </div>
+      <button class="btn-modal-close-si" onclick="closeStudentInfoModal()">
+        <i class="fas fa-times"></i> Close
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     IMAGE LIGHTBOX MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="imageLightbox" onclick="closeImageLightbox()">
+  <div class="lightbox-box" onclick="event.stopPropagation()">
+    <div class="lightbox-head">
+      <span id="lightbox-title" class="lightbox-title"></span>
+      <div class="lightbox-actions">
+        <a id="lightbox-download" href="#" download class="lightbox-btn">
+          <i class="fas fa-download"></i> Download
+        </a>
+        <button class="lightbox-btn lightbox-close-btn" onclick="closeImageLightbox()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+    <div class="lightbox-body">
+      <img id="lightbox-img" src="" alt="ID Document" class="lightbox-img">
+      <div id="lightbox-pdf-msg" class="lightbox-pdf-msg" style="display:none">
+        <i class="fas fa-file-pdf"></i>
+        <p>This document is a PDF file.</p>
+        <a id="lightbox-pdf-link" href="#" target="_blank" class="btn-primary" style="display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1.2rem;border-radius:6px;font-size:.82rem;text-decoration:none;margin-top:.5rem;">
+          <i class="fas fa-external-link-alt"></i> Open PDF
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     DELETE CONFIRM MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="deleteModal" onclick="handleDelOverlayClick(event)">
+  <div class="del-modal-box">
+    <div class="del-icon"><i class="fas fa-exclamation-triangle"></i></div>
+    <h3>Delete User?</h3>
+    <p id="del-msg">This action cannot be undone.</p>
+    <div class="del-btns">
+      <button class="btn-cancel-del" onclick="closeDeleteModal()">Cancel</button>
+      <form id="delete-form" method="POST" style="display:inline">
+        <button type="submit" class="btn-confirm-del">Yes, Delete</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+window.PAGE_TITLES = {
+  'overview'  : 'Overview',
+  'all-users' : 'All Users',
+  'students'  : 'Students',
+  'admins'    : 'Admins',
+  'wardens'   : 'Wardens',
+  'pending'   : 'Pending Approvals',
+  'add-user'  : 'Add User'
+};
+
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.page-tabs .act-btn').forEach(n => n.classList.remove('active'));
+  const pg = document.getElementById('page-' + id);
+  if (pg) pg.classList.add('active');
+  if (el) el.classList.add('active');
+  if (id === 'all-users') {
+    document.getElementById('filter-role').value   = 'all';
+    document.getElementById('filter-status').value = 'all';
+    applyFilters();
+    renderAllUsersPagination();
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const page   = params.get('page');
+  const validPages = ['overview','all-users','students','admins','wardens','pending','add-user'];
+  if (page && validPages.includes(page)) {
+    const navMap = {
+      'pending': document.getElementById('nav-pending'),
+      'add-user': document.getElementById('nav-add-user')
+    };
+    showPage(page, navMap[page] || null);
+  } else {
+    renderAllUsersPagination();
+  }
+});
+
+/* ═══════════════════════════════════════════════
+   FILTERS
+═══════════════════════════════════════════════ */
+function applyFilters() {
+  const role   = document.getElementById('filter-role').value;
+  const status = document.getElementById('filter-status').value;
+  document.querySelectorAll('#all-body tr').forEach(row => {
+    const roleMatch   = role   === 'all' || row.dataset.role   === role;
+    const statusMatch = status === 'all' || row.dataset.status === status;
+    row.dataset.filterHidden = (roleMatch && statusMatch) ? '0' : '1';
+  });
+  ALL_USERS_PAGE = 1;
+  renderAllUsersPagination();
+}
+
+/* ═══════════════════════════════════════════════
+   PAGINATION
+═══════════════════════════════════════════════ */
+const ROWS_PER_PAGE = 13;
+let ALL_USERS_PAGE  = 1;
+
+function getVisibleAllUsersRows() {
+  return Array.from(document.querySelectorAll('#all-body tr')).filter(row =>
+    row.dataset.filterHidden !== '1' && row.dataset.searchHidden !== '1'
+  );
+}
+
+function renderAllUsersPagination() {
+  const allRows     = Array.from(document.querySelectorAll('#all-body tr'));
+  const visibleRows = getVisibleAllUsersRows();
+  const total       = visibleRows.length;
+  const totalPages  = Math.max(1, Math.ceil(total / ROWS_PER_PAGE));
+  if (ALL_USERS_PAGE > totalPages) ALL_USERS_PAGE = totalPages;
+  if (ALL_USERS_PAGE < 1)          ALL_USERS_PAGE = 1;
+  allRows.forEach(row => row.style.display = 'none');
+  const start = (ALL_USERS_PAGE - 1) * ROWS_PER_PAGE;
+  const end   = start + ROWS_PER_PAGE;
+  visibleRows.slice(start, end).forEach(row => row.style.display = '');
+  const info = document.getElementById('all-users-page-info');
+  if (total === 0) {
+    info.textContent = 'Showing 0 of 0 users';
+  } else {
+    info.textContent = `Showing ${start + 1}–${Math.min(end, total)} of ${total} users`;
+  }
+  const btnWrap = document.getElementById('all-users-page-btns');
+  btnWrap.innerHTML = '';
+  const prev = document.createElement('button');
+  prev.className = 'pg-btn'; prev.textContent = '‹'; prev.disabled = ALL_USERS_PAGE === 1;
+  prev.onclick = () => { ALL_USERS_PAGE--; renderAllUsersPagination(); };
+  btnWrap.appendChild(prev);
+  for (let i = 1; i <= totalPages; i++) {
+    const b = document.createElement('button');
+    b.className = 'pg-btn' + (i === ALL_USERS_PAGE ? ' active' : '');
+    b.textContent = i;
+    b.onclick = () => { ALL_USERS_PAGE = i; renderAllUsersPagination(); };
+    btnWrap.appendChild(b);
+  }
+  const next = document.createElement('button');
+  next.className = 'pg-btn'; next.textContent = '›'; next.disabled = ALL_USERS_PAGE === totalPages;
+  next.onclick = () => { ALL_USERS_PAGE++; renderAllUsersPagination(); };
+  btnWrap.appendChild(next);
+}
+
+/* ═══════════════════════════════════════════════
+   GLOBAL SEARCH
+═══════════════════════════════════════════════ */
+const SEARCH_TABLE_BODIES = ['all-body','students-body','admins-body','wardens-body'];
+const SEARCH_PAGE_MAP = {
+  'all-body'      : { page: 'all-users' },
+  'students-body' : { page: 'students'  },
+  'admins-body'   : { page: 'admins'    },
+  'wardens-body'  : { page: 'wardens'   }
+};
+
+function globalSearchHandler() {
+  const q = document.getElementById('globalSearch').value.trim().toLowerCase();
+  let firstMatchTable = null;
+  SEARCH_TABLE_BODIES.forEach(bodyId => {
+    const tbody = document.getElementById(bodyId);
+    if (!tbody) return;
+    let matchInThisTable = false;
+    tbody.querySelectorAll('tr').forEach(row => {
+      const matches = q === '' || row.textContent.toLowerCase().includes(q);
+      row.dataset.searchHidden = matches ? '0' : '1';
+      if (matches && q !== '') matchInThisTable = true;
+    });
+    if (matchInThisTable && !firstMatchTable) firstMatchTable = bodyId;
+  });
+  ALL_USERS_PAGE = 1;
+  renderAllUsersPagination();
+  ['students-body','admins-body','wardens-body'].forEach(bodyId => {
+    const tbody = document.getElementById(bodyId);
+    if (!tbody) return;
+    tbody.querySelectorAll('tr').forEach(row => {
+      row.style.display = row.dataset.searchHidden === '1' ? 'none' : '';
+    });
+  });
+  if (q !== '' && firstMatchTable) {
+    const activePage = document.querySelector('.page.active');
+    const activeId   = activePage ? activePage.id : '';
+    const targetId   = 'page-' + SEARCH_PAGE_MAP[firstMatchTable].page;
+    if (activeId !== targetId) showPage(SEARCH_PAGE_MAP[firstMatchTable].page, null);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   ADD USER HELPERS
+═══════════════════════════════════════════════ */
+async function updateUserIdPreview() {
+  const role    = document.getElementById('au-role').value;
+  const preview = document.getElementById('uid-preview');
+  const val     = document.getElementById('uid-preview-val');
+  if (!role) { preview.style.display = 'none'; return; }
+  preview.style.display = 'flex';
+  val.textContent = 'Loading…';
+  try {
+    const res  = await fetch(`/admin/users/preview-id?role=${encodeURIComponent(role)}`);
+    if (!res.ok) throw new Error('Request failed');
+    const data = await res.json();
+    val.textContent = data.preview || '—';
+  } catch (err) {
+    val.textContent = '—';
+  }
+}
+
+function clearAddForm() {
+  document.getElementById('add-user-form').reset();
+  document.getElementById('uid-preview').style.display = 'none';
+  const hint = document.getElementById('au-password-hint');
+  hint.style.color = '#888';
+  hint.textContent = 'Must include uppercase, lowercase, number and special character.';
+}
+
+function togglePw(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const icon  = btn.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.classList.replace('fa-eye','fa-eye-slash');
+  } else {
+    input.type = 'password';
+    icon.classList.replace('fa-eye-slash','fa-eye');
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   PASSWORD VALIDATION (Add User form)
+═══════════════════════════════════════════════ */
+function validatePasswordField() {
+  const input = document.getElementById('au-password');
+  const hint  = document.getElementById('au-password-hint');
+  const valid = input.checkValidity();
+  if (input.value.length === 0) {
+    hint.style.color = '#888';
+    hint.textContent = 'Must include uppercase, lowercase, number and special character.';
+  } else if (valid) {
+    hint.style.color = '#2E7D32';
+    hint.textContent = '✓ Password meets requirements.';
+  } else {
+    hint.style.color = '#C62828';
+    hint.textContent = '✗ Needs uppercase, lowercase, number, and special character (min 8 chars).';
+  }
+  return valid;
+}
+
+document.getElementById('add-user-form').addEventListener('submit', function(e) {
+  if (!validatePasswordField()) {
+    e.preventDefault();
+    document.getElementById('au-password').focus();
+  }
+});
+
+/* ═══════════════════════════════════════════════
+   USER MODAL
+═══════════════════════════════════════════════ */
+let _currentUserId = null;
+
+function genderLabel(g) {
+  return g === 'male' ? 'Male' : g === 'female' ? 'Female' : '—';
+}
+
+function formatDob(dobStr) {
+  if (!dobStr) return '—';
+  const d = new Date(dobStr);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+}
+
+function openUserModal(data) {
+  _currentUserId = data.id;
+  document.getElementById('mv-avatar').textContent  = data.fullname.charAt(0).toUpperCase();
+  document.getElementById('mv-name').textContent    = data.fullname;
+  document.getElementById('mv-uid').textContent     = data.userid || '—';
+  document.getElementById('mv-email').textContent   = data.email;
+  document.getElementById('mv-phone').textContent   = data.phone  || '—';
+  document.getElementById('mv-gender').textContent  = genderLabel(data.gender);
+  document.getElementById('mv-dob').textContent     = formatDob(data.dob);
+  document.getElementById('mv-joined').textContent  = data.joined;
+  document.getElementById('mv-role').textContent    = data.role;
+  document.getElementById('mv-status').textContent  = data.status;
+  const rb = document.getElementById('mv-role-badge');
+  rb.textContent = data.role; rb.className = 'role-badge ' + data.role;
+  const sb = document.getElementById('mv-status-badge');
+  sb.textContent = data.status; sb.className = 'status-badge ' + data.status;
+  document.getElementById('edit-fullname').value = data.fullname;
+  document.getElementById('edit-email').value    = data.email;
+  document.getElementById('edit-phone').value    = data.phone    || '';
+  document.getElementById('edit-gender').value   = data.gender   || '';
+  document.getElementById('edit-dob').value      = data.dob      || '';
+  document.getElementById('edit-role').value     = data.role;
+  document.getElementById('edit-status').value   = data.status;
+  switchToView();
+  document.getElementById('userModal').classList.add('open');
+}
+
+function closeUserModal() {
+  document.getElementById('userModal').classList.remove('open');
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('userModal')) closeUserModal();
+}
+
+function switchToEdit() {
+  document.getElementById('modal-title').innerHTML             = '<i class="fas fa-pen"></i> Edit User';
+  document.getElementById('modal-view-section').style.display = 'none';
+  document.getElementById('modal-edit-section').style.display = 'block';
+  document.getElementById('btn-switch-edit').style.display    = 'none';
+  document.getElementById('btn-save-edit').style.display      = 'flex';
+  document.getElementById('btn-cancel-edit').style.display    = 'flex';
+}
+
+function switchToView() {
+  document.getElementById('modal-title').innerHTML             = '<i class="fas fa-user"></i> User Details';
+  document.getElementById('modal-view-section').style.display = 'block';
+  document.getElementById('modal-edit-section').style.display = 'none';
+  document.getElementById('btn-switch-edit').style.display    = 'flex';
+  document.getElementById('btn-save-edit').style.display      = 'none';
+  document.getElementById('btn-cancel-edit').style.display    = 'none';
+}
+
+function submitEdit() {
+  if (!_currentUserId) return;
+  const form = document.getElementById('modal-edit-section');
+  form.action = '/admin/users/edit/' + _currentUserId;
+  form.submit();
+}
+
+/* ═══════════════════════════════════════════════
+   IMAGE LIGHTBOX
+═══════════════════════════════════════════════ */
+function openImageLightbox(src, studentName) {
+  const isPdf = src.toLowerCase().endsWith('.pdf');
+  const img   = document.getElementById('lightbox-img');
+  const pdf   = document.getElementById('lightbox-pdf-msg');
+  const title = document.getElementById('lightbox-title');
+  const dl    = document.getElementById('lightbox-download');
+
+  title.textContent = `ID Document — ${studentName}`;
+  dl.href = src;
+
+  if (isPdf) {
+    img.style.display = 'none';
+    pdf.style.display = 'flex';
+    document.getElementById('lightbox-pdf-link').href = src;
+  } else {
+    pdf.style.display = 'none';
+    img.style.display = 'block';
+    img.src = src;
+  }
+  document.getElementById('imageLightbox').classList.add('open');
+}
+
+function closeImageLightbox() {
+  document.getElementById('imageLightbox').classList.remove('open');
+  document.getElementById('lightbox-img').src = '';
+}
+
+/* ═══════════════════════════════════════════════
+   STUDENT INFO MODAL
+═══════════════════════════════════════════════ */
+let _siUserId   = null;
+let _siUserName = null;
+let _siUserUid  = null;
+
+async function openStudentInfoModal(userId, userName, userUid) {
+  _siUserId   = userId;
+  _siUserName = userName;
+  _siUserUid  = userUid || '—';
+
+  document.getElementById('si-loading').style.display = 'flex';
+  document.getElementById('si-content').style.display = 'none';
+  siSwitchToView();
+  document.getElementById('studentInfoModal').classList.add('open');
+
+  try {
+    const res  = await fetch(`/admin/students/${userId}/info`);
+    const data = await res.json();
+
+    document.getElementById('si-avatar').textContent    = userName.charAt(0).toUpperCase();
+    document.getElementById('si-user-name').textContent = userName;
+    document.getElementById('si-user-id').textContent   = userUid || '—';
+
+    const si = data.studentInfo;
+    setValue('sv-department',       si?.department       || '—');
+    setValue('sv-institution',      si?.institution      || '—');
+    setValue('sv-admissionDate',    si?.admissionDate    ? new Date(si.admissionDate).toLocaleDateString() : '—');
+    setValue('sv-cnic',             si?.cnic             || '—');
+    setValue('sv-bloodGroup',       si?.bloodGroup       || '—');
+    setValue('sv-homeAddress',      si?.homeAddress      || '—');
+    setValue('sv-emergencyContact', si?.emergencyContact || '—');
+    setValue('sv-guardianName',     si?.guardianName     || '—');
+    setValue('sv-guardianContact',  si?.guardianContact  || '—');
+    setValue('sv-guardianRelation', si?.guardianRelation || '—');
+
+    /* Room / Hostel — show real assigned details, not just a boolean */
+    const room = si?.room;
+    if (room && typeof room === 'object') {
+      const roomLabel = room.roomNumber
+        ? `Room ${room.roomNumber}${room.block ? ' (' + room.block + ')' : ''}`
+        : 'Assigned';
+      setValue('sv-room', roomLabel);
+      setValue('sv-hostel', room.hostelName || '—');
+    } else {
+      setValue('sv-room', 'Not assigned');
+      setValue('sv-hostel', '—');
+    }
+    setValue('sv-hostelStatus', si?.hostelStatus || '—');
+
+    setInput('se-department',       si?.department       || '');
+    setInput('se-institution',      si?.institution      || '');
+    setInput('se-cnic',             si?.cnic             || '');
+    setInput('se-bloodGroup',       si?.bloodGroup       || '');
+    setInput('se-homeAddress',      si?.homeAddress      || '');
+    setInput('se-emergencyContact', si?.emergencyContact || '');
+    setInput('se-guardianName',     si?.guardianName     || '');
+    setInput('se-guardianContact',  si?.guardianContact  || '');
+    setInput('se-guardianRelation', si?.guardianRelation || '');
+    setInput('se-admissionDate',
+      si?.admissionDate ? new Date(si.admissionDate).toISOString().split('T')[0] : ''
+    );
+
+    const wrap  = document.getElementById('si-id-doc-wrap');
+    const idSrc = data.idImage ? '/' + data.idImage : null;
+
+    if (idSrc) {
+      const isPdf = idSrc.toLowerCase().endsWith('.pdf');
+      if (isPdf) {
+        wrap.innerHTML = `
+          <div class="si-id-pdf">
+            <i class="fas fa-file-pdf"></i>
+            <span>PDF document uploaded</span>
+            <button class="act-btn btn-view-id" onclick="openImageLightbox('${idSrc}', '${userName.replace(/'/g,"\\'")}')">
+              <i class="fas fa-external-link-alt"></i> View PDF
+            </button>
+          </div>`;
+      } else {
+        wrap.innerHTML = `
+          <div class="si-id-img-wrap">
+            <img src="${idSrc}" alt="ID Document" class="si-id-thumbnail"
+                 onclick="openImageLightbox('${idSrc}', '${userName.replace(/'/g,"\\'")}' )"
+                 title="Click to enlarge">
+            <div class="si-id-hint"><i class="fas fa-search-plus"></i> Click image to enlarge</div>
+          </div>`;
+      }
+    } else {
+      wrap.innerHTML = `
+        <div class="si-id-missing">
+          <i class="fas fa-exclamation-circle"></i>
+          <span>No ID document uploaded by this student.</span>
+        </div>`;
+    }
+
+    document.getElementById('si-loading').style.display = 'none';
+    document.getElementById('si-content').style.display = 'block';
+
+  } catch (err) {
+    console.error('Failed to load student info:', err);
+    document.getElementById('si-loading').innerHTML =
+      '<i class="fas fa-exclamation-circle" style="color:#C62828"></i> Failed to load. Please try again.';
+  }
+}
+
+function setValue(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function setInput(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.value = val;
+}
+
+function closeStudentInfoModal() {
+  document.getElementById('studentInfoModal').classList.remove('open');
+}
+
+function handleSIOverlayClick(e) {
+  if (e.target === document.getElementById('studentInfoModal')) closeStudentInfoModal();
+}
+
+function siSwitchToEdit() {
+  document.getElementById('si-view-section').style.display = 'none';
+  document.getElementById('si-edit-section').style.display = 'block';
+  document.getElementById('si-btn-edit').style.display     = 'none';
+  document.getElementById('si-btn-save').style.display     = 'flex';
+  document.getElementById('si-btn-cancel').style.display   = 'flex';
+  document.getElementById('si-modal-title').innerHTML =
+    '<i class="fas fa-id-card"></i> Edit Student Information';
+}
+
+function siSwitchToView() {
+  document.getElementById('si-view-section').style.display = 'block';
+  document.getElementById('si-edit-section').style.display = 'none';
+  document.getElementById('si-btn-edit').style.display     = 'flex';
+  document.getElementById('si-btn-save').style.display     = 'none';
+  document.getElementById('si-btn-cancel').style.display   = 'none';
+  document.getElementById('si-modal-title').innerHTML =
+    '<i class="fas fa-id-card"></i> Student Information';
+}
+
+function siSubmit() {
+  if (!_siUserId) return;
+  const form = document.getElementById('si-edit-section');
+  form.action = '/admin/students/' + _siUserId + '/info';
+  form.submit();
+}
+
+/* ═══════════════════════════════════════════════
+   DELETE MODAL
+═══════════════════════════════════════════════ */
+function openDeleteModal(id, name) {
+  document.getElementById('del-msg').textContent = 'You are about to delete "' + name + '". This cannot be undone.';
+  document.getElementById('delete-form').action  = '/admin/users/delete/' + id;
+  document.getElementById('deleteModal').classList.add('open');
+}
+
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('open');
+}
+
+function handleDelOverlayClick(e) {
+  if (e.target === document.getElementById('deleteModal')) closeDeleteModal();
+}
+
+function triggerDeleteFromModal() {
+  const name = document.getElementById('mv-name').textContent;
+  closeUserModal();
+  openDeleteModal(_currentUserId, name);
+}
+
+/* ═══════════════════════════════════════════════
+   EVENT DELEGATION
+═══════════════════════════════════════════════ */
+document.addEventListener('click', function (e) {
+  const viewBtn = e.target.closest('[data-action="view"]');
+  if (viewBtn) {
+    openUserModal({
+      id       : viewBtn.dataset.id,
+      fullname : viewBtn.dataset.fullname,
+      email    : viewBtn.dataset.email,
+      role     : viewBtn.dataset.role,
+      status   : viewBtn.dataset.status,
+      userid   : viewBtn.dataset.userid,
+      phone    : viewBtn.dataset.phone,
+      gender   : viewBtn.dataset.gender,
+      dob      : viewBtn.dataset.dob,
+      joined   : viewBtn.dataset.joined
+    });
+    return;
+  }
+  const siBtn = e.target.closest('[data-action="student-info"]');
+  if (siBtn) {
+    const row        = siBtn.closest('tr');
+    const uidCode    = row ? row.querySelector('.uid-code') : null;
+    const readableId = uidCode ? uidCode.textContent.trim() : '';
+    openStudentInfoModal(siBtn.dataset.userid, siBtn.dataset.fullname, readableId);
+    return;
+  }
+  const delBtn = e.target.closest('[data-action="delete"]');
+  if (delBtn) {
+    openDeleteModal(delBtn.dataset.id, delBtn.dataset.name);
+    return;
+  }
+});
+</script>
+
+<%- include('admin-footer') %>

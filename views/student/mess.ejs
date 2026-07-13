@@ -1,0 +1,298 @@
+<%
+  const activePage   = 'mess';
+  const pageTitle    = 'Mess';
+  const pageSubtitle = "Today's menu & order history";
+%>
+<%- include('student-header') %>
+
+<!-- ── Sub-nav ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
+  <button class="act-btn btn-view" id="btn-menu" onclick="showPage('menu', this)">
+    <i class="ti ti-tools-kitchen-2"></i> Today's Menu
+  </button>
+  <button class="act-btn" style="background:var(--green-light);color:var(--green-dark)" id="btn-orders" onclick="showPage('orders', this)">
+    <i class="ti ti-receipt"></i> My Orders
+  </button>
+  <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-history" onclick="showPage('history', this)">
+    <i class="ti ti-history"></i> Order History
+  </button>
+</div>
+
+<!-- ══ TODAY'S MENU PAGE ══ -->
+<div class="page active" id="page-menu">
+
+  <% const mealKeys = mealNames; %>
+
+  <% if (mealKeys.length === 0) { %>
+  <div class="card">
+    <div class="empty-state">
+      <i class="ti ti-tools-kitchen-2"></i>
+      <h4>No menu available today</h4>
+      <p>The warden has not published today's menu yet. Check back later.</p>
+    </div>
+  </div>
+  <% } else { %>
+
+  <!-- Cart summary (sticky bottom bar) -->
+  <div id="cartBar" style="display:none;position:sticky;bottom:1rem;z-index:200;margin-bottom:1rem">
+    <div style="background:var(--green-dark);color:white;border-radius:var(--radius-lg);padding:.9rem 1.3rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;box-shadow:var(--shadow-lg)">
+      <div>
+        <div style="font-size:.75rem;opacity:.8">Cart</div>
+        <div style="font-size:1rem;font-weight:700"><span id="cartCount">0</span> item(s) · Rs <span id="cartTotal">0</span></div>
+      </div>
+      <div style="display:flex;gap:.6rem">
+        <button onclick="clearCart()" style="background:rgba(255,255,255,.15);color:white;border:none;padding:.4rem .9rem;border-radius:var(--radius-md);font-size:.72rem;cursor:pointer">Clear</button>
+        <button onclick="openOrderModal()" style="background:white;color:var(--green-dark);border:none;padding:.4rem 1rem;border-radius:var(--radius-md);font-size:.75rem;font-weight:600;cursor:pointer">
+          <i class="fas fa-shopping-cart"></i> Place Order
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Meal sections -->
+  <% mealNames.forEach(function(meal) {
+       const items = menuByMeal[meal];
+       if (!items || !items.length) return;
+  %>
+  <div class="card" style="margin-bottom:1.2rem">
+    <div class="card-head">
+      <h3>
+        <% const mealIcons = { Breakfast:'🌅', Lunch:'☀️', Dinner:'🌙', Snacks:'🍿' }; %>
+        <span style="font-size:1.1rem"><%= mealIcons[meal] || '🍽️' %></span> <%= meal %>
+      </h3>
+      <span class="count-pill"><%= items.length %> items</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem;padding:1rem 1.2rem">
+      <% items.forEach(function(item) { %>
+      <div class="menu-item-card" data-id="<%= item._id %>" data-name="<%= item.name.replace(/'/g,'\\\'') %>" data-price="<%= item.price %>"
+           style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.9rem;background:white;transition:var(--transition)">
+        <% if (item.image) { %>
+        <img src="/<%= item.image %>" alt="<%= item.name %>" style="width:100%;height:80px;object-fit:cover;border-radius:var(--radius-sm);margin-bottom:.6rem">
+        <% } %>
+        <div style="font-size:.8rem;font-weight:600;color:var(--text-primary);margin-bottom:.2rem"><%= item.name %></div>
+        <% if (item.description) { %>
+        <div style="font-size:.68rem;color:var(--text-muted);margin-bottom:.5rem"><%= item.description %></div>
+        <% } %>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:.85rem;font-weight:700;color:var(--green-dark)">Rs <%= item.price %></span>
+          <% if (item.isAvailable !== false) { %>
+          <div style="display:flex;align-items:center;gap:.4rem">
+            <button onclick="changeQty('<%= item._id %>', -1)" style="width:24px;height:24px;border-radius:50%;border:1px solid var(--border-mid);background:#f5f5f5;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;line-height:1">−</button>
+            <span id="qty-<%= item._id %>" style="font-size:.78rem;font-weight:600;min-width:18px;text-align:center">0</span>
+            <button onclick="changeQty('<%= item._id %>', 1)" style="width:24px;height:24px;border-radius:50%;border:none;background:var(--green);color:white;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;line-height:1">+</button>
+          </div>
+          <% } else { %>
+          <span class="badge badge-neutral">Unavailable</span>
+          <% } %>
+        </div>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+  <% }); %>
+  <% } %>
+</div><!-- /page-menu -->
+
+<!-- ══ MY TODAY'S ORDERS ══ -->
+<div class="page" id="page-orders">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-receipt"></i> Today's Orders</h3>
+      <span class="count-pill"><%= todayOrders.length %> order(s)</span>
+    </div>
+
+    <% if (todayOrders.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Items</th><th>Total</th><th>Status</th><th>Ordered</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          <% todayOrders.forEach(function(o, i) {
+               const statusMap = {
+                 'Pending'   : 'badge-warning',
+                 'Accepted'  : 'badge-info',
+                 'Preparing' : 'badge-info',
+                 'Delivered' : 'badge-success',
+                 'Cancelled' : 'badge-neutral'
+               };
+               const itemNames = o.items.map(function(it) {
+                 return (it.quantity > 1 ? it.quantity + '× ' : '') + (it.menuItem ? it.menuItem.name : 'Item');
+               }).join(', ');
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td style="font-size:.75rem;max-width:240px"><span class="remarks-text" style="max-width:240px" title="<%= itemNames %>"><%= itemNames %></span></td>
+            <td style="font-weight:600">Rs <%= o.totalAmount %></td>
+            <td><span class="badge <%= statusMap[o.orderStatus] || 'badge-neutral' %>"><%= o.orderStatus %></span></td>
+            <td style="font-size:.7rem;color:var(--text-muted)"><%= new Date(o.orderDate).toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit' }) %></td>
+            <td>
+              <% if (['Pending', 'Accepted'].includes(o.orderStatus)) { %>
+              <form action="/student/mess/cancel/<%= o._id %>" method="POST" onsubmit="return confirm('Cancel this order? A 50% cancellation fee applies.')">
+                <button type="submit" class="act-btn btn-cancel"><i class="ti ti-x"></i> Cancel</button>
+              </form>
+              <% } else { %>
+              <span style="color:#ccc;font-size:.7rem">—</span>
+              <% } %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-receipt-off"></i>
+      <h4>No orders today</h4>
+      <p>Go to Today's Menu to place an order.</p>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /page-orders -->
+
+<!-- ══ ORDER HISTORY ══ -->
+<div class="page" id="page-history">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-history"></i> Order History <span style="font-size:.65rem;font-weight:400;color:var(--text-muted)">(Last 30 days)</span></h3>
+    </div>
+
+    <% if (orderHistory.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Date</th><th>Total</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <% orderHistory.forEach(function(o, i) {
+               const statusMap = {
+                 'Pending'   : 'badge-warning',
+                 'Accepted'  : 'badge-info',
+                 'Preparing' : 'badge-info',
+                 'Delivered' : 'badge-success',
+                 'Cancelled' : 'badge-neutral'
+               };
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td style="font-size:.75rem"><%= new Date(o.orderDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></td>
+            <td style="font-weight:600">Rs <%= o.totalAmount %></td>
+            <td><span class="badge <%= statusMap[o.orderStatus] || 'badge-neutral' %>"><%= o.orderStatus %></span></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-history"></i>
+      <h4>No order history</h4>
+      <p>Your past 30 days of orders will appear here.</p>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /page-history -->
+
+<!-- ── Order Confirmation Modal ── -->
+<div class="modal-overlay" id="orderModal" onclick="if(event.target===this)closeModal('orderModal')">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="fas fa-shopping-cart"></i> Confirm Order</h3>
+      <button class="modal-close" onclick="closeModal('orderModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="orderSummary" style="margin-bottom:1rem"></div>
+      <div style="border-top:1px solid var(--border);padding-top:.8rem;display:flex;justify-content:space-between;font-size:.85rem;font-weight:700">
+        <span>Total</span>
+        <span style="color:var(--green-dark)">Rs <span id="orderTotal">0</span></span>
+      </div>
+      <div style="margin-top:.8rem;background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);padding:.7rem .9rem;font-size:.7rem;color:#5D4037">
+        <i class="fas fa-info-circle"></i> Payment is due via <strong>Pending Payments</strong> after placing the order.
+      </div>
+    </div>
+    <div class="modal-foot">
+      <form id="orderForm" action="/student/mess/order" method="POST">
+        <div id="orderFormItems"></div>
+        <div style="display:flex;gap:.6rem">
+          <button type="submit" class="btn-modal-save"><i class="ti ti-check"></i> Place Order</button>
+          <button type="button" class="btn-modal-cancel" onclick="closeModal('orderModal')">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('btn-menu').classList.add('active');
+
+// Cart state
+const cart = {};
+
+function changeQty(id, delta) {
+  const name  = document.querySelector('[data-id="' + id + '"]').dataset.name;
+  const price = parseFloat(document.querySelector('[data-id="' + id + '"]').dataset.price);
+  cart[id] = cart[id] || { name, price, qty: 0 };
+  cart[id].qty = Math.max(0, (cart[id].qty || 0) + delta);
+  if (cart[id].qty === 0) delete cart[id];
+
+  // Update qty display
+  const qtyEl = document.getElementById('qty-' + id);
+  if (qtyEl) qtyEl.textContent = cart[id] ? cart[id].qty : 0;
+
+  updateCartBar();
+}
+
+function updateCartBar() {
+  const keys = Object.keys(cart);
+  const total = keys.reduce(function(s, k) { return s + cart[k].price * cart[k].qty; }, 0);
+  const count = keys.reduce(function(s, k) { return s + cart[k].qty; }, 0);
+
+  document.getElementById('cartBar').style.display = count > 0 ? 'block' : 'none';
+  document.getElementById('cartCount').textContent  = count;
+  document.getElementById('cartTotal').textContent  = total;
+}
+
+function clearCart() {
+  Object.keys(cart).forEach(function(k) {
+    const qtyEl = document.getElementById('qty-' + k);
+    if (qtyEl) qtyEl.textContent = 0;
+    delete cart[k];
+  });
+  updateCartBar();
+}
+
+// FIX: previously this wrapped window.openModal at page-load time
+// (`const origOpen = window.openModal; window.openModal = function...`).
+// student-footer.ejs is included AFTER this script and defines its own
+// plain window.openModal — which runs later and silently clobbers this
+// wrapped version. So by the time "Place Order" was clicked, the cart
+// data (orderSummary/orderTotal/orderFormItems) was never being filled
+// in — resulting in Rs 0 total and an empty items array on submit.
+//
+// Fix: don't touch window.openModal at all. Fill the modal's content
+// ourselves, THEN call openModal() — by button-click time all scripts
+// (including the footer's) have already loaded, so whichever openModal
+// is the final one just opens the now-populated modal.
+function openOrderModal() {
+  const keys  = Object.keys(cart);
+  const total = keys.reduce(function(s, k) { return s + cart[k].price * cart[k].qty; }, 0);
+  document.getElementById('orderTotal').textContent = total;
+
+  let summaryHtml = '<div style="display:flex;flex-direction:column;gap:.5rem">';
+  let formHtml    = '';
+  keys.forEach(function(k, i) {
+    summaryHtml += '<div style="display:flex;justify-content:space-between;font-size:.78rem">'
+      + '<span>' + cart[k].name + ' × ' + cart[k].qty + '</span>'
+      + '<span style="font-weight:600">Rs ' + (cart[k].price * cart[k].qty) + '</span></div>';
+    formHtml += '<input type="hidden" name="items[' + i + '][menuItemId]" value="' + k + '">'
+             + '<input type="hidden" name="items[' + i + '][quantity]" value="' + cart[k].qty + '">';
+  });
+  summaryHtml += '</div>';
+  document.getElementById('orderSummary').innerHTML   = summaryHtml;
+  document.getElementById('orderFormItems').innerHTML = formHtml;
+
+  openModal('orderModal');
+}
+</script>
+
+<%- include('student-footer') %>

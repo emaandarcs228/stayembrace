@@ -1,0 +1,247 @@
+<%- include('./student-header') %>
+
+<!-- ══════════════════════════════════════
+     WELCOME BANNER
+══════════════════════════════════════ -->
+<div class="welcome-banner">
+  <div class="wb-text">
+    <h2>Good <%= currentGreeting %>, <%= student.user.fullname.split(' ')[0] %>!</h2>
+    <p><%= student.hostelStatus === 'active' ? 'Hostel status: Active' : 'Hostel status: ' + student.hostelStatus %> &nbsp;·&nbsp; <%= stats.pendingPayments + stats.pendingLeave + stats.openComplaints %> items need your attention</p>
+  </div>
+  <i class="fas fa-home wb-icon"></i>
+</div>
+
+<!-- ══════════════════════════════════════
+     STATS OVERVIEW
+══════════════════════════════════════ -->
+<div class="stats-row">
+
+  <div class="stat-card clickable" onclick="location.href='/student/pending-payments'">
+    <div class="s-icon <%= stats.pendingPayments > 0 ? 'red' : 'green' %>">
+      <i class="ti ti-wallet"></i>
+    </div>
+    <div class="s-info">
+      <h4>Pending Payments</h4>
+      <h3><%= stats.pendingPayments %></h3>
+      <p><%= stats.pendingPayments > 0 ? 'Requires attention' : 'All clear' %></p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/student/attendance'">
+    <div class="s-icon <%= stats.attendancePercent >= 75 ? 'green' : 'orange' %>">
+      <i class="ti ti-calendar-check"></i>
+    </div>
+    <div class="s-info">
+      <h4>Attendance</h4>
+      <h3><%= stats.attendancePercent %>%</h3>
+      <p>This month</p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/student/notifications'">
+    <div class="s-icon <%= stats.unreadNotifications > 0 ? 'blue' : 'green' %>">
+      <i class="ti ti-bell"></i>
+    </div>
+    <div class="s-info">
+      <h4>Notifications</h4>
+      <h3><%= stats.unreadNotifications %></h3>
+      <p><%= stats.unreadNotifications > 0 ? 'Unread' : 'All read' %></p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/student/leave'">
+    <div class="s-icon <%= stats.pendingLeave > 0 ? 'orange' : 'green' %>">
+      <i class="ti ti-calendar-off"></i>
+    </div>
+    <div class="s-info">
+      <h4>Leave Requests</h4>
+      <h3><%= stats.pendingLeave %></h3>
+      <p><%= stats.pendingLeave > 0 ? 'Awaiting approval' : 'No pending' %></p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/student/complaints'">
+    <div class="s-icon <%= stats.openComplaints > 0 ? 'orange' : 'green' %>">
+      <i class="ti ti-message-report"></i>
+    </div>
+    <div class="s-info">
+      <h4>Open Complaints</h4>
+      <h3><%= stats.openComplaints %></h3>
+      <p><%= stats.openComplaints > 0 ? 'In progress' : 'None open' %></p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/student/room'">
+    <div class="s-icon blue">
+      <i class="ti ti-door"></i>
+    </div>
+    <div class="s-info">
+      <h4>My Room</h4>
+      <h3><%= student.room ? student.room.roomNo : '—' %></h3>
+      <p><%= student.room ? 'Block ' + student.room.block + ', Floor ' + student.room.floor : 'Not assigned' %></p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     QUICK ACTIONS
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+  </div>
+  <div class="quick-grid">
+    <a href="/student/leave" class="quick-tile">
+      <i class="ti ti-calendar-off"></i>
+      Apply Leave
+    </a>
+    <a href="/student/complaints" class="quick-tile">
+      <i class="ti ti-message-report"></i>
+      File Complaint
+    </a>
+    <a href="/student/mess" class="quick-tile">
+      <i class="ti ti-tools-kitchen-2"></i>
+      Order Mess
+    </a>
+    <a href="/student/laundry" class="quick-tile">
+      <i class="ti ti-wash"></i>
+      Laundry
+    </a>
+    <a href="/student/mobile-load" class="quick-tile">
+      <i class="ti ti-device-mobile"></i>
+      Mobile Load
+    </a>
+    <a href="/student/pending-payments" class="quick-tile">
+      <i class="ti ti-credit-card"></i>
+      Pay Dues
+    </a>
+    <a href="/student/attendance" class="quick-tile">
+      <i class="ti ti-chart-bar"></i>
+      Attendance
+    </a>
+    <a href="/student/profile" class="quick-tile">
+      <i class="ti ti-user"></i>
+      My Profile
+    </a>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     BOTTOM GRID: Room Info + Recent Activity
+══════════════════════════════════════ -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.2rem">
+
+  <!-- Room Info Card -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-door"></i> Room Details</h3>
+      <a href="/student/room" class="add-btn" style="text-decoration:none">
+        <i class="ti ti-arrow-right"></i> View
+      </a>
+    </div>
+    <% if (student.room) { %>
+    <div class="detail-grid" style="padding:.9rem 1.2rem">
+      <div class="detail-field">
+        <label>Room No</label>
+        <span style="font-size:1.1rem;font-weight:700;color:var(--green-dark)"><%= student.room.roomNo %></span>
+      </div>
+      <div class="detail-field">
+        <label>Block / Floor</label>
+        <span>Block <%= student.room.block %>, Floor <%= student.room.floor %></span>
+      </div>
+      <div class="detail-field">
+        <label>Room Type</label>
+        <span><%= student.room.roomType %></span>
+      </div>
+      <div class="detail-field">
+        <label>Bed No</label>
+        <span><%= student.currentAllocation ? student.currentAllocation.bedNo : '—' %></span>
+      </div>
+      <div class="detail-field">
+        <label>Occupancy</label>
+        <span><%= student.room.occupiedBeds %> / <%= student.room.capacity %> beds</span>
+      </div>
+      <div class="detail-field">
+        <label>Status</label>
+        <span class="badge badge-success"><%= student.hostelStatus %></span>
+      </div>
+    </div>
+    <% } else { %>
+    <div class="empty-state" style="padding:1.5rem">
+      <i class="ti ti-door-off"></i>
+      <h4>No room assigned</h4>
+      <p>Contact admin for room allocation</p>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- Recent Activity Card -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="fas fa-clock-rotate-left"></i> Recent Activity</h3>
+      <a href="/student/notifications" class="add-btn" style="text-decoration:none">
+        <i class="ti ti-arrow-right"></i> All
+      </a>
+    </div>
+    <% if (typeof recentActivity !== 'undefined' && recentActivity.length > 0) { %>
+    <div class="activity-list">
+      <% recentActivity.forEach(function(act) { %>
+      <div class="activity-item">
+        <div class="activity-dot <%= act.dotClass || 'green' %>"></div>
+        <div class="activity-body">
+          <p><%= act.label %></p>
+          <small><%= act.sub %></small>
+        </div>
+        <div class="activity-time"><%= act.time %></div>
+      </div>
+      <% }); %>
+    </div>
+    <% } else { %>
+    <div class="empty-state" style="padding:1.5rem">
+      <i class="fas fa-clock"></i>
+      <h4>No recent activity</h4>
+    </div>
+    <% } %>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     SERVICES SNAPSHOT
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-grip-horizontal"></i> Services Snapshot</h3>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border)">
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">Mess Orders</div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary)"><%= stats.pendingOrders %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Pending</div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">Laundry</div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary)"><%= stats.activeLaundry %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Active requests</div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">Mobile Load</div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary)"><%= stats.pendingMobileLoad %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Pending</div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">Attendance</div>
+      <% var attendColor = stats.attendancePercent >= 75 ? 'var(--green)' : '#E65100'; %>
+      <div style="font-size:1.1rem;font-weight:700;color:<%= attendColor %>"><%= stats.attendancePercent %>%</div>
+      <div style="font-size:.65rem;color:var(--text-muted)">This month</div>
+    </div>
+
+  </div>
+</div>
+
+<%- include('./student-footer') %>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Profile – STAY EMBRACE</title>
+    <link rel="icon" href="/images/logo-brow.png">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/css/preloader.css">
+    <link rel="stylesheet" href="/css/navbar.css">
+    <link rel="stylesheet" href="/css/profile.css">
+</head>
+<body class="inner-page">
+
+
+    
+<nav class="navbar" id="navbar">
+    <a href="/" style="text-decoration:none;">
+        <div class="navbar-left">
+            <img src="/images/logo-head.png" class="logo-img">
+            <div>
+                <span class="logo-text">STAY EMBRACE</span>
+                <div class="navbar-accent"></div>
+            </div>
+        </div>
+    </a>
+    <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/admin/dashboard">Dashboard</a>
+        <a href="/login" class="btn-login">Logout</a>
+    </div>
+</nav>
+
+<section class="page-hero" style="background:linear-gradient(rgba(0,0,0,0.5),rgba(0,0,0,0.4)),url('https://images.pexels.com/photos/3184306/pexels-photo-3184306.jpeg?auto=compress&cs=tinysrgb&w=1600') center/cover no-repeat;">
+    <h1>My Profile</h1>
+    <p><%= user.role.charAt(0).toUpperCase() + user.role.slice(1) %> Account</p>
+</section>
+
+<div class="profile-page">
+    <div class="profile-header">
+        <div class="profile-avatar"><i class="fas fa-user-shield"></i></div>
+        <h2><%= user.fullname %></h2>
+        <p><%= user.role.charAt(0).toUpperCase() + user.role.slice(1) %></p>
+    </div>
+
+    <div class="profile-card">
+        <h3><i class="fas fa-info-circle"></i> Personal Information</h3>
+        <div class="profile-row"><span class="label">Full Name</span><span class="value"><%= user.fullname %></span></div>
+        <div class="profile-row"><span class="label">Email</span><span class="value"><%= user.email %></span></div>
+        <div class="profile-row"><span class="label">Phone</span><span class="value"><%= user.phoneNumber || 'Not provided' %></span></div>
+        <div class="profile-row"><span class="label">Gender</span><span class="value"><%= user.gender ? (user.gender.charAt(0).toUpperCase() + user.gender.slice(1)) : 'Not provided' %></span></div>
+        <div class="profile-row"><span class="label">Date of Birth</span><span class="value"><%= user.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : 'Not provided' %></span></div>
+    </div>
+
+    <div class="profile-card">
+        <h3><i class="fas fa-briefcase"></i> Account Details</h3>
+        <div class="profile-row"><span class="label">User ID</span><span class="value"><%= user.userId %></span></div>
+        <div class="profile-row"><span class="label">Role</span><span class="value"><%= user.role.charAt(0).toUpperCase() + user.role.slice(1) %></span></div>
+        <div class="profile-row"><span class="label">Account Created</span><span class="value"><%= new Date(user.createdAt).toLocaleDateString() %></span></div>
+        <div class="profile-row">
+            <span class="label">Status</span>
+            <span class="value">
+                <%
+                  let statusClass = 'late';
+                  let statusLabel = 'Pending Approval';
+                  if (user.status === 'approved') { statusClass = 'paid'; statusLabel = 'Active'; }
+                  else if (user.status === 'rejected') { statusClass = 'absent'; statusLabel = 'Rejected'; }
+                %>
+                <span class="status <%= statusClass %>"><%= statusLabel %></span>
+            </span>
+        </div>
+    </div>
+
+    <a href="/admin/dashboard" class="btn-back"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+</div>
+
+<script src="/js/preloader.js"></script>
+<script>
+    // Navbar scroll effect
+    const navbar = document.getElementById("navbar");
+    window.addEventListener("scroll", () => {
+        if (window.scrollY > 50) {
+            navbar.classList.add("scrolled");
+        } else {
+            navbar.classList.remove("scrolled");
+        }
+    });
+</script>
+</body>
+</html>

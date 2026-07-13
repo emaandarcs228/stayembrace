@@ -1,0 +1,360 @@
+<%
+  const activePage    = 'dashboard';
+  const showProfileDropdown = true;
+%>
+<%- include('warden-header') %>
+
+<!-- ══════════════════════════════════════
+     WELCOME BANNER
+══════════════════════════════════════ -->
+<div class="welcome-banner">
+  <div class="wb-text">
+    <h2>Good <%= currentGreeting %>, <%= warden.fullname.split(' ')[0] %>!</h2>
+    <p>Warden Portal &nbsp;·&nbsp; <%= stats.pendingLeaves + stats.openComplaints + pendingDisputes + stats.pendingRoomRequests %> items need your attention today</p>
+  </div>
+  <i class="fas fa-shield-alt wb-icon"></i>
+</div>
+
+<!-- ══════════════════════════════════════
+     STAT CARDS — ROW 1: Attendance
+══════════════════════════════════════ -->
+<div class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:1rem">
+
+  <div class="stat-card clickable" onclick="location.href='/warden/attendance'">
+    <div class="s-icon green"><i class="ti ti-login"></i></div>
+    <div class="s-info">
+      <h4>Checked In</h4>
+      <h3><%= stats.attendanceIn %></h3>
+      <p>Today</p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/warden/attendance'">
+    <div class="s-icon orange"><i class="ti ti-clock"></i></div>
+    <div class="s-info">
+      <h4>Late</h4>
+      <h3><%= stats.attendanceLate %></h3>
+      <p>Today</p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/warden/attendance'">
+    <div class="s-icon red"><i class="ti ti-flag"></i></div>
+    <div class="s-info">
+      <h4>Disputes</h4>
+      <h3><%= pendingDisputes %></h3>
+      <p>Pending review</p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/warden/leave-requests'">
+    <div class="s-icon <%= stats.pendingLeaves > 0 ? 'orange' : 'green' %>">
+      <i class="ti ti-calendar-off"></i>
+    </div>
+    <div class="s-info">
+      <h4>Leave Requests</h4>
+      <h3><%= stats.pendingLeaves %></h3>
+      <p>Pending</p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/warden/complaints'">
+    <div class="s-icon <%= stats.openComplaints > 0 ? 'red' : 'green' %>">
+      <i class="ti ti-message-report"></i>
+    </div>
+    <div class="s-info">
+      <h4>Complaints</h4>
+      <h3><%= stats.openComplaints %></h3>
+      <p>Open</p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/warden/mess'">
+    <div class="s-icon <%= stats.activeMess > 0 ? 'blue' : 'green' %>">
+      <i class="ti ti-tools-kitchen-2"></i>
+    </div>
+    <div class="s-info">
+      <h4>Mess Orders</h4>
+      <h3><%= stats.activeMess %></h3>
+      <p>Active</p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/warden/mobile-load'">
+    <div class="s-icon <%= stats.pendingMobileLoad > 0 ? 'purple' : 'green' %>">
+      <i class="ti ti-device-mobile"></i>
+    </div>
+    <div class="s-info">
+      <h4>Mobile Load</h4>
+      <h3><%= stats.pendingMobileLoad %></h3>
+      <p>Pending</p>
+    </div>
+  </div>
+
+  <div class="stat-card clickable" onclick="location.href='/warden/room-requests'">
+    <div class="s-icon <%= stats.pendingRoomRequests > 0 ? 'teal' : 'green' %>">
+      <i class="ti ti-door"></i>
+    </div>
+    <div class="s-info">
+      <h4>Room Requests</h4>
+      <h3><%= stats.pendingRoomRequests %></h3>
+      <p>Need review</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     QUICK ACTIONS
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+  </div>
+  <div class="quick-grid">
+    <a href="/warden/attendance" class="quick-tile">
+      <i class="ti ti-calendar-check"></i>
+      Mark Attendance
+    </a>
+    <a href="/warden/leave-requests" class="quick-tile">
+      <i class="ti ti-calendar-off"></i>
+      Leave Requests
+      <% if (stats.pendingLeaves > 0) { %>
+        <span style="font-size:.6rem;background:#E65100;color:white;padding:.05rem .35rem;border-radius:10px;font-weight:700"><%= stats.pendingLeaves %></span>
+      <% } %>
+    </a>
+    <a href="/warden/complaints" class="quick-tile">
+      <i class="ti ti-message-report"></i>
+      Complaints
+      <% if (stats.openComplaints > 0) { %>
+        <span style="font-size:.6rem;background:#C62828;color:white;padding:.05rem .35rem;border-radius:10px;font-weight:700"><%= stats.openComplaints %></span>
+      <% } %>
+    </a>
+    <a href="/warden/mess" class="quick-tile">
+      <i class="ti ti-tools-kitchen-2"></i>
+      Mess Orders
+    </a>
+    <a href="/warden/laundry" class="quick-tile">
+      <i class="ti ti-wash"></i>
+      Laundry
+    </a>
+    <a href="/warden/mobile-load" class="quick-tile">
+      <i class="ti ti-device-mobile"></i>
+      Mobile Load
+    </a>
+    <a href="/warden/room-requests" class="quick-tile">
+      <i class="ti ti-door"></i>
+      Room Requests
+    </a>
+    <a href="/warden/notifications" class="quick-tile">
+      <i class="ti ti-bell"></i>
+      Send Notice
+    </a>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     BOTTOM GRID: Action Alerts + Recent Activity
+══════════════════════════════════════ -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.2rem">
+
+  <!-- Action Alerts -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="fas fa-exclamation-circle" style="color:#E65100"></i> Action Required</h3>
+      <span class="count-pill">
+        <%= stats.pendingLeaves + stats.openComplaints + pendingDisputes + stats.pendingRoomRequests %> items
+      </span>
+    </div>
+    <div class="activity-list">
+
+      <% if (stats.pendingGuardianVerification > 0) { %>
+      <a href="/warden/leave-requests?filter=pending" class="activity-item" style="text-decoration:none;color:inherit">
+        <div class="activity-dot orange"></div>
+        <div class="activity-body">
+          <p>Guardian Verification Pending</p>
+          <small><%= stats.pendingGuardianVerification %> leave request(s) awaiting guardian call</small>
+        </div>
+        <div class="activity-time">
+          <span class="badge badge-warning">Urgent</span>
+        </div>
+      </a>
+      <% } %>
+
+      <% if (pendingDisputes > 0) { %>
+      <a href="/warden/attendance?page=disputes" class="activity-item" style="text-decoration:none;color:inherit">
+        <div class="activity-dot red"></div>
+        <div class="activity-body">
+          <p>Attendance Disputes</p>
+          <small><%= pendingDisputes %> dispute(s) need resolution</small>
+        </div>
+        <div class="activity-time">
+          <span class="badge badge-danger"><%= pendingDisputes %></span>
+        </div>
+      </a>
+      <% } %>
+
+      <% if (stats.openComplaints > 0) { %>
+      <a href="/warden/complaints" class="activity-item" style="text-decoration:none;color:inherit">
+        <div class="activity-dot red"></div>
+        <div class="activity-body">
+          <p>Open Complaints</p>
+          <small><%= stats.openComplaints %> complaint(s) in progress</small>
+        </div>
+        <div class="activity-time">
+          <span class="badge badge-danger"><%= stats.openComplaints %></span>
+        </div>
+      </a>
+      <% } %>
+
+      <% if (stats.pendingMobileLoad > 0) { %>
+      <a href="/warden/mobile-load" class="activity-item" style="text-decoration:none;color:inherit">
+        <div class="activity-dot blue"></div>
+        <div class="activity-body">
+          <p>Mobile Load Requests</p>
+          <small><%= stats.pendingMobileLoad %> request(s) awaiting fulfilment</small>
+        </div>
+        <div class="activity-time">
+          <span class="badge badge-info"><%= stats.pendingMobileLoad %></span>
+        </div>
+      </a>
+      <% } %>
+
+      <% if (stats.pendingRoomRequests > 0) { %>
+      <a href="/warden/room-requests" class="activity-item" style="text-decoration:none;color:inherit">
+        <div class="activity-dot blue"></div>
+        <div class="activity-body">
+          <p>Room Requests</p>
+          <small><%= stats.pendingRoomRequests %> request(s) need your review</small>
+        </div>
+        <div class="activity-time">
+          <span class="badge badge-info"><%= stats.pendingRoomRequests %></span>
+        </div>
+      </a>
+      <% } %>
+
+      <% if (stats.activeMess > 0) { %>
+      <a href="/warden/mess" class="activity-item" style="text-decoration:none;color:inherit">
+        <div class="activity-dot green"></div>
+        <div class="activity-body">
+          <p>Active Mess Orders</p>
+          <small><%= stats.activeMess %> order(s) in the queue</small>
+        </div>
+        <div class="activity-time">
+          <span class="badge badge-success"><%= stats.activeMess %></span>
+        </div>
+      </a>
+      <% } %>
+
+      <% if (stats.pendingLeaves + stats.openComplaints + pendingDisputes + stats.pendingRoomRequests + stats.pendingMobileLoad + stats.activeMess === 0) { %>
+      <div class="empty-state" style="padding:1.8rem 1rem">
+        <i class="fas fa-check-circle" style="color:var(--green);opacity:.5"></i>
+        <h4>All clear!</h4>
+        <p>No pending actions right now.</p>
+      </div>
+      <% } %>
+
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="fas fa-clock-rotate-left"></i> Recent Activity</h3>
+      <a href="/warden/notifications" class="add-btn" style="text-decoration:none">
+        <i class="ti ti-arrow-right"></i> All
+      </a>
+    </div>
+    <% if (recentActivity && recentActivity.length > 0) { %>
+    <div class="activity-list">
+      <% recentActivity.forEach(function(n) {
+           const dotMap = {
+             'Payments'     : 'green',
+             'Requests'     : 'blue',
+             'Announcements': 'orange',
+             'General'      : 'blue'
+           };
+           const dot = dotMap[n.category] || 'blue';
+      %>
+      <a href="/warden/notifications" class="activity-item" style="text-decoration:none;color:inherit">
+        <div class="activity-dot <%= dot %>"></div>
+        <div class="activity-body">
+          <p><%= n.title %></p>
+          <small><%= n.message.substring(0, 55) %><%= n.message.length > 55 ? '…' : '' %></small>
+        </div>
+        <div class="activity-time"><%= n._timeAgo %></div>
+      </a>
+      <% }); %>
+    </div>
+    <% } else { %>
+    <div class="empty-state" style="padding:2rem">
+      <i class="fas fa-bell-slash"></i>
+      <h4>No recent activity</h4>
+      <p>Notifications will appear here.</p>
+    </div>
+    <% } %>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     SERVICES SNAPSHOT
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-grip-horizontal"></i> Services Snapshot</h3>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border)">
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        Checked In Today
+      </div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--green)"><%= stats.attendanceIn %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Students</div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        Leave Pending
+      </div>
+      <div style="font-size:1.1rem;font-weight:700;color:<%= stats.pendingLeaves > 0 ? '#E65100' : 'var(--green)' %>"><%= stats.pendingLeaves %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Requests</div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        Mess Orders
+      </div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary)"><%= stats.activeMess %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Active</div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        Complaints
+      </div>
+      <div style="font-size:1.1rem;font-weight:700;color:<%= stats.openComplaints > 0 ? '#C62828' : 'var(--green)' %>"><%= stats.openComplaints %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Open</div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        Mobile Load
+      </div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary)"><%= stats.pendingMobileLoad %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Pending</div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        Room Requests
+      </div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary)"><%= stats.pendingRoomRequests %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Needs review</div>
+    </div>
+
+  </div>
+</div>
+
+<%- include('warden-footer') %>

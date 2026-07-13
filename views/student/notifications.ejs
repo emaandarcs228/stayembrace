@@ -1,0 +1,184 @@
+<%
+  const activePage   = 'notifications';
+  const pageTitle    = 'Notifications';
+  const pageSubtitle = 'All your updates and announcements';
+%>
+<%- include('student-header') %>
+
+<!-- ── Category Tabs ── -->
+<div style="display:flex;gap:.4rem;margin-bottom:1.2rem;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:.8rem">
+  <% const cats = ['all', 'Payments', 'Requests', 'Announcements', 'General'];
+     const catIcons = {
+       all          : 'ti ti-bell',
+       Payments     : 'ti ti-wallet',
+       Requests     : 'ti ti-paper-plane',
+       Announcements: 'ti ti-speakerphone',
+       General      : 'ti ti-info-circle'
+     };
+  %>
+  <% cats.forEach(function(cat) { %>
+  <button
+    class="notif-tab-btn act-btn"
+    data-cat="<%= cat %>"
+    onclick="filterNotifs('<%= cat %>', this)"
+    style="background:<%= activeCategory === cat ? 'var(--green)' : '#f5f5f5' %>;color:<%= activeCategory === cat ? 'white' : 'var(--text-secondary)' %>">
+    <i class="<%= catIcons[cat] %>"></i>
+    <%= cat.charAt(0).toUpperCase() + cat.slice(1) %>
+  </button>
+  <% }); %>
+
+  <!-- Mark all read button -->
+  <div style="margin-left:auto">
+    <button id="markAllReadBtn" class="act-btn" style="background:var(--green-light);color:var(--green-dark)" onclick="markAllRead()">
+      <i class="ti ti-checks"></i> Mark All Read
+    </button>
+  </div>
+</div>
+
+<!-- ── Notification Cards ── -->
+<div id="notifContainer">
+
+  <% if (notifications.length === 0) { %>
+  <div class="card">
+    <div class="empty-state">
+      <i class="ti ti-bell-off"></i>
+      <h4>No notifications</h4>
+      <p>You're all caught up!</p>
+    </div>
+  </div>
+  <% } else { %>
+
+  <div class="card" style="overflow:hidden">
+    <div id="notifList">
+      <% notifications.forEach(function(n) {
+           const iconMap = {
+             'Payments'     : { cls: 'payments',      icon: 'fas fa-wallet' },
+             'Requests'     : { cls: 'requests',      icon: 'fas fa-paper-plane' },
+             'Announcements': { cls: 'announcements', icon: 'fas fa-bullhorn' },
+             'General'      : { cls: 'announcements', icon: 'fas fa-bell' }
+           };
+           const ic     = iconMap[n.category] || { cls: 'announcements', icon: 'fas fa-bell' };
+           const unread = n._isUnread;
+           const pClass = n.priority === 'High' ? 'badge-danger' : n.priority === 'Medium' ? 'badge-warning' : 'badge-neutral';
+      %>
+      <div class="notif-full-item <%= unread ? 'notif-full-unread' : '' %>"
+           data-cat="<%= n.category || 'General' %>"
+           data-id="<%= n._id %>"
+           style="display:flex;align-items:flex-start;gap:.9rem;padding:1rem 1.2rem;border-bottom:1px solid #f5f5f5;transition:background .15s;cursor:pointer;position:relative"
+           onclick="markRead(this, '<%= n._id %>')">
+
+        <!-- Unread indicator -->
+        <div class="notif-full-dot" style="width:8px;height:8px;border-radius:50%;background:<%= unread ? 'var(--green)' : 'transparent' %>;flex-shrink:0;margin-top:.4rem"></div>
+
+        <!-- Icon -->
+        <div class="notif-icon <%= ic.cls %>" style="flex-shrink:0;margin-top:.1rem">
+          <i class="<%= ic.icon %>"></i>
+        </div>
+
+        <!-- Content -->
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.2rem">
+            <span style="font-size:.8rem;font-weight:600;color:var(--text-primary)"><%= n.title %></span>
+            <span class="badge <%= pClass %>" style="font-size:.55rem"><%= n.priority %></span>
+            <span class="badge badge-neutral" style="font-size:.55rem"><%= n.category || 'General' %></span>
+          </div>
+          <p style="font-size:.75rem;color:var(--text-secondary);line-height:1.5;margin-bottom:.3rem"><%= n.message %></p>
+          <div style="font-size:.65rem;color:#bbb"><%= n._timeAgo %></div>
+        </div>
+
+      </div>
+      <% }); %>
+    </div>
+
+    <!-- Empty state per tab (hidden by default, shown by JS) -->
+    <div id="notifEmptyState" style="display:none">
+      <div class="empty-state" style="padding:2rem">
+        <i class="ti ti-bell-off"></i>
+        <h4>No notifications in this category</h4>
+      </div>
+    </div>
+
+  </div>
+
+  <% } %>
+</div>
+
+<script>
+// ── Client-side category filter ──
+function filterNotifs(cat, btn) {
+  // Update button styles
+  document.querySelectorAll('.notif-tab-btn').forEach(function(b) {
+    b.style.background = '#f5f5f5';
+    b.style.color      = 'var(--text-secondary)';
+  });
+  btn.style.background = 'var(--green)';
+  btn.style.color      = 'white';
+
+  const items = document.querySelectorAll('.notif-full-item');
+  let visible = 0;
+
+  items.forEach(function(item) {
+    const itemCat = item.dataset.cat || 'General';
+    const show = (cat === 'all' || itemCat === cat);
+    item.style.display = show ? 'flex' : 'none';
+    if (show) visible++;
+  });
+
+  const emptyState = document.getElementById('notifEmptyState');
+  if (emptyState) emptyState.style.display = visible === 0 ? 'block' : 'none';
+}
+
+// ── Mark single notification read ──
+async function markRead(el, id) {
+  if (!el.classList.contains('notif-full-unread')) return; // already read
+  try {
+    // No single-mark endpoint yet; call mark-all but only style this one
+    el.classList.remove('notif-full-unread');
+    el.style.background = '';
+    const dot = el.querySelector('.notif-full-dot');
+    if (dot) dot.style.background = 'transparent';
+    // Decrement header badge
+    const badge = document.getElementById('notifBadge');
+    if (badge) {
+      const cnt = Math.max(0, parseInt(badge.textContent || '0') - 1);
+      badge.textContent     = cnt > 0 ? (cnt > 99 ? '99+' : cnt) : '';
+      badge.dataset.count   = cnt;
+    }
+  } catch(e) { /* silent */ }
+}
+
+// ── Mark all read ──
+async function markAllRead() {
+  try {
+    await fetch('/student/notifications/mark-all-read', { method: 'POST' });
+    document.querySelectorAll('.notif-full-unread').forEach(function(el) {
+      el.classList.remove('notif-full-unread');
+      el.style.background = '';
+      const dot = el.querySelector('.notif-full-dot');
+      if (dot) dot.style.background = 'transparent';
+    });
+    const badge = document.getElementById('notifBadge');
+    if (badge) { badge.textContent = ''; badge.dataset.count = '0'; }
+    document.getElementById('markAllReadBtn').textContent = '✓ All read';
+    document.getElementById('markAllReadBtn').disabled    = true;
+  } catch(e) { console.error(e); }
+}
+
+// Apply initial filter from URL
+(function() {
+  const cat = '<%= activeCategory %>';
+  if (cat && cat !== 'all') {
+    const btn = document.querySelector('.notif-tab-btn[data-cat="' + cat + '"]');
+    if (btn) filterNotifs(cat, btn);
+  }
+})();
+</script>
+
+<style>
+.notif-full-unread { background: var(--green-lighter) !important; }
+.notif-full-item:last-child { border-bottom: none !important; }
+.notif-full-item:hover { background: #fafcfb; }
+.notif-full-unread:hover { background: #edf6ef !important; }
+</style>
+
+<%- include('student-footer') %>
