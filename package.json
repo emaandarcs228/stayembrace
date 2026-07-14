@@ -15,7 +15,7 @@
   "dev": "nodemon server.js",
   
     
-  "start": "node server.js && npm run seed:admin && npm run seed:student && npm run seed:driver && npm run seed:warden",
+  "start": "node server.js",
   
     
   "seed:admin": "node seed/createAdmin.js",
