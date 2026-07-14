@@ -1194,11 +1194,60 @@ td.actions-th, th.actions-th { min-width: 140px; }
 /* ══════════════════════════════════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════════════════════════════════ */
+
+/* ── Sidebar flyout overlay for small screens ── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 99;
+  backdrop-filter: blur(2px);
+}
+.sidebar-overlay.open { display: block; }
+
+.sidebar-toggle {
+  display: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-mid);
+  background: white;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+.sidebar-toggle:hover { background: var(--green-light); color: var(--green); border-color: #b8d9c0; }
+
 @media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: -280px;
+    transition: left .3s ease;
+    z-index: 100;
+  }
+  .sidebar.open { left: 0; }
+
+  .sidebar-toggle { display: inline-flex; }
+
   .sidebar { width: 56px; }
+  .sidebar.open { width: 248px; }
+  .sidebar.open .s-logo span,
+  .sidebar.open .s-user-info,
+  .sidebar.open .nav-item span,
+  .sidebar.open .s-section,
+  .sidebar.open .nav-badge { display: block; }
+  .sidebar.open .s-logo { padding: 1.1rem 1rem; justify-content: flex-start; }
+  .sidebar.open .s-user { padding: .9rem 1.4rem; justify-content: flex-start; }
+  .sidebar.open .nav-item { padding: .5rem .8rem; justify-content: flex-start; }
+  .sidebar.open .nav-item i { width: 17px; }
+
   .s-logo span, .s-user-info, .nav-item span, .s-section, .nav-badge { display: none; }
   .s-logo { padding: 1rem; justify-content: center; }
-  .s-logo i { font-size: 1.4rem; }
   .s-user { padding: .8rem; justify-content: center; }
   .nav-item { padding: .6rem; justify-content: center; }
   .nav-item i { width: auto; }
@@ -1208,10 +1257,95 @@ td.actions-th, th.actions-th { min-width: 140px; }
   .detail-grid { grid-template-columns: 1fr; }
   .notif-dropdown { width: 300px; right: -60px; }
   .profile-btn-name { display: none; }
+
+  /* ── Additional tablet improvements ── */
+  .topbar { padding: .6rem 1rem; }
+  .topbar-left { flex-direction: row; align-items: center; gap: .5rem; flex-wrap: wrap; }
+  .topbar-left h2 { font-size: .85rem; }
+  .page-body { padding: .8rem; }
+  .card-head { padding: .75rem 1rem; }
+  .card-body { padding: 1rem; }
+  .tbl-wrap { padding: 0 1rem 1rem; }
+  .search-bar input { width: 120px; }
+  .quick-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: .6rem; }
+  .welcome-banner .wb-icon { display: none; }
+  .filter-tabs { gap: .25rem; }
 }
 
 @media (max-width: 480px) {
-  .stats-row { grid-template-columns: 1fr 1fr; }
-  .notif-dropdown { width: 280px; right: -80px; }
-  .profile-dropdown { width: 230px; }
+  .stats-row { grid-template-columns: 1fr; }
+  .notif-dropdown { width: calc(100vw - 20px); right: -10px; left: auto; }
+  .profile-dropdown { width: calc(100vw - 20px); right: -10px; left: auto; }
+
+  /* ── Additional mobile improvements ── */
+  .topbar { flex-direction: column; align-items: flex-start; gap: .4rem; padding: .5rem .7rem; min-height: auto; }
+  .topbar-left h2 { font-size: .78rem; }
+  .topbar-left p { font-size: .58rem; }
+  .topbar-right { width: 100%; justify-content: flex-end; }
+  .page-body { padding: .5rem; }
+
+  .modal-box, .modal-box-wide, .modal-box-sm { max-width: 100%; border-radius: var(--radius-lg); margin: 0 .5rem; }
+  .del-modal-box, .flash-modal-box { max-width: 100%; margin: 0 .5rem; padding: 1.5rem 1rem; }
+
+  .card-head { flex-direction: column; align-items: flex-start; padding: .65rem .8rem; gap: .4rem; }
+  .card-actions { width: 100%; }
+  .card-body { padding: .8rem; }
+
+  .search-bar { width: 100%; }
+  .search-bar input { width: 100%; }
+
+  .welcome-banner { padding: 1rem 1.2rem; flex-direction: column; text-align: center; }
+  .welcome-banner::before, .welcome-banner::after { display: none; }
+  .welcome-banner .wb-icon { display: none; }
+  .wb-text h2 { font-size: .95rem; }
+  .wb-text p { font-size: .7rem; }
+
+  .quick-grid { grid-template-columns: repeat(2, 1fr); gap: .5rem; padding: .8rem; }
+  .quick-tile { padding: .8rem .5rem; font-size: .68rem; }
+  .quick-tile i { font-size: 1.1rem; }
+
+  .pagination { flex-direction: column; align-items: center; gap: .5rem; }
+  .page-btns { flex-wrap: wrap; justify-content: center; }
+
+  .filter-tab { font-size: .62rem; padding: .2rem .45rem; }
+  .filter-sel { font-size: .65rem; padding: .25rem .5rem; }
+
+  .stats-row { gap: .6rem; }
+  .stat-card { padding: .8rem .8rem; gap: .6rem; }
+  .s-icon { width: 36px; height: 36px; font-size: .85rem; }
+  .s-info h3 { font-size: 1.1rem; }
+  .s-info p { font-size: .58rem; }
+
+  th.actions-th, td.actions-th { min-width: 80px; }
+  .action-cell { gap: .2rem; }
+  .act-btn { padding: .22rem .5rem; font-size: .62rem; }
+
+  table { font-size: .72rem; }
+  thead th { padding: .35rem .5rem; font-size: .6rem; }
+  tbody td { padding: .4rem .5rem; }
+
+  .form-grid { gap: .6rem; padding: 0 0 .6rem; }
+  .form-footer { flex-direction: column; }
+  .form-footer button { width: 100%; justify-content: center; }
+
+  .modal-head { padding: .8rem 1rem; }
+  .modal-head h3 { font-size: .85rem; }
+  .modal-body { padding: 1rem; }
+  .modal-foot { flex-direction: column; align-items: stretch; padding: .7rem 1rem; }
+  .mf-left { justify-content: center; }
+  .modal-foot .btn-modal-save,
+  .modal-foot .btn-modal-cancel,
+  .modal-foot .btn-modal-edit,
+  .modal-foot .btn-modal-del { width: 100%; justify-content: center; }
+
+  .detail-grid { padding: .5rem .8rem; gap: .5rem; }
+  .tbl-wrap { padding: 0 .8rem .8rem; }
+
+  .section-title { padding: .6rem .8rem .3rem; }
+  .empty-state { padding: 2rem .8rem; }
+  .empty-state i { font-size: 2rem; }
+  .loading-state { padding: 2rem .8rem; }
+
+  .form-section { padding: .8rem .8rem 0; }
+  .form-group input, .form-group select, .form-group textarea { font-size: .72rem; padding: .38rem .6rem; }
 }

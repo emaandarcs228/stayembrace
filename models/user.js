@@ -34,13 +34,13 @@ const userSchema = new mongoose.Schema({
 
     role: {
         type     : String,
-        enum     : ['student', 'admin', 'warden'],
+        enum     : ['student', 'admin', 'warden', 'driver'],
         required : true
     },
 
     status: {
         type    : String,
-        enum    : ['pending', 'approved', 'rejected'],
+        enum    : ['pending', 'approved', 'rejected', 'suspended'],
         default : 'pending'
     },
 

@@ -21,6 +21,7 @@ const attendanceActions = require('../services/attendanceActions');
 const complaintActions  = require('../services/complaintActions');
 const visitorActions = require('../services/visitorActions');
 const VisitorRequest  = require('../models/visitorRequest');
+const wardenActivityLog = require('../services/wardenActivityLog');
 const messActions = require('../services/messActions');
 const Menu     = require('../models/mess');
 const MenuItem = require('../models/menuItem');
@@ -380,6 +381,13 @@ exports.markAttendance = async (req, res) => {
         const { studentId, status, notes } = req.body;
         const result = await attendanceActions.markAttendance(req.user, { studentId, status, notes });
         if (!result.ok) return res.redirect('/warden/attendance?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'ATTENDANCE_MARK',
+            `Marked attendance as "${status}" for student record`,
+            { targetModel: 'Attendance', targetId: studentId, details: { status, notes }, ip: req.ip }
+        );
+
         res.redirect('/warden/attendance?success=Attendance+marked+successfully.');
     } catch (err) {
         console.error('markAttendance:', err);
@@ -392,6 +400,13 @@ exports.resolveDispute = async (req, res) => {
         const { action, newStatus, reason } = req.body;
         const result = await attendanceActions.resolveDispute(req.params.id, req.user, { action, newStatus, reason });
         if (!result.ok) return res.redirect('/warden/attendance?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'ATTENDANCE_DISPUTE_RESOLVE',
+            `Resolved attendance dispute: ${action}${reason ? ' — ' + reason : ''}`,
+            { targetModel: 'Attendance', targetId: req.params.id, details: { action, newStatus, reason }, ip: req.ip }
+        );
+
         res.redirect('/warden/attendance?success=Dispute+resolved.');
     } catch (err) {
         console.error('resolveDispute:', err);
@@ -475,6 +490,13 @@ exports.markGuardianVerification = async (req, res) => {
         const { verificationStatus, notes } = req.body;
         const result = await leaveActions.verifyGuardian(req.params.id, req.user, { verificationStatus, notes });
         if (!result.ok) return res.redirect('/warden/leave-requests?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'LEAVE_GUARDIAN_VERIFY',
+            `Marked guardian verification on leave as: ${verificationStatus}`,
+            { targetModel: 'LeaveRequest', targetId: req.params.id, details: { verificationStatus, notes }, ip: req.ip }
+        );
+
         res.redirect('/warden/leave-requests?success=Guardian+verification+status+updated.');
     } catch (err) {
         console.error('markGuardianVerification:', err);
@@ -492,6 +514,13 @@ exports.approveLeave = async (req, res) => {
             allowWithoutGuardianVerification: false
         });
         if (!result.ok) return res.redirect('/warden/leave-requests?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'LEAVE_APPROVE',
+            `Approved leave request${note ? ' — ' + note : ''}`,
+            { targetModel: 'LeaveRequest', targetId: req.params.id, details: { note }, ip: req.ip }
+        );
+
         res.redirect('/warden/leave-requests?success=Leave+approved.');
     } catch (err) {
         console.error('approveLeave:', err);
@@ -504,6 +533,13 @@ exports.rejectLeave = async (req, res) => {
         const { reason } = req.body;
         const result = await leaveActions.rejectLeave(req.params.id, req.user, { reason });
         if (!result.ok) return res.redirect('/warden/leave-requests?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'LEAVE_REJECT',
+            `Rejected leave request${reason ? ' — ' + reason : ''}`,
+            { targetModel: 'LeaveRequest', targetId: req.params.id, details: { reason }, ip: req.ip }
+        );
+
         res.redirect('/warden/leave-requests?success=Leave+rejected.');
     } catch (err) {
         console.error('rejectLeave:', err);
@@ -558,6 +594,13 @@ exports.updateComplaintStatus = async (req, res) => {
         const { newStatus, note } = req.body;
         const result = await complaintActions.updateStatus(req.params.id, req.user, { newStatus, note });
         if (!result.ok) return res.redirect('/warden/complaints?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'COMPLAINT_STATUS_UPDATE',
+            `Updated complaint status to "${newStatus}"${note ? ' — ' + note : ''}`,
+            { targetModel: 'Complaint', targetId: req.params.id, details: { newStatus, note }, ip: req.ip }
+        );
+
         res.redirect('/warden/complaints?success=Complaint+status+updated.');
     } catch (err) {
         console.error('updateComplaintStatus:', err);
@@ -635,6 +678,12 @@ exports.recommendRoomRequest = async (req, res) => {
         rr.status         = 'Warden Reviewed';
         await rr.save();
 
+        wardenActivityLog.logActivity(
+            req.user, 'ROOM_REQUEST_RECOMMEND',
+            `Recommended ${rr.requestType} request to admin${note ? ' — ' + note : ''}`,
+            { targetModel: 'RoomRequest', targetId: rr._id, details: { requestType: rr.requestType, note }, ip: req.ip }
+        );
+
         try {
             const adminUser = await User.findOne({ role: 'admin' }).lean();
             if (adminUser) {
@@ -668,6 +717,12 @@ exports.rejectRoomRequest = async (req, res) => {
         rr.wardenApproval = { status: 'Rejected', note: reason || 'No reason provided.', by: req.user._id, at: new Date() };
         rr.status         = 'Rejected';
         await rr.save();
+
+        wardenActivityLog.logActivity(
+            req.user, 'ROOM_REQUEST_REJECT',
+            `Rejected ${rr.requestType} request${reason ? ' — ' + reason : ''}`,
+            { targetModel: 'RoomRequest', targetId: rr._id, details: { requestType: rr.requestType, reason }, ip: req.ip }
+        );
 
         try {
             await Notification.create({
@@ -743,6 +798,12 @@ exports.updateMessStatus = async (req, res) => {
         order.handledBy   = req.user._id;
         await order.save();
 
+        wardenActivityLog.logActivity(
+            req.user, 'MESS_ORDER_STATUS_UPDATE',
+            `Updated mess order status to "${newStatus}"`,
+            { targetModel: 'FoodOrder', targetId: order._id, details: { newStatus }, ip: req.ip }
+        );
+
         try {
             await Notification.create({
                 title     : 'Mess Order Update',
@@ -754,10 +815,10 @@ exports.updateMessStatus = async (req, res) => {
             });
         } catch (_) {}
 
-        res.redirect('/warden/mess?success=Order+status+updated.');
+        res.redirect('/warden/mess?tab=orders&success=Order+status+updated.');
     } catch (err) {
         console.error('updateMessStatus:', err);
-        res.redirect('/warden/mess?error=Failed+to+update+status.');
+        res.redirect('/warden/mess?tab=orders&error=Failed+to+update+status.');
     }
 };
 
@@ -790,6 +851,12 @@ exports.markMessCashReceived = async (req, res) => {
             });
         }
 
+        wardenActivityLog.logActivity(
+            req.user, 'MESS_CASH_RECEIVED',
+            `Marked cash received for mess order`,
+            { targetModel: 'FoodOrder', targetId: order._id, ip: req.ip }
+        );
+
         try {
             await Notification.create({
                 title     : 'Mess Payment Confirmed',
@@ -800,7 +867,7 @@ exports.markMessCashReceived = async (req, res) => {
             });
         } catch (_) {}
 
-        res.redirect('/warden/mess?success=Cash+marked+as+received.');
+        res.redirect('/warden/mess?tab=orders&success=Cash+marked+as+received.');
     } catch (err) {
         console.error('markMessCashReceived:', err);
         res.redirect('/warden/mess?error=Failed+to+mark+cash+received.');
@@ -835,6 +902,13 @@ exports.updateLaundryStatus = async (req, res) => {
         const { newStatus } = req.body;
         const result = await laundryActions.updateStatus(req.params.id, req.user, { newStatus, allowOverride: false });
         if (!result.ok) return res.redirect('/warden/laundry?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'LAUNDRY_STATUS_UPDATE',
+            `Updated laundry status to "${newStatus}"`,
+            { targetModel: 'LaundryRequest', targetId: req.params.id, details: { newStatus }, ip: req.ip }
+        );
+
         res.redirect('/warden/laundry?success=Laundry+status+updated.&week=' + result.weekKey);
     } catch (err) {
         console.error('updateLaundryStatus:', err);
@@ -846,6 +920,13 @@ exports.markLaundryCashReceived = async (req, res) => {
     try {
         const result = await laundryActions.markCashReceived(req.params.id, req.user);
         if (!result.ok) return res.redirect('/warden/laundry?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'LAUNDRY_CASH_RECEIVED',
+            `Marked cash received for laundry`,
+            { targetModel: 'LaundryRequest', targetId: req.params.id, ip: req.ip }
+        );
+
         res.redirect('/warden/laundry?success=Cash+marked+as+received.&week=' + result.weekKey);
     } catch (err) {
         console.error('markLaundryCashReceived:', err);
@@ -893,6 +974,13 @@ exports.markMobileLoadCashReceived = async (req, res) => {
     try {
         const result = await mobileLoadActions.markCashReceived(req.params.id, req.user, { allowOverride: false });
         if (!result.ok) return res.redirect('/warden/mobile-load?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'MOBILE_LOAD_CASH_RECEIVED',
+            `Marked cash received for mobile load`,
+            { targetModel: 'MobileLoad', targetId: req.params.id, ip: req.ip }
+        );
+
         res.redirect('/warden/mobile-load?success=Cash+marked+as+received.');
     } catch (err) {
         console.error('markMobileLoadCashReceived:', err);
@@ -904,6 +992,13 @@ exports.completeMobileLoad = async (req, res) => {
     try {
         const result = await mobileLoadActions.complete(req.params.id, req.user, { allowOverride: false });
         if (!result.ok) return res.redirect('/warden/mobile-load?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'MOBILE_LOAD_COMPLETE',
+            `Completed mobile load request`,
+            { targetModel: 'MobileLoad', targetId: req.params.id, ip: req.ip }
+        );
+
         res.redirect('/warden/mobile-load?success=Mobile+load+completed.');
     } catch (err) {
         console.error('completeMobileLoad:', err);
@@ -916,6 +1011,13 @@ exports.rejectMobileLoad = async (req, res) => {
         const { reason } = req.body;
         const result = await mobileLoadActions.reject(req.params.id, req.user, { reason });
         if (!result.ok) return res.redirect('/warden/mobile-load?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'MOBILE_LOAD_REJECT',
+            `Rejected mobile load request${reason ? ' — ' + reason : ''}`,
+            { targetModel: 'MobileLoad', targetId: req.params.id, details: { reason }, ip: req.ip }
+        );
+
         res.redirect('/warden/mobile-load?success=Request+rejected.');
     } catch (err) {
         console.error('rejectMobileLoad:', err);
@@ -994,6 +1096,13 @@ exports.sendNotification = async (req, res) => {
         }
 
         await Notification.create(notifData);
+
+        wardenActivityLog.logActivity(
+            req.user, 'NOTIFICATION_SEND',
+            `Sent notification: ${title}`,
+            { details: { title, message, targetType }, ip: req.ip }
+        );
+
         res.redirect('/warden/notifications?success=Notification+sent+successfully.');
     } catch (err) {
         console.error('sendNotification:', err);
@@ -1098,6 +1207,13 @@ exports.approveVisitorRequest = async (req, res) => {
         const { note } = req.body;
         const result = await visitorActions.approveVisitorRequest(req.params.id, req.user, { note });
         if (!result.ok) return res.redirect('/warden/visitor-requests?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'VISITOR_APPROVE',
+            `Approved visitor request${note ? ' — ' + note : ''}`,
+            { targetModel: 'VisitorRequest', targetId: req.params.id, details: { note }, ip: req.ip }
+        );
+
         res.redirect('/warden/visitor-requests?success=Visitor+request+approved.');
     } catch (err) {
         console.error('approveVisitorRequest:', err);
@@ -1110,6 +1226,13 @@ exports.rejectVisitorRequest = async (req, res) => {
         const { reason } = req.body;
         const result = await visitorActions.rejectVisitorRequest(req.params.id, req.user, { reason });
         if (!result.ok) return res.redirect('/warden/visitor-requests?error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'VISITOR_REJECT',
+            `Rejected visitor request${reason ? ' — ' + reason : ''}`,
+            { targetModel: 'VisitorRequest', targetId: req.params.id, details: { reason }, ip: req.ip }
+        );
+
         res.redirect('/warden/visitor-requests?success=Visitor+request+rejected.');
     } catch (err) {
         console.error('rejectVisitorRequest:', err);
@@ -1151,6 +1274,13 @@ exports.updateMessStatus = async (req, res) => {
         const { newStatus } = req.body;
         const result = await messActions.updateOrderStatus(req.params.id, req.user, { newStatus, allowOverride: false });
         if (!result.ok) return res.redirect('/warden/mess?tab=orders&error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'MESS_ORDER_STATUS_UPDATE',
+            `Updated mess order status to "${newStatus}"`,
+            { targetModel: 'FoodOrder', targetId: req.params.id, details: { newStatus }, ip: req.ip }
+        );
+
         res.redirect('/warden/mess?tab=orders&success=Order+status+updated.');
     } catch (err) {
         console.error('updateMessStatus:', err);
@@ -1162,6 +1292,13 @@ exports.markMessCashReceived = async (req, res) => {
     try {
         const result = await messActions.markCashReceived(req.params.id, req.user);
         if (!result.ok) return res.redirect('/warden/mess?tab=orders&error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'MESS_CASH_RECEIVED',
+            `Marked cash received for mess order`,
+            { targetModel: 'FoodOrder', targetId: req.params.id, ip: req.ip }
+        );
+
         res.redirect('/warden/mess?tab=orders&success=Cash+marked+as+received.');
     } catch (err) {
         console.error('markMessCashReceived:', err);
@@ -1173,6 +1310,13 @@ exports.addMenu = async (req, res) => {
     try {
         const result = await messActions.addMenu(req.body.name);
         if (!result.ok) return res.redirect('/warden/mess?tab=addmenu&error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'MESS_MENU_ADD',
+            `Added meal category: ${req.body.name}`,
+            { details: { name: req.body.name }, ip: req.ip }
+        );
+
         res.redirect('/warden/mess?tab=addmenu&success=Meal+category+added.');
     } catch (err) {
         console.error('addMenu:', err);
@@ -1185,6 +1329,13 @@ exports.addMenuItem = async (req, res) => {
         const imagePath = req.file ? 'uploads/mess/' + req.file.filename : null;
         const result = await messActions.addMenuItem({ ...req.body, imagePath });
         if (!result.ok) return res.redirect('/warden/mess?tab=addmenu&error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'MESS_MENU_ITEM_ADD',
+            `Added menu item: ${req.body.name || ''}`,
+            { details: { name: req.body.name, price: req.body.price, category: req.body.menu }, ip: req.ip }
+        );
+
         res.redirect('/warden/mess?tab=menu&success=Menu+item+added.');
     } catch (err) {
         console.error('addMenuItem:', err);
@@ -1197,6 +1348,13 @@ exports.editMenuItem = async (req, res) => {
         const imagePath = req.file ? 'uploads/mess/' + req.file.filename : null;
         const result = await messActions.editMenuItem(req.params.id, { ...req.body, imagePath });
         if (!result.ok) return res.redirect('/warden/mess?tab=menu&error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'MESS_MENU_ITEM_EDIT',
+            `Edited menu item: ${req.body.name || ''}`,
+            { targetModel: 'MenuItem', targetId: req.params.id, details: { name: req.body.name, price: req.body.price }, ip: req.ip }
+        );
+
         res.redirect('/warden/mess?tab=menu&success=Item+updated.');
     } catch (err) {
         console.error('editMenuItem:', err);
@@ -1208,6 +1366,13 @@ exports.deleteMenuItem = async (req, res) => {
     try {
         const result = await messActions.deleteMenuItem(req.params.id);
         if (!result.ok) return res.redirect('/warden/mess?tab=menu&error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'MESS_MENU_ITEM_DELETE',
+            `Deleted menu item`,
+            { targetModel: 'MenuItem', targetId: req.params.id, ip: req.ip }
+        );
+
         res.redirect('/warden/mess?tab=menu&success=Item+deleted.');
     } catch (err) {
         console.error('deleteMenuItem:', err);
@@ -1219,9 +1384,177 @@ exports.publishTodayMenu = async (req, res) => {
     try {
         const result = await messActions.publishTodayMenu(req.body.itemIds, req.user);
         if (!result.ok) return res.redirect('/warden/mess?tab=menu&error=' + encodeURIComponent(result.error));
+
+        wardenActivityLog.logActivity(
+            req.user, 'MESS_MENU_PUBLISH',
+            `Published today's menu`,
+            { details: { itemCount: (req.body.itemIds || []).length }, ip: req.ip }
+        );
+
         res.redirect('/warden/mess?tab=menu&success=' + encodeURIComponent("Today's menu published."));
     } catch (err) {
         console.error('publishTodayMenu:', err);
         res.redirect('/warden/mess?tab=menu&error=Failed+to+publish+menu.');
+    }
+};
+
+// ─────────────────────────────────────────────────────────────
+// PROFILE
+// ─────────────────────────────────────────────────────────────
+exports.getProfile = async (req, res) => {
+    try {
+        const base = await buildBaseLocals(req);
+
+        // Normalise profileImage path (strip 'public/' prefix) for browser URLs
+        const profileWarden = { ...base.warden };
+        if (profileWarden.profileImage) {
+            profileWarden.profileImage = profileWarden.profileImage.replace(/^public[/\\]/, '');
+        }
+
+        res.render('warden/profile', {
+            ...base,
+            warden              : profileWarden,
+            activePage          : 'profile',
+            pageTitle           : 'My Profile',
+            pageSubtitle        : base.warden.userId,
+            showProfileDropdown : true,
+            successMessage      : req.query.success || null,
+            errorMessage        : req.query.error   || null
+        });
+    } catch (err) {
+        console.error('getProfile:', err);
+        res.status(500).send('Server Error');
+    }
+};
+
+exports.updateProfile = async (req, res) => {
+    try {
+        const { fullname, email, phoneNumber, gender, dateOfBirth } = req.body;
+
+        // Email uniqueness check (exclude self)
+        const existing = await User.findOne({ email, _id: { $ne: req.user._id } }).lean();
+        if (existing) {
+            return res.redirect('/warden/profile?error=Email+is+already+in+use.');
+        }
+
+        const updateFields = {};
+        if (fullname)    updateFields.fullname    = fullname;
+        if (email)       updateFields.email       = email;
+        if (phoneNumber) updateFields.phoneNumber = phoneNumber;
+        if (gender)      updateFields.gender      = gender;
+        if (dateOfBirth) updateFields.dateOfBirth = new Date(dateOfBirth);
+
+        await User.findByIdAndUpdate(req.user._id, { $set: updateFields });
+
+        wardenActivityLog.logActivity(
+            req.user, 'PROFILE_UPDATE',
+            'Updated profile information',
+            { details: { updatedFields: Object.keys(updateFields) }, ip: req.ip }
+        );
+
+        res.redirect('/warden/profile?success=Profile+updated+successfully.');
+    } catch (err) {
+        console.error('updateProfile:', err);
+        res.redirect('/warden/profile?error=Failed+to+update+profile.');
+    }
+};
+
+exports.changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword, confirmPassword } = req.body;
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return res.redirect('/warden/profile?error=All+password+fields+are+required.');
+        }
+        if (newPassword !== confirmPassword) {
+            return res.redirect('/warden/profile?error=New+passwords+do+not+match.');
+        }
+
+        // Strength validation: min 8 chars, at least 3 of 4 character types
+        const hasLower  = /[a-z]/.test(newPassword);
+        const hasUpper  = /[A-Z]/.test(newPassword);
+        const hasDigit  = /\d/.test(newPassword);
+        const hasSpecial = /[^A-Za-z0-9]/.test(newPassword);
+        const strength  = (hasLower ? 1 : 0) + (hasUpper ? 1 : 0) + (hasDigit ? 1 : 0) + (hasSpecial ? 1 : 0);
+        if (newPassword.length < 8 || strength < 3) {
+            return res.redirect('/warden/profile?error=Password+must+be+8+characters+with+uppercase,+lowercase,+number,+and+special+character.');
+        }
+
+        const user = await User.findById(req.user._id);
+        const bcrypt = require('bcrypt');
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return res.redirect('/warden/profile?error=Current+password+is+incorrect.');
+        }
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        await user.save();
+
+        wardenActivityLog.logActivity(
+            req.user, 'PROFILE_UPDATE',
+            'Changed account password',
+            { ip: req.ip }
+        );
+
+        res.redirect('/warden/profile?success=Password+changed+successfully.');
+    } catch (err) {
+        console.error('changePassword:', err);
+        res.redirect('/warden/profile?error=Failed+to+change+password.');
+    }
+};
+
+
+// ─────────────────────────────────────────────────────────────
+// PROFILE PICTURE
+// ─────────────────────────────────────────────────────────────
+exports.updateProfileImage = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'warden') return res.status(403).send('Access Denied');
+
+        // ── Remove existing photo ──
+        if (req.body._action === 'remove') {
+            const user = await User.findById(req.user._id);
+            if (user.profileImage) {
+                const fs   = require('fs');
+                const path = require('path');
+                const filePath = path.join(__dirname, '..', user.profileImage);
+                fs.unlink(filePath, () => {});
+            }
+            user.profileImage = null;
+            await user.save();
+            req.user.profileImage = null;
+            return res.redirect('/warden/profile?success=Profile+photo+removed.');
+        }
+
+        // ── Upload new photo ──
+        if (!req.file) {
+            return res.redirect('/warden/profile?error=No+image+file+selected.');
+        }
+
+        const user = await User.findById(req.user._id);
+
+        // Delete old profile image if exists
+        if (user.profileImage) {
+            const fs   = require('fs');
+            const path = require('path');
+            const oldPath = path.join(__dirname, '..', user.profileImage);
+            fs.unlink(oldPath, () => {});
+        }
+
+        user.profileImage = 'public/uploads/profiles/' + req.file.filename;
+        await user.save();
+
+        req.user.profileImage = user.profileImage;
+
+        wardenActivityLog.logActivity(
+            req.user, 'PROFILE_UPDATE',
+            'Updated profile photo',
+            { ip: req.ip }
+        );
+
+        res.redirect('/warden/profile?success=Profile+photo+updated.');
+    } catch (err) {
+        console.error('updateProfileImage:', err);
+        res.redirect('/warden/profile?error=Failed+to+update+profile+photo.');
     }
 };

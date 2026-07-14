@@ -37,6 +37,9 @@ const laundryActions      = require('../services/laundryActions');
 const MobileLoad       = require('../models/mobileLoad');
 const mobileLoadActions = require('../services/mobileLoadActions');
 const { getSidebarBadges } = require('../utils/sidebarBadges');
+const CabBooking          = require('../models/cabBooking');
+const Student             = require('../models/student');
+const sendCabBookingEmail = require('../utils/sendCabBookingEmail');
 
 // ─────────────────────────────────────────────────────────────
 // HELPERS
@@ -1038,5 +1041,96 @@ exports.overrideMobileLoad = async (req, res) => {
     } catch (err) {
         console.error('operationController overrideMobileLoad:', err);
         res.redirect('/admin/operations/mobile-load?error=Failed+to+override+request.');
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// CAB BOOKING CONFIRMATION — admin confirms a student's cab booking
+// and sends an email notification to the student's guardian.
+// ═══════════════════════════════════════════════════════════════════
+exports.confirmCabBooking = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).send('Access Denied');
+        }
+
+        const booking = await CabBooking.findById(req.params.id);
+        if (!booking) {
+            return res.redirect('/admin/dashboard?error=Booking+not+found.');
+        }
+        if (booking.status !== 'Pending') {
+            return res.redirect('/admin/dashboard?error=Only+pending+bookings+can+be+confirmed.');
+        }
+
+        booking.status = 'Confirmed';
+        booking.confirmedAt = new Date();
+        await booking.save();
+
+        // ── Fetch the student + guardian info for the email ────────
+        try {
+            const studentRec = await Student.findById(booking.student)
+                .populate('user', 'fullname userId')
+                .lean();
+
+            if (studentRec && studentRec.guardianEmail) {
+                const pickupDate = new Date(booking.pickupDate);
+                const dateStr = pickupDate.toLocaleDateString('en-PK', {
+                    day: '2-digit', month: 'short', year: 'numeric'
+                });
+
+                await sendCabBookingEmail({
+                    guardianEmail   : studentRec.guardianEmail,
+                    guardianName    : studentRec.guardianName || 'Guardian',
+                    studentName     : studentRec.user?.fullname || 'A student',
+                    studentId       : studentRec.user?.userId || '—',
+                    driverName      : booking.driverName,
+                    driverPhone     : booking.driverPhone,
+                    vehicleType     : booking.vehicleType,
+                    vehicleReg      : booking.vehicleRegistration,
+                    pickupLocation  : booking.pickupLocation,
+                    dropoffLocation : booking.dropoffLocation,
+                    pickupDate      : dateStr,
+                    pickupTime      : booking.pickupTime || '',
+                    passengerCount  : booking.passengerCount,
+                    notes           : booking.notes || ''
+                });
+
+                // Notify student that guardian was emailed
+                await Notification.create({
+                    title     : 'Guardian Notified — Cab Booking Confirmed',
+                    message   : 'Your guardian (' + studentRec.guardianEmail + ') has been notified about your confirmed cab booking with ' + booking.driverName + ' on ' + dateStr + '.',
+                    recipient : studentRec.user._id,
+                    category  : 'Requests',
+                    relatedTo : { model: 'CabBooking', docId: booking._id },
+                    createdBy : req.user._id,
+                    priority  : 'Low'
+                });
+            } else {
+                console.log('confirmCabBooking: Student ' + booking.student + ' has no guardian email on file — skipping email.');
+            }
+        } catch (emailErr) {
+            console.error('confirmCabBooking: Failed to send guardian email:', emailErr);
+        }
+
+        // ── Notify driver about the confirmation ───────────────────
+        try {
+            await Notification.create({
+                title     : 'Cab Booking Confirmed',
+                message   : 'Your cab booking with ' + booking.driverName + ' has been confirmed by the administration.',
+                recipient : booking.driver,
+                category  : 'Requests',
+                relatedTo : { model: 'CabBooking', docId: booking._id },
+                createdBy : req.user._id,
+                priority  : 'Low'
+            });
+        } catch (notifErr) {
+            console.error('confirmCabBooking: Driver notification error:', notifErr);
+        }
+
+        res.redirect('/admin/dashboard?success=Cab+booking+confirmed.+Guardian+has+been+notified.');
+
+    } catch (err) {
+        console.error('confirmCabBooking Error:', err);
+        res.redirect('/admin/dashboard?error=Failed+to+confirm+booking.');
     }
 };

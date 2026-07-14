@@ -1,0 +1,254 @@
+<%
+  const activePage = 'vehicle';
+  const showProfileDropdown = true;
+%>
+<%- include('driver-header') %>
+
+<!-- ══════════════════════════════════════
+     VEHICLE MANAGEMENT
+══════════════════════════════════════ -->
+
+<!-- Welcome Banner -->
+<div class="welcome-banner">
+  <div class="wb-text">
+    <h2>Vehicle Management</h2>
+    <p>Manage your vehicle details, registration, and documents</p>
+  </div>
+  <i class="fas fa-car wb-icon"></i>
+</div>
+
+<!-- ══════════════════════════════════════
+     VEHICLE INFORMATION
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-car"></i> Vehicle Details</h3>
+    <button class="act-btn btn-edit" onclick="toggleVehicleEdit()">
+      <i class="fas fa-pen"></i> Edit
+    </button>
+  </div>
+
+  <!-- View Mode -->
+  <div id="vehicleViewMode">
+    <% if (driver && driver._id) { %>
+    <div class="detail-grid">
+      <div class="detail-field">
+        <label>Vehicle Type</label>
+        <span><%= driver.vehicleType ? driver.vehicleType.charAt(0).toUpperCase() + driver.vehicleType.slice(1) : '—' %></span>
+      </div>
+      <div class="detail-field">
+        <label>Vehicle Registration</label>
+        <span style="font-family:monospace;letter-spacing:.5px"><%= driver.vehicleRegistration || '—' %></span>
+      </div>
+      <div class="detail-field">
+        <label>Vehicle Model / Year</label>
+        <span><%= driver.vehicleModel || '—' %></span>
+      </div>
+      <div class="detail-field">
+        <label>Service Area</label>
+        <span><%= driver.serviceArea || '—' %></span>
+      </div>
+      <div class="detail-field">
+        <label>Experience</label>
+        <span><%= driver.experienceYears ? driver.experienceYears + ' years' : '—' %></span>
+      </div>
+      <div class="detail-field">
+        <label>Verification Status</label>
+        <span><span class="badge <%= driver.isVerified ? 'badge-success' : 'badge-warning' %>"><%= driver.isVerified ? 'Verified' : 'Pending' %></span></span>
+      </div>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="fas fa-car-side"></i>
+      <h4>No vehicle information yet</h4>
+      <p>Click "Edit" to add your vehicle details.</p>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- Edit Mode -->
+  <div id="vehicleEditMode" style="display:none">
+    <form method="POST" action="/driver/vehicle/update" enctype="multipart/form-data" id="vehicleForm">
+      <div class="form-section">
+        <div class="form-section-title"><i class="fas fa-car"></i> Vehicle Information</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Vehicle Type</label>
+            <select name="vehicleType">
+              <option value="">— Select —</option>
+              <option value="car" <%= driver && driver.vehicleType === 'car' ? 'selected' : '' %>>Car</option>
+              <option value="van" <%= driver && driver.vehicleType === 'van' ? 'selected' : '' %>>Van</option>
+              <option value="bus" <%= driver && driver.vehicleType === 'bus' ? 'selected' : '' %>>Bus</option>
+              <option value="rickshaw" <%= driver && driver.vehicleType === 'rickshaw' ? 'selected' : '' %>>Rickshaw</option>
+              <option value="motorcycle" <%= driver && driver.vehicleType === 'motorcycle' ? 'selected' : '' %>>Motorcycle</option>
+              <option value="other" <%= driver && driver.vehicleType === 'other' ? 'selected' : '' %>>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Vehicle Registration No.</label>
+            <input type="text" name="vehicleRegistration" placeholder="e.g. LEP-1234, ABC-567" value="<%= driver && driver.vehicleRegistration || '' %>" pattern="^[A-Za-z]{2,3}[- ]?\d{3,4}$" title="Format: XXX-XXXX (e.g. LEP-1234, ABC-567)">
+          </div>
+          <div class="form-group">
+            <label>Vehicle Model / Year</label>
+            <input type="text" name="vehicleModel" placeholder="e.g. Toyota Corolla 2020" value="<%= driver && driver.vehicleModel || '' %>">
+          </div>
+          <div class="form-group">
+            <label>Service Area / City</label>
+            <input type="text" name="serviceArea" placeholder="e.g. Lahore, Karachi" value="<%= driver && driver.serviceArea || '' %>">
+          </div>
+          <div class="form-group">
+            <label>Years of Experience</label>
+            <input type="number" name="experienceYears" placeholder="e.g. 5" min="0" max="70" value="<%= driver && driver.experienceYears || '' %>">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title"><i class="fas fa-file"></i> Documents <span style="font-weight:400;text-transform:none;color:var(--text-muted)">· JPG, PNG, PDF · Max 5 MB each</span></div>
+        <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:.7rem">Upload new documents to replace existing ones. Leave blank to keep current.</p>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+          <!-- CNIC Front -->
+          <div class="form-group">
+            <label>CNIC Front</label>
+            <% if (driver && driver.cnicFrontImage) { %>
+              <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;padding:.35rem .6rem;background:var(--accent-light);border-radius:var(--radius-sm);font-size:.72rem">
+                <i class="fas fa-file" style="color:var(--accent)"></i>
+                <span style="flex:1;color:var(--accent-dark);word-break:break-all"><%= driver.cnicFrontImage.split('/').pop() %></span>
+                <a href="/<%= driver.cnicFrontImage %>" target="_blank" class="act-btn btn-view" style="font-size:.6rem;padding:.1rem .4rem"><i class="fas fa-eye"></i></a>
+              </div>
+            <% } %>
+            <div class="form-group">
+              <input type="file" name="cnicFront" accept=".jpg,.jpeg,.png,.webp,.pdf" style="font-size:.78rem;padding:.35rem">
+            </div>
+          </div>
+
+          <!-- CNIC Back -->
+          <div class="form-group">
+            <label>CNIC Back</label>
+            <% if (driver && driver.cnicBackImage) { %>
+              <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;padding:.35rem .6rem;background:var(--accent-light);border-radius:var(--radius-sm);font-size:.72rem">
+                <i class="fas fa-file" style="color:var(--accent)"></i>
+                <span style="flex:1;color:var(--accent-dark);word-break:break-all"><%= driver.cnicBackImage.split('/').pop() %></span>
+                <a href="/<%= driver.cnicBackImage %>" target="_blank" class="act-btn btn-view" style="font-size:.6rem;padding:.1rem .4rem"><i class="fas fa-eye"></i></a>
+              </div>
+            <% } %>
+            <div class="form-group">
+              <input type="file" name="cnicBack" accept=".jpg,.jpeg,.png,.webp,.pdf" style="font-size:.78rem;padding:.35rem">
+            </div>
+          </div>
+
+          <!-- License -->
+          <div class="form-group">
+            <label>Driving License</label>
+            <% if (driver && driver.licenseImage) { %>
+              <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;padding:.35rem .6rem;background:var(--accent-light);border-radius:var(--radius-sm);font-size:.72rem">
+                <i class="fas fa-file" style="color:var(--accent)"></i>
+                <span style="flex:1;color:var(--accent-dark);word-break:break-all"><%= driver.licenseImage.split('/').pop() %></span>
+                <a href="/<%= driver.licenseImage %>" target="_blank" class="act-btn btn-view" style="font-size:.6rem;padding:.1rem .4rem"><i class="fas fa-eye"></i></a>
+              </div>
+            <% } %>
+            <div class="form-group">
+              <input type="file" name="licenseImage" accept=".jpg,.jpeg,.png,.webp,.pdf" style="font-size:.78rem;padding:.35rem">
+            </div>
+          </div>
+
+          <!-- Vehicle Registration Document -->
+          <div class="form-group">
+            <label>Vehicle Registration Document</label>
+            <% if (driver && driver.vehicleDocImage) { %>
+              <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;padding:.35rem .6rem;background:var(--accent-light);border-radius:var(--radius-sm);font-size:.72rem">
+                <i class="fas fa-file" style="color:var(--accent)"></i>
+                <span style="flex:1;color:var(--accent-dark);word-break:break-all"><%= driver.vehicleDocImage.split('/').pop() %></span>
+                <a href="/<%= driver.vehicleDocImage %>" target="_blank" class="act-btn btn-view" style="font-size:.6rem;padding:.1rem .4rem"><i class="fas fa-eye"></i></a>
+              </div>
+            <% } %>
+            <div class="form-group">
+              <input type="file" name="vehicleDoc" accept=".jpg,.jpeg,.png,.webp,.pdf" style="font-size:.78rem;padding:.35rem">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" class="btn-primary"><i class="fas fa-save"></i> Save Changes</button>
+        <button type="button" class="btn-sec" onclick="toggleVehicleEdit()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     LICENSE & IDENTITY (read-only summary)
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-id-card"></i> License &amp; Identity</h3>
+  </div>
+  <% if (driver && driver._id) { %>
+  <div class="detail-grid">
+    <div class="detail-field">
+      <label>CNIC Number</label>
+      <span><%= driver.cnic || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Driving License Number</label>
+      <span><%= driver.licenseNumber || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>License Expiry</label>
+      <span><%= driver.licenseExpiry ? new Date(driver.licenseExpiry).toLocaleDateString('en-US', {day:'numeric', month:'long', year:'numeric'}) : '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Documents Status</label>
+      <span>
+        <% var docCount = 0; %>
+        <% if (driver.cnicFrontImage) docCount++; %>
+        <% if (driver.cnicBackImage) docCount++; %>
+        <% if (driver.licenseImage) docCount++; %>
+        <% if (driver.vehicleDocImage) docCount++; %>
+        <span class="badge <%= docCount >= 4 ? 'badge-success' : 'badge-warning' %>"><%= docCount %> / 4 uploaded</span>
+      </span>
+    </div>
+  </div>
+  <% } else { %>
+  <div class="empty-state">
+    <i class="fas fa-id-card"></i>
+    <h4>No identity information available</h4>
+    <p>License and CNIC details are collected during registration.</p>
+  </div>
+  <% } %>
+</div>
+
+<!-- Quick links -->
+<div style="display:flex;gap:.7rem;flex-wrap:wrap;margin-bottom:1.2rem">
+  <a href="/driver/dashboard" class="btn-sec" style="display:inline-flex;align-items:center;gap:.4rem">
+    <i class="fas fa-arrow-left"></i> Dashboard
+  </a>
+  <a href="/driver/profile" class="btn-sec" style="display:inline-flex;align-items:center;gap:.4rem">
+    <i class="fas fa-user"></i> Profile
+  </a>
+</div>
+
+<!-- ══════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════ -->
+<script>
+function toggleVehicleEdit() {
+    var viewEl = document.getElementById('vehicleViewMode');
+    var editEl = document.getElementById('vehicleEditMode');
+    if (!viewEl || !editEl) return;
+    var isEditing = editEl.style.display !== 'none' && editEl.style.display !== '';
+    viewEl.style.display = isEditing ? '' : 'none';
+    editEl.style.display = isEditing ? 'none' : '';
+}
+
+// ── Submit spinner ──
+document.getElementById('vehicleForm')?.addEventListener('submit', function(e) {
+    var btn = this.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+});
+</script>
+
+<%- include('driver-footer') %>

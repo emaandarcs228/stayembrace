@@ -95,4 +95,5 @@ const roleMiddleware = (allowedRoles) => {
 exports.adminMiddleware = roleMiddleware(['admin']);
 exports.studentMiddleware = roleMiddleware(['student']);
 exports.wardenMiddleware = roleMiddleware(['warden']);
+exports.driverMiddleware = roleMiddleware(['driver']);
 exports.staffMiddleware = roleMiddleware(['admin', 'warden']);

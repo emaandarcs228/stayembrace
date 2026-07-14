@@ -15,13 +15,19 @@
   "dev": "nodemon server.js",
   
     
-  "start": "node server.js",
+  "start": "node server.js && npm run seed:admin && npm run seed:student && npm run seed:driver && npm run seed:warden",
   
     
   "seed:admin": "node seed/createAdmin.js",
 
 
-  "seed:student": "node seed/createStudent.js"
+  "seed:student": "node seed/createStudent.js",
+
+
+  "seed:driver": "node seed/createDriver.js",
+
+
+  "seed:warden": "node seed/createWarden.js"
 
   },
   

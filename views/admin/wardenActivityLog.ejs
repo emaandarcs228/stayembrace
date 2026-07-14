@@ -1,0 +1,184 @@
+<%- include('admin-header') %>
+
+<!-- ══════════════════════════════════════
+     WARDEN ACTIVITY LOG
+══════════════════════════════════════ -->
+
+<div class="page active" id="page-activity-log">
+
+  <!-- ── Audit Bar ── -->
+  <div class="ops-audit-bar">
+    <i class="ti ti-shield-check"></i>
+    <span>
+      <strong>Warden Activity Log</strong> — Every action performed by wardens is recorded here for audit and oversight.
+    </span>
+    <span class="ops-audit-label">Read Only</span>
+  </div>
+
+  <!-- ── Filter Controls ── -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-filter"></i> Filters</h3>
+      <div class="card-actions">
+        <a href="/admin/operations/activity" class="add-btn" style="background:#f0f0f0;color:#666;">
+          <i class="fas fa-undo"></i> Reset
+        </a>
+      </div>
+    </div>
+    <div class="card-body" style="padding-bottom:.8rem;">
+      <form method="GET" action="/admin/operations/activity" class="form-grid cols-3" id="activityFilterForm">
+        <div class="form-group">
+          <label>Action Type</label>
+          <select name="action" class="filter-sel" onchange="this.form.submit()">
+            <option value="">All Actions</option>
+            <% (distinctActions || []).forEach(function(a) { %>
+              <option value="<%= a %>" <%= actionFilter === a ? 'selected' : '' %>>
+                <%= a.replace(/_/g, ' ') %>
+              </option>
+            <% }); %>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Warden</label>
+          <input type="text" name="warden" class="filter-sel" placeholder="Name or ID..." value="<%= wardenFilter %>" style="padding:.3rem .6rem;">
+        </div>
+
+        <div class="form-group">
+          <label>Search Description</label>
+          <input type="text" name="search" class="filter-sel" placeholder="Search activity details..." value="<%= searchQuery %>" style="padding:.3rem .6rem;">
+        </div>
+
+        <div class="form-group" style="display:none;">
+          <button type="submit" class="add-btn">Apply</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Log Table ── -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-history"></i> Activity Records</h3>
+      <span class="count-pill"><%= total %> total entries</span>
+    </div>
+
+    <% if (logs && logs.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px;">#</th>
+            <th>Timestamp</th>
+            <th>Warden</th>
+            <th>Action</th>
+            <th>Description</th>
+            <th>Related Student</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% logs.forEach(function(log, idx) { %>
+            <tr class="ops-log-row">
+              <td style="color:var(--text-muted);font-size:.7rem;"><%= (page - 1) * limit + idx + 1 %></td>
+              <td style="white-space:nowrap;">
+                <span title="<%= log._formattedDate %>"><%= log._timeAgo %></span>
+                <br><span style="font-size:.62rem;color:#bbb;"><%= new Date(log.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) %></span>
+              </td>
+              <td>
+                <div class="ops-log-by">
+                  <strong><%= log.wardenName || 'Unknown' %></strong>
+                  <br><span class="uid-code" style="font-size:.62rem;"><%= log.wardenUserId || '—' %></span>
+                </div>
+              </td>
+              <td>
+                <span class="badge badge-info" style="font-size:.62rem;"><%= log.action %></span>
+              </td>
+              <td class="ops-log-action" style="max-width:300px;word-break:break-word;">
+                <%= log.description || '—' %>
+              </td>
+              <td>
+                <% if (log.relatedStudentName) { %>
+                  <div style="font-size:.7rem;">
+                    <%= log.relatedStudentName %>
+                    <br><span class="uid-code" style="font-size:.6rem;"><%= log.relatedStudentUserId || '—' %></span>
+                  </div>
+                <% } else { %>
+                  <span style="color:#bbb;font-size:.7rem;">—</span>
+                <% } %>
+              </td>
+              <td style="font-size:.68rem;color:var(--text-muted);font-family:monospace;">
+                <%= log.ip || '—' %>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ── Pagination ── -->
+    <div class="pagination">
+      <span>Showing page <%= page %> of <%= totalPages %> (<%= total %> entries)</span>
+      <div class="page-btns">
+        <a href="?page=1&action=<%= actionFilter %>&warden=<%= wardenFilter %>&search=<%= searchQuery %>"
+           class="pg-btn <%= page <= 1 ? 'disabled' : '' %>" <%= page <= 1 ? 'disabled' : '' %>>&laquo;</a>
+        <a href="?page=<%= page - 1 %>&action=<%= actionFilter %>&warden=<%= wardenFilter %>&search=<%= searchQuery %>"
+           class="pg-btn <%= page <= 1 ? 'disabled' : '' %>" <%= page <= 1 ? 'disabled' : '' %>><i class="fas fa-chevron-left"></i></a>
+
+        <% var startPage = Math.max(1, page - 2); %>
+        <% var endPage = Math.min(totalPages, page + 2); %>
+        <% for (var p = startPage; p <= endPage; p++) { %>
+          <a href="?page=<%= p %>&action=<%= actionFilter %>&warden=<%= wardenFilter %>&search=<%= searchQuery %>"
+             class="pg-btn <%= p === page ? 'active' : '' %>"><%= p %></a>
+        <% } %>
+
+        <a href="?page=<%= page + 1 %>&action=<%= actionFilter %>&warden=<%= wardenFilter %>&search=<%= searchQuery %>"
+           class="pg-btn <%= page >= totalPages ? 'disabled' : '' %>" <%= page >= totalPages ? 'disabled' : '' %>><i class="fas fa-chevron-right"></i></a>
+        <a href="?page=<%= totalPages %>&action=<%= actionFilter %>&warden=<%= wardenFilter %>&search=<%= searchQuery %>"
+           class="pg-btn <%= page >= totalPages ? 'disabled' : '' %>" <%= page >= totalPages ? 'disabled' : '' %>>&raquo;</a>
+      </div>
+    </div>
+
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-history-off"></i>
+      <h4>No Activity Records Found</h4>
+      <p>
+        <% if (actionFilter || wardenFilter || searchQuery) { %>
+          Try adjusting your filters or search query.
+        <% } else { %>
+          No warden actions have been logged yet. Activity records will appear here as wardens perform actions.
+        <% } %>
+      </p>
+    </div>
+    <% } %>
+  </div>
+
+</div>
+
+<!-- ── Auto-submit filters on warden/search input change ── -->
+<script>
+  (function() {
+    var wardenInput = document.querySelector('input[name="warden"]');
+    var searchInput = document.querySelector('input[name="search"]');
+    var form = document.getElementById('activityFilterForm');
+
+    if (wardenInput) {
+      var wardenTimer;
+      wardenInput.addEventListener('input', function() {
+        clearTimeout(wardenTimer);
+        wardenTimer = setTimeout(function() { form.submit(); }, 600);
+      });
+    }
+
+    if (searchInput) {
+      var searchTimer;
+      searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function() { form.submit(); }, 600);
+      });
+    }
+  })();
+</script>
+
+<%- include('admin-footer') %>

@@ -14,6 +14,8 @@ const MobileLoad = require('../models/mobileLoad');
 const VisitorRequest = require('../models/visitorRequest');
 const GuestRoomBooking = require('../models/guestRoomBooking');
 const { getSidebarBadges } = require('../utils/sidebarBadges');
+const WardenActivityLog   = require('../models/wardenActivityLog');
+const Driver              = require('../models/driver');
 // ======================
 // HELPER — normalise the idImage path stored in the DB.
 // Multer saves to  public/uploads/ids/file.jpg
@@ -34,7 +36,8 @@ async function generateUserId(role) {
     const prefix =
         role === 'student' ? 'STU' :
         role === 'admin'   ? 'ADM' :
-        role === 'warden'  ? 'WAR' : 'USR';
+        role === 'warden'  ? 'WAR' :
+        role === 'driver'  ? 'DRV' : 'USR';
 
     const year     = new Date().getFullYear();
     const count    = await User.countDocuments({ role });
@@ -81,10 +84,13 @@ exports.getDashboard = async (req, res) => {
         const students         = await User.countDocuments({ role: 'student' });
         const wardens          = await User.countDocuments({ role: 'warden' });
         const admins           = await User.countDocuments({ role: 'admin' });
-        const pendingApprovals = await User.countDocuments({ role: 'student', status: 'pending' });
+        const pendingStudentApprovals = await User.countDocuments({ role: 'student', status: 'pending' });
+        const pendingDriverApprovals   = await User.countDocuments({ role: 'driver', status: 'pending' });
+        const pendingApprovals         = pendingStudentApprovals + pendingDriverApprovals;
         const approvedStudents = await User.countDocuments({ role: 'student', status: 'approved' });
         const rejectedStudents = await User.countDocuments({ role: 'student', status: 'rejected' });
-        const totalUsers       = students + wardens + admins;
+        const drivers          = await User.countDocuments({ role: 'driver' });
+        const totalUsers       = students + wardens + admins + drivers;
 
         // Room stats
         const rooms          = await Room.find().lean();
@@ -190,7 +196,7 @@ const opsPendingGuestBookings = opsPendingVisitors + opsPendingBookings;
             opsPendingGuestBookings,
             opsPendingMobileLoad,
             stats: {
-                totalUsers, students, wardens, admins,
+                totalUsers, students, wardens, admins, drivers,
                 pendingApprovals, approvedStudents, rejectedStudents,
                 occupiedRooms, vacantRooms,
                 outstandingFees, collectedFees,
@@ -203,6 +209,8 @@ const opsPendingGuestBookings = opsPendingVisitors + opsPendingBookings;
                 pendingRoomRequests: opsPendingRoomRequests,
                 pendingMobileLoad:   opsPendingMobileLoad
             },
+            successMessage: req.query.success || null,
+            errorMessage  : req.query.error   || null,
             recentActivities: [{
                 action : 'Dashboard Accessed',
                 user   : user.fullname || 'Admin',
@@ -306,6 +314,133 @@ exports.rejectStudent = async (req, res) => {
 
 
 // ======================
+// APPROVE DRIVER
+// ======================
+exports.approveDriver = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).send('Access Denied');
+
+        const driver = await User.findOne({ _id: req.params.id, role: 'driver' });
+
+        if (!driver) return res.redirect('/admin/users');
+        if (driver.status === 'approved') return res.redirect('/admin/users');
+
+        driver.status = 'approved';
+        const plainPassword = driver.tempPassword || '(contact admin)';
+        driver.tempPassword = undefined;
+
+        await driver.save();
+
+        // Create Driver record if it doesn't exist (in case it was only a User)
+        try {
+            await Driver.findOneAndUpdate(
+                { user: driver._id },
+                { $setOnInsert: { user: driver._id } },
+                { upsert: true, setDefaultsOnInsert: true }
+            );
+        } catch (_) {}
+
+        sendApprovalEmail(
+            driver.email,
+            driver.fullname,
+            driver.userId,
+            plainPassword
+        ).catch(err => console.error('Approval email failed:', err));
+
+        res.redirect('/admin/users');
+
+    } catch (err) {
+        console.error('approveDriver Error:', err);
+        res.status(500).send('Server Error');
+    }
+};
+
+
+// ======================
+// REJECT DRIVER
+// ======================
+exports.rejectDriver = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).send('Access Denied');
+
+        await User.findOneAndUpdate(
+            { _id: req.params.id, role: 'driver' },
+            { status: 'rejected' }
+        );
+
+        // Also deactivate the Driver record
+        await Driver.findOneAndUpdate(
+            { user: req.params.id },
+            { isActive: false }
+        );
+
+        res.redirect('/admin/users');
+    } catch (err) {
+        console.error('rejectDriver Error:', err);
+        res.status(500).send('Server Error');
+    }
+};
+
+
+// ======================
+// SUSPEND DRIVER
+// ======================
+exports.suspendDriver = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).send('Access Denied');
+
+        const driver = await User.findOne({ _id: req.params.id, role: 'driver' });
+        if (!driver) return res.redirect('/admin/users?error=Driver+not+found.');
+        if (driver.status !== 'approved') return res.redirect('/admin/users?error=Only+approved+drivers+can+be+suspended.');
+
+        driver.status = 'suspended';
+        await driver.save();
+
+        // Also deactivate the Driver record
+        await Driver.findOneAndUpdate(
+            { user: driver._id },
+            { isActive: false }
+        );
+
+        res.redirect('/admin/users?success=Driver+suspended+successfully.');
+
+    } catch (err) {
+        console.error('suspendDriver Error:', err);
+        res.redirect('/admin/users?error=Failed+to+suspend+driver.');
+    }
+};
+
+
+// ======================
+// UNSUSPEND (REACTIVATE) DRIVER
+// ======================
+exports.unsuspendDriver = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).send('Access Denied');
+
+        const driver = await User.findOne({ _id: req.params.id, role: 'driver' });
+        if (!driver) return res.redirect('/admin/users?error=Driver+not+found.');
+        if (driver.status !== 'suspended') return res.redirect('/admin/users?error=Driver+is+not+currently+suspended.');
+
+        driver.status = 'approved';
+        await driver.save();
+
+        // Reactivate the Driver record
+        await Driver.findOneAndUpdate(
+            { user: driver._id },
+            { isActive: true }
+        );
+
+        res.redirect('/admin/users?success=Driver+reactivated+successfully.');
+
+    } catch (err) {
+        console.error('unsuspendDriver Error:', err);
+        res.redirect('/admin/users?error=Failed+to+reactivate+driver.');
+    }
+};
+
+
+// ======================
 // USER MANAGEMENT PAGE
 // ======================
 exports.getUserManagement = async (req, res) => {
@@ -323,7 +458,9 @@ exports.getUserManagement = async (req, res) => {
         const students        = users.filter(u => u.role === 'student');
         const admins          = users.filter(u => u.role === 'admin');
         const wardens         = users.filter(u => u.role === 'warden');
+        const drivers         = users.filter(u => u.role === 'driver');
         const pendingStudents = users.filter(u => u.role === 'student' && u.status === 'pending');
+        const pendingDrivers  = users.filter(u => u.role === 'driver' && u.status === 'pending');
 
         const studentInfoMap  = {};
         const allStudentInfos = await Student.find().lean();
@@ -367,21 +504,23 @@ exports.getUserManagement = async (req, res) => {
             students,
             admins,
             wardens,
+            drivers,
             pendingStudents,
+            pendingDrivers,
             ...badges,
             pendingApprovalsCount: pendingStudents.length,
             studentInfoMap,
             unreadCount,
             recentNotifs,
             successMessage  : req.query.success || null,
-            errorMessage    : req.query.error   || null,
-            stats: {
-                totalUsers : users.length,
-                students   : students.length,
-                admins     : admins.length,
-                wardens    : wardens.length,
-                pending    : pendingStudents.length
-            }
+            errorMessage    : req.query.error   || null,                stats: {
+                    totalUsers : users.length,
+                    students   : students.length,
+                    admins     : admins.length,
+                    wardens    : wardens.length,
+                    drivers    : drivers.length,
+                    pending    : pendingStudents.length + pendingDrivers.length
+                }
         });
 
     } catch (err) {
@@ -404,7 +543,7 @@ exports.getUserManagement = async (req, res) => {
 exports.previewNextUserId = async (req, res) => {
     try {
         const { role } = req.query;
-        if (!['student', 'admin', 'warden'].includes(role)) {
+        if (!['student', 'admin', 'warden', 'driver'].includes(role)) {
             return res.json({ preview: '—' });
         }
         const preview = await generateUserId(role);
@@ -423,20 +562,37 @@ exports.addUser = async (req, res) => {
     try {
         if (!req.user || req.user.role !== 'admin') return res.status(403).send('Access Denied');
 
+        // ── Helper: redirect with error and clean up any uploaded file ──
+        // Mirrors the `fail()` pattern in authController.registerStudent.
+        const fail = (msg) => {
+            if (req.file) {
+                const fs   = require('fs');
+                const path = require('path');
+                const filePath = path.join(__dirname, '..', 'public', 'uploads', 'ids', req.file.filename);
+                fs.unlink(filePath, () => {});
+            }
+            return res.redirect('/admin/users?error=' + encodeURIComponent(msg) + '&page=add-user');
+        };
+
         const { fullname, email, phoneNumber, gender, password, role } = req.body;
 
         if (!fullname || !email || !phoneNumber || !gender || !password || !role)
-            return res.redirect('/admin/users?error=All+fields+are+required.&page=add-user');
+            return fail('All fields are required.');
 
-        if (!['student', 'admin', 'warden'].includes(role))
-            return res.redirect('/admin/users?error=Invalid+role.&page=add-user');
+        if (!['student', 'admin', 'warden', 'driver'].includes(role))
+            return fail('Invalid role.');
 
         if (!isStrongPassword(password))
-            return res.redirect('/admin/users?error=Password+must+be+at+least+8+characters+and+include+uppercase,+lowercase,+number,+and+special+character.&page=add-user');
+            return fail('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.');
 
         const existing = await User.findOne({ email });
         if (existing)
-            return res.redirect('/admin/users?error=Email+already+registered.&page=add-user');
+            return fail('Email already registered.');
+
+        // ── ID Card required for students (same validation as self-registration) ──
+        // Checked after cheap text validations to minimise orphaned files on disk.
+        if (role === 'student' && !req.file)
+            return fail('ID Card upload is required for student accounts.');
 
         const hashedPassword = await bcrypt.hash(password, 10);
         const userId         = await generateUserId(role);
@@ -450,6 +606,7 @@ exports.addUser = async (req, res) => {
             status    : 'approved',
             phoneNumber,
             gender,
+            idImage   : role === 'student' ? 'uploads/ids/' + req.file.filename : null,
             createdBy : req.user.userId
         });
 
@@ -468,6 +625,13 @@ exports.addUser = async (req, res) => {
         );
 
     } catch (err) {
+        // Clean up any uploaded file on server error
+        if (req.file) {
+            const fs   = require('fs');
+            const path = require('path');
+            const filePath = path.join(__dirname, '..', 'public', 'uploads', 'ids', req.file.filename);
+            fs.unlink(filePath, () => {});
+        }
         console.error('Add User Error:', err);
         res.redirect('/admin/users?error=Server+error+while+creating+user.&page=add-user');
     }
@@ -641,6 +805,7 @@ exports.saveStudentInfo = async (req, res) => {
             guardianName,
             guardianContact,
             guardianRelation,
+            guardianEmail,
             admissionDate,
             emergencyContact
         } = req.body;
@@ -654,6 +819,7 @@ exports.saveStudentInfo = async (req, res) => {
         if (guardianName     !== undefined) updateFields.guardianName     = guardianName     || null;
         if (guardianContact  !== undefined) updateFields.guardianContact  = guardianContact  || null;
         if (guardianRelation !== undefined) updateFields.guardianRelation = guardianRelation || null;
+        if (guardianEmail !== undefined) updateFields.guardianEmail = guardianEmail || null;
         if (emergencyContact !== undefined) updateFields.emergencyContact = emergencyContact || null;
         if (admissionDate    !== undefined && admissionDate !== '') {
             updateFields.admissionDate = new Date(admissionDate);
@@ -784,5 +950,299 @@ exports.markAllNotificationsRead = async (req, res) => {
     } catch (err) {
         console.error('adminController markAllNotificationsRead:', err);
         res.status(500).json({ error: 'Server error' });
+    }
+};
+
+
+// ============================================================
+// ADMIN PROFILE — GET
+// GET /admin/profile
+// ============================================================
+exports.getAdminProfile = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') return res.status(403).send('Access Denied');
+
+        // ── Notifications for topbar bell ──
+        const unreadCount = await Notification.countDocuments({
+            isActive: true,
+            $or: [
+                { target: { $in: ['All', 'Admins'] }, readBy: { $nin: [req.user._id] } },
+                { recipient: req.user._id, readBy: { $nin: [req.user._id] } }
+            ]
+        });
+        const recentNotifs = await Notification.find({
+            isActive: true,
+            $or: [
+                { target: { $in: ['All', 'Admins'] } },
+                { recipient: req.user._id }
+            ]
+        }).sort({ createdAt: -1 }).limit(5).lean();
+        recentNotifs.forEach(n => { n._timeAgo = timeAgo(n.createdAt); });
+        const badges = await getSidebarBadges(req.user);
+
+        // Normalise profileImage path (strip 'public/' prefix) for browser URLs
+        const profileUser = req.user.toObject ? req.user.toObject() : { ...req.user };
+        profileUser.profileImage = normaliseImagePath(profileUser.profileImage);
+
+        res.render('admin/profile', {
+            user            : profileUser,
+            activePage      : 'profile',
+            pageTitle       : 'My Profile',
+            pageSubtitle    : req.user.userId,
+            unreadCount,
+            recentNotifs,
+            ...badges,
+            successMessage  : req.query.success || null,
+            errorMessage    : req.query.error   || null
+        });
+    } catch (err) {
+        console.error('getAdminProfile:', err);
+        res.status(500).send('Server Error');
+    }
+};
+
+
+// ============================================================
+// ADMIN PROFILE — UPDATE
+// POST /admin/profile/update
+// ============================================================
+exports.updateAdminProfile = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') return res.status(403).send('Access Denied');
+
+        const { fullname, email, phoneNumber, gender, dateOfBirth } = req.body;
+
+        if (!fullname || !email) {
+            return res.redirect('/admin/profile?error=Name+and+email+are+required.');
+        }
+
+        // Check email uniqueness (exclude current user)
+        const existingEmailUser = await User.findOne({ email, _id: { $ne: req.user._id } });
+        if (existingEmailUser) {
+            return res.redirect('/admin/profile?error=Email+is+already+in+use+by+another+account.');
+        }
+
+        const updateData = { fullname, email };
+        if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+        if (gender !== undefined && gender !== '') updateData.gender = gender;
+        if (dateOfBirth !== undefined && dateOfBirth !== '') updateData.dateOfBirth = new Date(dateOfBirth);
+
+        await User.findByIdAndUpdate(req.user._id, { $set: updateData });
+        res.redirect('/admin/profile?success=Profile+updated+successfully.');
+    } catch (err) {
+        console.error('updateAdminProfile:', err);
+        res.redirect('/admin/profile?error=Failed+to+update+profile.');
+    }
+};
+
+
+// ============================================================
+// ADMIN PROFILE — UPDATE PROFILE PICTURE
+// POST /admin/profile/picture (multipart: profileImage)
+// POST /admin/profile/picture (x-www-form-urlencoded: _action=remove)
+// ============================================================
+exports.updateAdminProfileImage = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') return res.status(403).send('Access Denied');
+
+        // ── Remove existing photo ──
+        if (req.body._action === 'remove') {
+            const user = await User.findById(req.user._id);
+            if (user.profileImage) {
+                // Clean up old file from disk
+                const fs   = require('fs');
+                const path = require('path');
+                const filePath = path.join(__dirname, '..', user.profileImage);
+                fs.unlink(filePath, () => {});
+            }
+            user.profileImage = null;
+            await user.save();
+            // Refresh the user object in session
+            req.user.profileImage = null;
+            return res.redirect('/admin/profile?success=Profile+photo+removed.');
+        }
+
+        // ── Upload new photo ──
+        if (!req.file) {
+            return res.redirect('/admin/profile?error=No+image+file+selected.');
+        }
+
+        const user = await User.findById(req.user._id);
+
+        // Delete old profile image if exists
+        if (user.profileImage) {
+            const fs   = require('fs');
+            const path = require('path');
+            const oldPath = path.join(__dirname, '..', user.profileImage);
+            fs.unlink(oldPath, () => {});
+        }
+
+        // Multer saves to public/uploads/profiles/<file>
+        // We store the full path so we can clean up later
+        user.profileImage = 'public/uploads/profiles/' + req.file.filename;
+        await user.save();
+
+        // Refresh the user object in request so the EJS sees the new image
+        req.user.profileImage = user.profileImage;
+
+        res.redirect('/admin/profile?success=Profile+photo+updated.');
+    } catch (err) {
+        console.error('updateAdminProfileImage:', err);
+        res.redirect('/admin/profile?error=Failed+to+update+profile+photo.');
+    }
+};
+
+
+// ============================================================
+// ADMIN PROFILE — CHANGE PASSWORD
+// POST /admin/profile/password
+// ============================================================
+exports.changeAdminPassword = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') return res.status(403).send('Access Denied');
+
+        const { currentPassword, newPassword, confirmPassword } = req.body;
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return res.redirect('/admin/profile?error=All+password+fields+are+required.');
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.redirect('/admin/profile?error=New+passwords+do+not+match.');
+        }
+
+        // Verify current password
+        const user = await User.findById(req.user._id);
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return res.redirect('/admin/profile?error=Current+password+is+incorrect.');
+        }
+
+        // Check password strength
+        let strengthCount = 0;
+        if (/[a-z]/.test(newPassword)) strengthCount++;
+        if (/[A-Z]/.test(newPassword)) strengthCount++;
+        if (/\d/.test(newPassword)) strengthCount++;
+        if (/[^A-Za-z0-9]/.test(newPassword)) strengthCount++;
+        if (newPassword.length < 8 || strengthCount < 3) {
+            return res.redirect('/admin/profile?error=Password+must+be+at+least+8+characters+and+include+uppercase,+lowercase,+number,+and+special+character.');
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        await user.save();
+
+        res.redirect('/admin/profile?success=Password+changed+successfully.');
+    } catch (err) {
+        console.error('changeAdminPassword:', err);
+        res.redirect('/admin/profile?error=Failed+to+change+password.');
+    }
+};
+
+
+// ============================================================
+// WARDEN ACTIVITY LOG
+// GET /admin/operations/activity
+// ============================================================
+exports.getWardenActivityLog = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') return res.status(403).send('Access Denied');
+
+        const page    = Math.max(1, parseInt(req.query.page) || 1);
+        const limit   = Math.min(100, Math.max(10, parseInt(req.query.limit) || 25));
+        const skip    = (page - 1) * limit;
+
+        const actionFilter  = req.query.action  || '';
+        const wardenFilter  = req.query.warden  || '';
+        const searchQuery   = req.query.search  || '';
+
+        // Build MongoDB query
+        const query = {};
+
+        if (actionFilter) {
+            query.action = actionFilter;
+        }
+
+        if (wardenFilter) {
+            query.$or = [
+                { wardenName   : { $regex: wardenFilter, $options: 'i' } },
+                { wardenUserId : { $regex: wardenFilter, $options: 'i' } }
+            ];
+        }
+
+        if (searchQuery && !wardenFilter) {
+            query.$or = [
+                { description       : { $regex: searchQuery, $options: 'i' } },
+                { wardenName        : { $regex: searchQuery, $options: 'i' } },
+                { wardenUserId      : { $regex: searchQuery, $options: 'i' } },
+                { relatedStudentName   : { $regex: searchQuery, $options: 'i' } },
+                { relatedStudentUserId : { $regex: searchQuery, $options: 'i' } }
+            ];
+        }
+
+        const [total, logs] = await Promise.all([
+            WardenActivityLog.countDocuments(query),
+            WardenActivityLog.find(query)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean()
+        ]);
+
+        const totalPages = Math.ceil(total / limit);
+
+        // Get distinct action types for the filter dropdown
+        const distinctActions = await WardenActivityLog.distinct('action');
+
+        // Format timestamps
+        logs.forEach(log => {
+            log._timeAgo = timeAgo(log.createdAt);
+            log._formattedDate = new Date(log.createdAt).toLocaleDateString('en-US', {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+        });
+
+        // ── Badges & notifications for topbar ──
+        const unreadCount = await Notification.countDocuments({
+            isActive: true,
+            $or: [
+                { target: { $in: ['All', 'Admins'] }, readBy: { $nin: [req.user._id] } },
+                { recipient: req.user._id, readBy: { $nin: [req.user._id] } }
+            ]
+        });
+        const recentNotifs = await Notification.find({
+            isActive: true,
+            $or: [
+                { target: { $in: ['All', 'Admins'] } },
+                { recipient: req.user._id }
+            ]
+        }).sort({ createdAt: -1 }).limit(5).lean();
+        recentNotifs.forEach(n => { n._timeAgo = timeAgo(n.createdAt); });
+        const badges = await getSidebarBadges(req.user);
+
+        res.render('admin/wardenActivityLog', {
+            user            : req.user,
+            activePage      : 'ops-activity',
+            pageTitle       : 'Warden Activity Log',
+            pageSubtitle    : 'Track all actions performed by wardens',
+            logs,
+            total,
+            page,
+            totalPages,
+            limit,
+            actionFilter,
+            wardenFilter,
+            searchQuery,
+            distinctActions,
+            unreadCount,
+            recentNotifs,
+            ...badges,
+            successMessage  : req.query.success || null,
+            errorMessage    : req.query.error   || null
+        });
+    } catch (err) {
+        console.error('getWardenActivityLog:', err);
+        res.status(500).send('Server Error');
     }
 };

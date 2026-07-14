@@ -22,6 +22,10 @@ router.get('/register/student', (req, res) =>
     res.render('register-student', { error: null })
 );
 
+router.get('/register/driver', (req, res) =>
+    res.render('register-driver', { error: null })
+);
+
 // ADMIN
 router.get('/login/admin', (req, res) =>
     res.render('login-admin', { error: null })
@@ -30,6 +34,11 @@ router.get('/login/admin', (req, res) =>
 // WARDEN
 router.get('/login/warden', (req, res) =>
     res.render('login-warden', { error: null })
+);
+
+// DRIVER
+router.get('/login/driver', (req, res) =>
+    res.render('login-driver', { error: null })
 );
 
 module.exports = router;

@@ -1,0 +1,63 @@
+<!-- ══════════════════════════════════════
+     ID DOCUMENT LIGHTBOX (shared partial)
+     Include after the main page content, before the footer.
+     Provides: openImageLightbox(src, studentName), closeImageLightbox()
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="imageLightbox" onclick="closeImageLightbox()">
+  <div class="lightbox-box" onclick="event.stopPropagation()">
+    <div class="lightbox-head">
+      <span id="lightbox-title" class="lightbox-title"></span>
+      <div class="lightbox-actions">
+        <a id="lightbox-download" href="#" download class="lightbox-btn">
+          <i class="fas fa-download"></i> Download
+        </a>
+        <button class="lightbox-btn lightbox-close-btn" onclick="closeImageLightbox()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+    <div class="lightbox-body">
+      <img id="lightbox-img" src="" alt="ID Document" class="lightbox-img">
+      <div id="lightbox-pdf-msg" class="lightbox-pdf-msg" style="display:none">
+        <i class="fas fa-file-pdf"></i>
+        <p>This document is a PDF file.</p>
+        <a id="lightbox-pdf-link" href="#" target="_blank" class="btn-primary" style="display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1.2rem;border-radius:6px;font-size:.82rem;text-decoration:none;margin-top:.5rem;">
+          <i class="fas fa-external-link-alt"></i> Open PDF
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   ID DOCUMENT LIGHTBOX (shared)
+   Used by admin/userM.ejs, student/profile.ejs
+═══════════════════════════════════════════════ */
+function openImageLightbox(src, studentName) {
+  var isPdf = src.toLowerCase().endsWith('.pdf');
+  var img   = document.getElementById('lightbox-img');
+  var pdf   = document.getElementById('lightbox-pdf-msg');
+  var title = document.getElementById('lightbox-title');
+  var dl    = document.getElementById('lightbox-download');
+
+  title.textContent = 'ID Document' + (studentName ? ' — ' + studentName : '');
+  dl.href = src;
+
+  if (isPdf) {
+    img.style.display = 'none';
+    pdf.style.display = 'flex';
+    document.getElementById('lightbox-pdf-link').href = src;
+  } else {
+    pdf.style.display = 'none';
+    img.style.display = 'block';
+    img.src = src;
+  }
+  document.getElementById('imageLightbox').classList.add('open');
+}
+
+function closeImageLightbox() {
+  document.getElementById('imageLightbox').classList.remove('open');
+  document.getElementById('lightbox-img').src = '';
+}
+</script>

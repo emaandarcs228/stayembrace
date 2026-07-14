@@ -1,0 +1,1157 @@
+<% const activePage = 'transport'; const pageTitle = 'Transport Services'; const pageSubtitle = 'Approved transport providers'; %>
+<%- include('./student-header') %>
+
+<!-- ══════════════════════════════════════════════════════════════
+     TRANSPORT PROVIDERS + BOOK A CAB PAGE
+     Premium redesign with animations, search, and refined layout
+══════════════════════════════════════════════════════════════ -->
+
+<style>
+  /* ── Page entrance animation ── */
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245,124,0,.2); }
+    50%      { box-shadow: 0 0 0 8px rgba(245,124,0,0); }
+  }
+  @keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .fade-in {
+    animation: fadeSlideUp .45s ease both;
+  }
+  .fade-in-d1 { animation-delay: .05s; }
+  .fade-in-d2 { animation-delay: .1s; }
+  .fade-in-d3 { animation-delay: .15s; }
+  .fade-in-d4 { animation-delay: .2s; }
+  .fade-in-d5 { animation-delay: .25s; }
+  .fade-in-d6 { animation-delay: .3s; }
+
+  /* ── Tab system ── */
+  .tp-tabs {
+    display: flex;
+    gap: .35rem;
+    margin-bottom: 1.5rem;
+    padding: .25rem;
+    background: #f8f9fa;
+    border-radius: var(--radius-lg);
+    width: fit-content;
+  }
+  .tp-tab {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .5rem 1.1rem;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-md);
+    font-size: .78rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .25s;
+  }
+  .tp-tab i { font-size: .85rem; }
+  .tp-tab:hover { color: var(--text-primary); }
+  .tp-tab.active {
+    background: white;
+    color: var(--text-primary);
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  }
+  .tp-tab .tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 .35rem;
+    border-radius: 9px;
+    font-size: .55rem;
+    font-weight: 700;
+    background: #FFF3E0;
+    color: #E65100;
+  }
+
+  /* ── Search bar ── */
+  .tp-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: .4rem .8rem;
+    transition: border-color .2s, box-shadow .2s;
+    flex: 1;
+    max-width: 420px;
+  }
+  .tp-search-wrap:focus-within {
+    border-color: #F57C00;
+    box-shadow: 0 0 0 3px rgba(245,124,0,.12);
+  }
+  .tp-search-wrap i {
+    font-size: .85rem;
+    color: #bbb;
+  }
+  .tp-search-wrap input {
+    border: none;
+    background: none;
+    outline: none;
+    font-size: .78rem;
+    width: 100%;
+    font-family: inherit;
+    color: var(--text-primary);
+  }
+  .tp-search-wrap input::placeholder { color: #bbb; }
+
+  .tp-filter-btn {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .45rem .75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: white;
+    font-size: .72rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .2s;
+  }
+  .tp-filter-btn:hover {
+    border-color: #F57C00;
+    color: #F57C00;
+  }
+  .tp-filter-btn.active {
+    background: #FFF8E1;
+    border-color: #FFB74D;
+    color: #E65100;
+  }
+
+  /* ── Provider cards ── */
+  .tp-card {
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1), box-shadow .3s;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: white;
+  }
+  .tp-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0,0,0,.08);
+  }
+  .tp-card-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    color: white;
+    font-weight: 700;
+    position: relative;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+  }
+  .tp-card-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .tp-card-avatar .initials {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #F57C00, #E65100);
+  }
+  .tp-verified-badge {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #2E7D32;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .52rem;
+    border: 2.5px solid white;
+  }
+  .tp-section {
+    padding: .75rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .tp-section:last-of-type { border-bottom: none; }
+  .tp-label {
+    font-size: .6rem;
+    font-weight: 600;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin-bottom: .3rem;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+  }
+  .tp-value {
+    font-size: .8rem;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .tp-value-sm {
+    font-size: .7rem;
+    font-weight: 400;
+    color: var(--text-muted);
+  }
+  .tp-vehicle-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .2rem .6rem;
+    border-radius: var(--radius-pill);
+    font-size: .68rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    background: #F3E5F5;
+    color: #7B1FA2;
+  }
+  .tp-reg-plate {
+    font-family: 'Orbitron', 'Courier New', monospace;
+    font-size: .72rem;
+    font-weight: 700;
+    color: #333;
+    letter-spacing: .6px;
+    padding: .1rem .5rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+    border: 1px solid #e8e8e8;
+    display: inline-block;
+  }
+  .tp-doc-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .58rem;
+    padding: .12rem .45rem;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  .tp-doc-chip.uploaded { background: #E8F5E9; color: #2E7D32; }
+  .tp-doc-chip.missing  { background: #f5f5f5; color: #ccc; }
+  .tp-expiry {
+    font-size: .65rem;
+    font-weight: 500;
+  }
+  .tp-expiry.valid    { color: var(--green); }
+  .tp-expiry.warning  { color: #E65100; }
+  .tp-expiry.expired  { color: #C62828; }
+
+  .tp-call-btn, .tp-email-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .38rem .7rem;
+    border-radius: var(--radius-md);
+    font-size: .72rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all .2s;
+  }
+  .tp-call-btn  { background: #E8F5E9; color: #2E7D32; }
+  .tp-call-btn:hover  { background: #C8E6C9; }
+  .tp-email-btn { background: #E3F2FD; color: #1565C0; }
+  .tp-email-btn:hover { background: #BBDEFB; }
+
+  .tp-book-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    padding: .45rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: .75rem;
+    font-weight: 600;
+    background: linear-gradient(135deg, #F57C00, #E65100);
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .3s cubic-bezier(.34,1.56,.64,1);
+    white-space: nowrap;
+  }
+  .tp-book-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(245,124,0,.35);
+  }
+  .tp-book-btn:active {
+    transform: translateY(0);
+  }
+
+  /* ── Online indicator ── */
+  .tp-online-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: .25rem;
+    background: #4CAF50;
+    box-shadow: 0 0 0 0 rgba(76,175,80,.4);
+    animation: pulseGlow 2s infinite;
+  }
+
+  /* ── Rating badge ── */
+  .tp-rating-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+    font-size: .7rem;
+    font-weight: 700;
+    color: #E65100;
+  }
+  .tp-rating-badge i { font-size: .65rem; color: #FFA000; }
+
+  /* ── Quick stat chips ── */
+  .tp-stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .15rem .5rem;
+    border-radius: var(--radius-pill);
+    font-size: .6rem;
+    font-weight: 600;
+    background: #f5f5f5;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .tp-card-avatar { width: 48px; height: 48px; font-size: 1.1rem; }
+    .tp-section { padding: .55rem .9rem; }
+    .tp-tabs { width: 100%; }
+    .tp-tab { flex: 1; justify-content: center; font-size: .72rem; padding: .4rem .6rem; }
+  }
+</style>
+
+<!-- ═══ TABS ═══ -->
+<div class="tp-tabs fade-in">
+  <button class="tp-tab active" id="tab-providers" onclick="switchTab('providers', this)">
+    <i class="ti ti-car"></i> Providers
+  </button>
+  <button class="tp-tab" id="tab-bookings" onclick="switchTab('bookings', this)">
+    <i class="ti ti-calendar-check"></i> My Bookings
+    <% if (typeof myBookings !== 'undefined' && myBookings.filter(b => b.status === 'Pending').length > 0) { %>
+      <span class="tab-badge"><%= myBookings.filter(b => b.status === 'Pending').length %></span>
+    <% } %>
+  </button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     TAB: PROVIDERS
+══════════════════════════════════════════════════════════════ -->
+<div class="page active" id="page-providers">
+
+  <!-- ── Search + filter bar ── -->
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.3rem;flex-wrap:wrap" class="fade-in">
+    <div class="tp-search-wrap">
+      <i class="ti ti-search"></i>
+      <input type="text" id="searchProvider" placeholder="Search by name, vehicle, area..." oninput="filterProviders()">
+    </div>
+    <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+      <button class="tp-filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+      <button class="tp-filter-btn" data-filter="car" onclick="setFilter('car', this)"><i class="fas fa-car"></i> Car</button>
+      <button class="tp-filter-btn" data-filter="van" onclick="setFilter('van', this)"><i class="fas fa-truck"></i> Van</button>
+      <button class="tp-filter-btn" data-filter="bike" onclick="setFilter('bike', this)"><i class="fas fa-motorcycle"></i> Bike</button>
+    </div>
+  </div>
+
+  <!-- ── Stats bar ── -->
+  <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1.2rem;flex-wrap:wrap" class="fade-in fade-in-d1">
+    <span style="font-size:.72rem;color:var(--text-muted)">
+      <strong style="color:var(--text-primary)" id="providerCount"><%= totalProviders %></strong> provider<%= totalProviders !== 1 ? 's' : '' %> <span style="color:#ccc" id="filteredHint"></span>
+    </span>
+    <span class="badge badge-success" style="font-size:.6rem"><i class="ti ti-shield-check"></i> Verified</span>
+    <span class="badge badge-info" style="font-size:.6rem"><i class="ti ti-id"></i> Licensed</span>
+    <span class="badge badge-teal" style="font-size:.6rem"><i class="ti ti-file-check"></i> Documented</span>
+  </div>
+
+  <% if (providers.length > 0) { %>
+
+  <div id="providerGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:1.2rem">    <% // ── Helper: map vehicle type to filter category ──
+       function vehicleCategory(type) {
+         if (!type) return '';
+         var t = type.toLowerCase();
+         if (['sedan','suv','hatchback','coupe','convertible','crossover','pickup','sport'].some(function(w) { return t.indexOf(w) !== -1; })) return 'car';
+         if (['van','minivan','mpv'].some(function(w) { return t.indexOf(w) !== -1; })) return 'van';
+         if (['bike','motorcycle','scooter','motorbike'].some(function(w) { return t.indexOf(w) !== -1; })) return 'bike';
+         return t;
+       }
+    %>
+    <% providers.forEach(function(p, idx) {
+         // License expiry helpers
+         var expiryText = '—';
+         var expiryClass = '';
+         if (p.licenseExpiry) {
+           var expDate = new Date(p.licenseExpiry);
+           var now = new Date();
+           var diffDays = Math.ceil((expDate - now) / 86400000);
+           expiryText = expDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' });
+           if (diffDays < 0) { expiryClass = 'expired'; expiryText += ' (Expired)'; }
+           else if (diffDays < 30) { expiryClass = 'warning'; expiryText += ' (Expiring)'; }
+           else { expiryClass = 'valid'; }
+         }
+         var docCount = (p.hasCnicFront ? 1 : 0) + (p.hasCnicBack ? 1 : 0) + (p.hasLicenseImage ? 1 : 0) + (p.hasVehicleDoc ? 1 : 0);
+         var genderIcon = p.gender === 'male' ? 'ti ti-man' : (p.gender === 'female' ? 'ti ti-woman' : 'ti ti-user');
+         var vehicleCat = vehicleCategory(p.vehicleType || '');
+    %>
+
+    <!-- ── Provider Card ── -->
+    <div class="card tp-card fade-in fade-in-d<%= Math.min(idx + 1, 6) %>"
+         data-vehicle="<%= vehicleCat %>"
+         data-search="<%= (p.fullname + ' ' + (p.vehicleType || '') + ' ' + (p.serviceArea || '') + ' ' + (p.vehicleRegistration || '') + ' ' + p.phoneNumber).toLowerCase() %>">
+
+      <!-- ── HEADER with avatar ── -->
+      <div class="tp-section" style="display:flex;align-items:center;gap:1rem;padding:1.1rem 1.25rem;background:linear-gradient(135deg,#FFF8E1,#FFFDE7);position:relative">
+        <!-- Verified service indicator -->
+        <% if (p.isVerified) { %>
+        <span style="position:absolute;top:.6rem;right:.75rem;display:flex;align-items:center;gap:.25rem;font-size:.55rem;font-weight:600;color:#4CAF50">
+          <span class="tp-online-dot"></span> Verified
+        </span>
+        <% } %>
+
+        <!-- Avatar -->
+        <div class="tp-card-avatar">
+          <% if (p.profileImage) { %>
+            <img src="/<%= p.profileImage %>" alt="<%= p.fullname %>">
+          <% } else { %>
+            <div class="initials"><%= p.fullname.charAt(0).toUpperCase() %></div>
+          <% } %>
+          <% if (p.isVerified) { %>
+            <div class="tp-verified-badge"><i class="fas fa-check"></i></div>
+          <% } %>
+        </div>
+
+        <!-- Name + ID -->
+        <div style="min-width:0;flex:1;padding-right:1rem">
+          <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap">
+            <span style="font-size:.95rem;font-weight:700;color:var(--text-primary)"><%= p.fullname %></span>
+            <% if (p.isVerified) { %>
+              <span class="badge badge-success" style="font-size:.48rem;padding:.08rem .35rem"><i class="fas fa-check-circle"></i> Verified</span>
+            <% } %>
+          </div>
+          <div style="display:flex;align-items:center;gap:.35rem;margin-top:.05rem;flex-wrap:wrap">
+            <span style="font-size:.62rem;color:var(--text-muted)"><i class="ti ti-id-badge"></i> <%= p.userId %></span>
+            <span style="font-size:.55rem;color:#ddd">|</span>
+            <span style="font-size:.6rem;color:var(--text-muted)"><i class="<%= genderIcon %>"></i> <%= p.gender || '—' %></span>
+          </div>
+          <div style="margin-top:.2rem">
+            <% if (p.reviewCount > 0) { %>
+              <span class="tp-rating-badge">
+                <i class="fas fa-star"></i> <%= p.avgRating.toFixed(1) %>
+              </span>
+              <span style="font-size:.6rem;color:var(--text-muted)"><%= p.reviewCount %> review<%= p.reviewCount !== 1 ? 's' : '' %></span>
+            <% } else { %>
+              <span style="font-size:.6rem;color:#bbb">No ratings yet</span>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── VEHICLE ── -->
+      <div class="tp-section">
+        <div class="tp-label"><i class="ti ti-steering-wheel"></i> Vehicle</div>
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.25rem">
+          <span class="tp-vehicle-badge">
+            <i class="fas fa-car"></i> <%= p.vehicleType !== '—' ? p.vehicleType : 'Unknown' %>
+          </span>
+          <% if (p.vehicleRegistration !== '—') { %>
+            <span class="tp-reg-plate"><%= p.vehicleRegistration.toUpperCase() %></span>
+          <% } %>
+        </div>
+        <% if (p.vehicleModel !== '—') { %>
+          <div class="tp-value-sm"><i class="ti ti-calendar"></i> Model: <%= p.vehicleModel %></div>
+        <% } %>
+      </div>
+
+      <!-- ── ROUTE ── -->
+      <div class="tp-section">
+        <div class="tp-label"><i class="ti ti-map-pin"></i> Service Route</div>
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;font-weight:500;color:var(--text-primary)">
+            <i class="ti ti-map" style="color:#F57C00"></i>
+            <% if (p.serviceArea !== '—') { %>
+              <%= p.serviceArea %>
+            <% } else { %>
+              <span style="color:#bbb">Not specified</span>
+            <% } %>
+          </span>
+          <% if (p.experienceYears !== null && p.experienceYears !== '—') { %>
+            <span class="tp-stat-chip"><i class="ti ti-clock"></i> <%= p.experienceYears %> yr<%= p.experienceYears > 1 ? 's' : '' %></span>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- ── LICENSE & IDENTITY ── -->
+      <div class="tp-section">
+        <div class="tp-label"><i class="ti ti-id"></i> License &amp; Identity</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+          <div>
+            <div class="tp-value-sm" style="font-size:.6rem;color:#aaa">License No.</div>
+            <div class="tp-value" style="font-size:.73rem">
+              <% if (p.licenseNumber !== '—') { %>
+                <%= p.licenseNumber %>
+              <% } else { %><span style="color:#bbb">—</span><% } %>
+            </div>
+          </div>
+          <div>
+            <div class="tp-value-sm" style="font-size:.6rem;color:#aaa">Expiry</div>
+            <div class="tp-expiry <%= expiryClass %>"><%= expiryText %></div>
+          </div>
+          <div style="grid-column:1/-1">
+            <div class="tp-value-sm" style="font-size:.6rem;color:#aaa">CNIC</div>
+            <div class="tp-value" style="font-size:.73rem">
+              <% if (p.cnic !== '—') { %><%= p.cnic %><% } else { %><span style="color:#bbb">—</span><% } %>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── DOCUMENTS ── -->
+      <div class="tp-section">
+        <div class="tp-label"><i class="ti ti-file-text"></i> Documents (<%= docCount %>/4)</div>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap">
+          <span class="tp-doc-chip <%= p.hasCnicFront ? 'uploaded' : 'missing' %>">
+            <i class="fas fa-<%= p.hasCnicFront ? 'check-circle' : 'circle' %>"></i> CNIC Front
+          </span>
+          <span class="tp-doc-chip <%= p.hasCnicBack ? 'uploaded' : 'missing' %>">
+            <i class="fas fa-<%= p.hasCnicBack ? 'check-circle' : 'circle' %>"></i> CNIC Back
+          </span>
+          <span class="tp-doc-chip <%= p.hasLicenseImage ? 'uploaded' : 'missing' %>">
+            <i class="fas fa-<%= p.hasLicenseImage ? 'check-circle' : 'circle' %>"></i> License
+          </span>
+          <span class="tp-doc-chip <%= p.hasVehicleDoc ? 'uploaded' : 'missing' %>">
+            <i class="fas fa-<%= p.hasVehicleDoc ? 'check-circle' : 'circle' %>"></i> Vehicle Doc
+          </span>
+        </div>
+      </div>
+
+      <!-- ── CONTACT & BOOK ── -->
+      <div class="tp-section" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;background:#fafafa">
+
+        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+          <a href="tel:<%= p.phoneNumber %>" class="tp-call-btn"><i class="ti ti-phone"></i> <%= p.phoneNumber %></a>
+          <% if (p.email && p.email !== '—') { %>
+            <a href="mailto:<%= p.email %>" class="tp-email-btn"><i class="ti ti-mail"></i></a>
+          <% } %>
+        </div>
+
+        <button class="tp-book-btn"
+          data-driver-id="<%= p._id %>"
+          data-driver-name="<%= p.fullname %>"
+          data-driver-phone="<%= p.phoneNumber %>"
+          data-vehicle-type="<%= p.vehicleType %>"
+          data-vehicle-reg="<%= p.vehicleRegistration %>"
+          onclick="openBookCabModal(this)">
+          <i class="ti ti-taxi"></i> Book Now
+        </button>
+
+      </div>
+    </div>
+
+    <% }); %>
+
+  </div>
+
+  <!-- ── Empty search state ── -->
+  <div id="noResults" class="card" style="display:none;text-align:center;padding:2.5rem">
+    <i class="ti ti-search-off" style="font-size:2.5rem;opacity:.3;display:block;margin-bottom:.6rem"></i>
+    <h4>No providers match your search</h4>
+    <p style="font-size:.78rem;color:var(--text-muted)">Try adjusting your filter or search term.</p>
+  </div>
+
+  <% } else { %>
+
+  <div class="card fade-in">
+    <div class="empty-state" style="padding:3rem">
+      <i class="ti ti-car-off" style="font-size:3rem;opacity:.3;display:block;margin-bottom:.8rem"></i>
+      <h4>No transport providers available</h4>
+      <p>There are currently no approved transport providers listed. Check back later.</p>
+    </div>
+  </div>
+
+  <% } %>
+
+</div><!-- /page-providers -->
+
+<!-- ══════════════════════════════════════════════════════════════
+     TAB: MY BOOKINGS  (Booking History)
+══════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-bookings">
+
+  <!-- ── Search + status filter bar ── -->
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap" class="fade-in">
+    <div class="tp-search-wrap">
+      <i class="ti ti-search"></i>
+      <input type="text" id="searchBooking" placeholder="Search by driver, pickup, dropoff..." oninput="filterBookings()">
+    </div>
+    <div style="display:flex;gap:.35rem;flex-wrap:wrap" id="bookingStatusFilters">
+      <button class="tp-filter-btn active" data-status="all" onclick="setBookingFilter('all', this)">All</button>
+      <button class="tp-filter-btn" data-status="Pending" onclick="setBookingFilter('Pending', this)">Pending</button>
+      <button class="tp-filter-btn" data-status="Confirmed" onclick="setBookingFilter('Confirmed', this)">Confirmed</button>
+      <button class="tp-filter-btn" data-status="In Progress" onclick="setBookingFilter('In Progress', this)">In Progress</button>
+      <button class="tp-filter-btn" data-status="Completed" onclick="setBookingFilter('Completed', this)">Completed</button>
+      <button class="tp-filter-btn" data-status="Cancelled" onclick="setBookingFilter('Cancelled', this)">Cancelled</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-calendar-check" style="color:#F57C00"></i> My Cab Bookings</h3>
+      <span class="count-pill" id="bookingCount"><%= myBookings.length %> total</span>
+    </div>
+
+    <% if (myBookings.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Provider</th>
+            <th>Pickup</th>
+            <th>Dropoff</th>
+            <th>Date / Time</th>
+            <th>Pass.</th>
+            <th>Status</th>
+            <th>Rating</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="bookingTbody">
+          <% myBookings.forEach(function(b, i) {
+               const statusMap = {
+                 'Pending'     : 'badge-warning',
+                 'Confirmed'   : 'badge-info',
+                 'In Progress' : 'badge-purple',
+                 'Completed'   : 'badge-success',
+                 'Cancelled'   : 'badge-neutral'
+               };
+               const pickupDate   = new Date(b.pickupDate);
+               const bookedAtStr  = b.createdAt   ? new Date(b.createdAt).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+               const confirmedStr = b.confirmedAt ? new Date(b.confirmedAt).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+               const completedStr = b.completedAt ? new Date(b.completedAt).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+               const cancelAtStr  = (b.cancellation && b.cancellation.at) ? new Date(b.cancellation.at).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+               const cancelBy     = (b.cancellation && b.cancellation.by) ? b.cancellation.by : '';
+               const cancelReason = (b.cancellation && b.cancellation.reason) ? b.cancellation.reason : '';
+               const searchBlob   = (b.driverName + ' ' + b.pickupLocation + ' ' + b.dropoffLocation + ' ' + (b.vehicleType || '')).toLowerCase();
+          %>
+          <tr class="booking-row" style="cursor:pointer"
+              data-status="<%= b.status %>"
+              data-search="<%= searchBlob %>"
+              data-driver-name="<%= b.driverName %>"
+              data-driver-phone="<%= b.driverPhone || '' %>"
+              data-vehicle-type="<%= b.vehicleType || '' %>"
+              data-vehicle-reg="<%= b.vehicleRegistration || '' %>"
+              data-pickup="<%= b.pickupLocation %>"
+              data-dropoff="<%= b.dropoffLocation %>"
+              data-pickup-date="<%= pickupDate.toISOString() %>"
+              data-pickup-time="<%= b.pickupTime || '' %>"
+              data-passengers="<%= b.passengerCount %>"
+              data-notes="<%= b.notes || '' %>"
+              data-booked-at="<%= bookedAtStr %>"
+              data-confirmed-at="<%= confirmedStr %>"
+              data-completed-at="<%= completedStr %>"
+              data-cancel-by="<%= cancelBy %>"
+              data-cancel-reason="<%= cancelReason %>"
+              data-cancel-at="<%= cancelAtStr %>"
+              data-booking-id="<%= b._id %>"
+              data-rating="<%= b.rating || '' %>"
+              data-review="<%= b.review || '' %>"
+              onclick="openBookingDetail(this)">
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td>
+              <div style="font-weight:600;font-size:.78rem"><%= b.driverName %></div>
+              <div style="font-size:.65rem;color:var(--text-muted)"><%= b.vehicleType || '—' %> · <%= b.vehicleRegistration || '—' %></div>
+            </td>
+            <td style="font-size:.72rem;max-width:120px;word-break:break-word"><%= b.pickupLocation %></td>
+            <td style="font-size:.72rem;max-width:120px;word-break:break-word"><%= b.dropoffLocation %></td>
+            <td style="font-size:.72rem">
+              <%= pickupDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %>
+              <% if (b.pickupTime) { %><div style="font-size:.62rem;color:var(--text-muted)"><%= b.pickupTime %></div><% } %>
+            </td>
+            <td style="text-align:center"><span class="count-pill"><%= b.passengerCount %></span></td>
+            <td><span class="badge <%= statusMap[b.status] || 'badge-neutral' %>"><%= b.status %></span></td>
+            <td>
+              <% if (b.status === 'Completed' && b.rating) { %>
+                <span class="tp-rating-badge"><i class="fas fa-star"></i> <%= b.rating %>/5</span>
+              <% } else if (b.status === 'Completed') { %>
+                <span style="font-size:.65rem;color:#bbb">Not rated</span>
+              <% } else { %>
+                <span style="color:#ccc;font-size:.7rem">—</span>
+              <% } %>
+            </td>
+            <td>
+              <div style="display:flex;gap:.35rem;align-items:center">
+                <button type="button" class="act-btn btn-view" onclick="event.stopPropagation();openBookingDetail(this.closest('tr'))">
+                  <i class="ti ti-eye"></i>
+                </button>
+                <% if (b.status === 'Pending') { %>
+                <form action="/student/transport/cancel/<%= b._id %>" method="POST" id="cancelCabForm-<%= b._id %>">
+                  <button type="button" class="act-btn btn-cancel" onclick="event.stopPropagation();openCancelCabModal('<%= b._id %>')">
+                    <i class="ti ti-x"></i>
+                  </button>
+                </form>
+                <% } %>
+                <% if (b.status === 'Completed') { %>
+                <button type="button" class="act-btn btn-view" style="background:#FFF3E0;color:#E65100" onclick="event.stopPropagation();openRateModal(this.closest('tr'))">
+                  <i class="fas fa-star"></i> <%= b.rating ? 'Edit' : 'Rate' %>
+                </button>
+                <% } %>
+              </div>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ── Empty filter/search state ── -->
+    <div id="noBookingResults" class="empty-state" style="display:none">
+      <i class="ti ti-search-off" style="color:#F57C00"></i>
+      <h4>No bookings match your search</h4>
+      <p>Try a different search term or status filter.</p>
+    </div>
+
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-calendar-off" style="color:#F57C00"></i>
+      <h4>No cab bookings yet</h4>
+      <p>Browse providers above and tap <strong>"Book Now"</strong> to get started.</p>
+    </div>
+    <% } %>
+  </div>
+
+</div><!-- /page-bookings -->
+
+<!-- ══════════════════════════════════════════════════════════════
+     BOOKING DETAIL MODAL
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="bookingDetailModal" onclick="if(event.target===this)closeModal('bookingDetailModal')">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-head">
+      <h3><i class="ti ti-file-text" style="color:#F57C00"></i> Booking Details</h3>
+      <button class="modal-close" onclick="closeModal('bookingDetailModal')"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:.8rem">
+
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem">
+        <span class="badge" id="bdStatus">—</span>
+        <span style="font-size:.65rem;color:var(--text-muted)" id="bdBookedAt"></span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
+        <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.65rem .85rem">
+          <div class="tp-label"><i class="ti ti-user"></i> Driver</div>
+          <div class="tp-value" id="bdDriverName">—</div>
+          <div class="tp-value-sm" id="bdDriverPhone"></div>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.65rem .85rem">
+          <div class="tp-label"><i class="ti ti-steering-wheel"></i> Vehicle</div>
+          <div class="tp-value" id="bdVehicleType">—</div>
+          <div class="tp-value-sm" id="bdVehicleReg"></div>
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.65rem .85rem">
+        <div class="tp-label"><i class="ti ti-map-pin"></i> Trip</div>
+        <div style="font-size:.78rem;margin-bottom:.2rem"><strong>Pickup:</strong> <span id="bdPickup"></span></div>
+        <div style="font-size:.78rem;margin-bottom:.2rem"><strong>Dropoff:</strong> <span id="bdDropoff"></span></div>
+        <div style="font-size:.78rem;margin-bottom:.2rem"><strong>Date / Time:</strong> <span id="bdDateTime"></span></div>
+        <div style="font-size:.78rem" id="bdPassengersWrap"><strong>Passengers:</strong> <span id="bdPassengers"></span></div>
+        <div style="font-size:.78rem;margin-top:.2rem;display:none" id="bdNotesWrap"><strong>Notes:</strong> <span id="bdNotes"></span></div>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.65rem .85rem">
+        <div class="tp-label"><i class="ti ti-clock"></i> Timeline</div>
+        <div style="font-size:.75rem;display:flex;flex-direction:column;gap:.3rem" id="bdTimeline"></div>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.65rem .85rem;display:none" id="bdRatingWrap">
+        <div class="tp-label"><i class="fas fa-star"></i> Your Rating</div>
+        <div style="color:#FFA000;letter-spacing:.1rem" id="bdRatingStars"></div>
+        <div style="font-size:.75rem;color:var(--text-secondary);margin-top:.25rem" id="bdRatingReview"></div>
+      </div>
+
+    </div>
+
+    <div class="modal-foot">
+      <button type="button" class="btn-modal-cancel" onclick="closeModal('bookingDetailModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     RATE RIDE MODAL
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="rateModal" onclick="if(event.target===this)closeModal('rateModal')">
+  <div class="modal-box" style="max-width:460px">
+    <div class="modal-head">
+      <h3><i class="fas fa-star" style="color:#F57C00"></i> Rate Your Ride</h3>
+      <button class="modal-close" onclick="closeModal('rateModal')"><i class="fas fa-times"></i></button>
+    </div>
+
+    <form id="rateForm" method="POST">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:.9rem">
+
+        <div style="padding:.6rem .85rem;background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);font-size:.78rem">
+          Rating ride with: <strong id="rateDriverName">—</strong>
+        </div>
+
+        <div class="form-group">
+          <label>Your Rating <span class="req">*</span></label>
+          <div id="starPicker" style="display:flex;gap:.4rem;font-size:1.6rem">
+            <i class="fas fa-star" data-star="1" onclick="setStar(1)" style="cursor:pointer;color:#ddd"></i>
+            <i class="fas fa-star" data-star="2" onclick="setStar(2)" style="cursor:pointer;color:#ddd"></i>
+            <i class="fas fa-star" data-star="3" onclick="setStar(3)" style="cursor:pointer;color:#ddd"></i>
+            <i class="fas fa-star" data-star="4" onclick="setStar(4)" style="cursor:pointer;color:#ddd"></i>
+            <i class="fas fa-star" data-star="5" onclick="setStar(5)" style="cursor:pointer;color:#ddd"></i>
+          </div>
+          <input type="hidden" name="rating" id="rateValue">
+        </div>
+
+        <div class="form-group">
+          <label>Review <span style="font-size:.65rem;color:var(--text-muted)">(optional)</span></label>
+          <textarea name="review" id="rateReview" rows="3" maxlength="500" placeholder="Share your experience with this ride..."></textarea>
+        </div>
+
+      </div>
+
+      <div class="modal-foot">
+        <button type="submit" class="btn-modal-save"><i class="ti ti-send"></i> Submit Rating</button>
+        <button type="button" class="btn-modal-cancel" onclick="closeModal('rateModal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     BOOK A CAB MODAL
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="bookCabModal" onclick="if(event.target===this)closeModal('bookCabModal')">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-head">
+      <h3><i class="ti ti-taxi" style="color:#F57C00"></i> Book a Cab</h3>
+      <button class="modal-close" onclick="closeModal('bookCabModal')"><i class="fas fa-times"></i></button>
+    </div>
+
+    <form action="/student/transport/book" method="POST">
+      <input type="hidden" name="driverId" id="bkDriverId">
+      <input type="hidden" name="driverName" id="bkDriverName">
+      <input type="hidden" name="driverPhone" id="bkDriverPhone">
+      <input type="hidden" name="vehicleType" id="bkVehicleType">
+      <input type="hidden" name="vehicleRegistration" id="bkVehicleReg">
+
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:.9rem">
+
+        <div style="padding:.6rem .85rem;background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);font-size:.78rem">
+          Booking with: <strong id="bkProviderName">—</strong>
+          <span style="font-size:.68rem;color:var(--text-muted)" id="bkProviderVehicle"></span>
+        </div>
+
+        <div class="form-grid cols-1" style="gap:.8rem">
+
+          <div class="form-group">
+            <label>Pickup Location <span class="req">*</span></label>
+            <input type="text" name="pickupLocation" placeholder="e.g. Hostel Gate, Main Entrance" required>
+          </div>
+
+          <div class="form-group">
+            <label>Drop-off Location <span class="req">*</span></label>
+            <input type="text" name="dropoffLocation" placeholder="e.g. University, Mall, Airport" required>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem">
+            <div class="form-group">
+              <label>Pickup Date <span class="req">*</span></label>
+              <input type="date" name="pickupDate" required min="<%= new Date().toISOString().split('T')[0] %>">
+            </div>
+            <div class="form-group">
+              <label>Pickup Time</label>
+              <input type="time" name="pickupTime">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Passenger Count <span class="req">*</span></label>
+            <select name="passengerCount" required>
+              <% for (let i = 1; i <= 6; i++) { %>
+              <option value="<%= i %>" <%= i === 1 ? 'selected' : '' %>><%= i %> person<%= i !== 1 ? 's' : '' %></option>
+              <% } %>
+            </select>
+          </div>
+
+          <div class="form-group full">
+            <label>Notes <span style="font-size:.65rem;color:var(--text-muted)">(optional)</span></label>
+            <textarea name="notes" rows="2" placeholder="Any special instructions for the driver..."></textarea>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <button type="submit" class="btn-modal-save"><i class="ti ti-send"></i> Request Booking</button>
+        <button type="button" class="btn-modal-cancel" onclick="closeModal('bookCabModal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     CANCEL BOOKING MODAL
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="cancelCabModal">
+  <div class="del-modal-box">
+    <div class="del-icon"><i class="ti ti-x"></i></div>
+    <h3>Cancel this cab booking?</h3>
+    <p>The provider will be notified. This action can't be undone.</p>
+    <div class="del-btns">
+      <button class="btn-cancel-del" onclick="closeModal('cancelCabModal')">Keep Booking</button>
+      <button class="btn-confirm-del" id="confirmCancelCabBtn">Yes, Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Tab switching ──
+function switchTab(name, btn) {
+  document.querySelectorAll('.tp-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+}
+
+// ── Vehicle filter ──
+let currentFilter = 'all';
+
+function setFilter(type, btn) {
+  currentFilter = type;
+  document.querySelectorAll('.tp-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterProviders();
+}
+
+// ── Search + filter combined ──
+function filterProviders() {
+  var query = (document.getElementById('searchProvider').value || '').toLowerCase().trim();
+  var cards = document.querySelectorAll('#providerGrid .tp-card');
+  var visibleCount = 0;
+
+  cards.forEach(function(card) {
+    var vehicle = card.getAttribute('data-vehicle') || '';
+    var search  = card.getAttribute('data-search') || '';
+
+    var matchFilter = currentFilter === 'all' || vehicle === currentFilter;
+    var matchSearch = query === '' || search.indexOf(query) !== -1;
+
+    if (matchFilter && matchSearch) {
+      card.style.display = '';
+      visibleCount++;
+    } else {
+      card.style.display = 'none';
+    }
+  });
+
+  // Update count
+  document.getElementById('providerCount').textContent = visibleCount;
+  var hint = document.getElementById('filteredHint');
+  hint.textContent = visibleCount !== <%= totalProviders %> ? '(filtered)' : '';
+
+  // Show/hide empty state
+  var noResults = document.getElementById('noResults');
+  if (noResults) {
+    noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+  }
+}
+
+// ── Booking History: status filter + search ──
+let bookingFilter = 'all';
+
+function setBookingFilter(status, btn) {
+  bookingFilter = status;
+  document.querySelectorAll('#bookingStatusFilters .tp-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterBookings();
+}
+
+function filterBookings() {
+  var searchEl = document.getElementById('searchBooking');
+  var query = searchEl ? (searchEl.value || '').toLowerCase().trim() : '';
+  var rows = document.querySelectorAll('#bookingTbody .booking-row');
+  var visible = 0;
+
+  rows.forEach(function(row) {
+    var status = row.getAttribute('data-status') || '';
+    var search = row.getAttribute('data-search') || '';
+    var matchFilter = bookingFilter === 'all' || status === bookingFilter;
+    var matchSearch = query === '' || search.indexOf(query) !== -1;
+
+    if (matchFilter && matchSearch) {
+      row.style.display = '';
+      visible++;
+    } else {
+      row.style.display = 'none';
+    }
+  });
+
+  var noResults = document.getElementById('noBookingResults');
+  if (noResults) noResults.style.display = visible === 0 ? 'block' : 'none';
+
+  var countEl = document.getElementById('bookingCount');
+  if (countEl) countEl.textContent = visible + ' shown';
+}
+
+// ── Booking Detail Modal ──
+function openBookingDetail(row) {
+  var statusMap = {
+    'Pending'     : 'badge-warning',
+    'Confirmed'   : 'badge-info',
+    'In Progress' : 'badge-purple',
+    'Completed'   : 'badge-success',
+    'Cancelled'   : 'badge-neutral'
+  };
+  var status = row.getAttribute('data-status');
+
+  var badge = document.getElementById('bdStatus');
+  badge.textContent = status;
+  badge.className = 'badge ' + (statusMap[status] || 'badge-neutral');
+
+  document.getElementById('bdBookedAt').textContent = 'Booked: ' + row.getAttribute('data-booked-at');
+  document.getElementById('bdDriverName').textContent = row.getAttribute('data-driver-name') || '—';
+  document.getElementById('bdDriverPhone').textContent = row.getAttribute('data-driver-phone') || '';
+
+  var vType = row.getAttribute('data-vehicle-type');
+  var vReg  = row.getAttribute('data-vehicle-reg');
+  document.getElementById('bdVehicleType').textContent = vType || '—';
+  document.getElementById('bdVehicleReg').textContent = vReg ? vReg.toUpperCase() : '';
+
+  document.getElementById('bdPickup').textContent = row.getAttribute('data-pickup');
+  document.getElementById('bdDropoff').textContent = row.getAttribute('data-dropoff');
+
+  var pDate = new Date(row.getAttribute('data-pickup-date'));
+  var pTime = row.getAttribute('data-pickup-time');
+  document.getElementById('bdDateTime').textContent =
+    pDate.toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) +
+    (pTime ? ' · ' + pTime : '');
+
+  document.getElementById('bdPassengers').textContent = row.getAttribute('data-passengers');
+
+  var notes = row.getAttribute('data-notes');
+  var notesWrap = document.getElementById('bdNotesWrap');
+  if (notes) {
+    notesWrap.style.display = '';
+    document.getElementById('bdNotes').textContent = notes;
+  } else {
+    notesWrap.style.display = 'none';
+  }
+
+  // Timeline
+  var timeline = [{ label: 'Booked', value: row.getAttribute('data-booked-at') }];
+
+  var confirmedAt = row.getAttribute('data-confirmed-at');
+  if (confirmedAt) timeline.push({ label: 'Confirmed', value: confirmedAt });
+
+  var completedAt = row.getAttribute('data-completed-at');
+  if (completedAt) timeline.push({ label: 'Completed', value: completedAt });
+
+  var cancelAt = row.getAttribute('data-cancel-at');
+  if (cancelAt) {
+    var by     = row.getAttribute('data-cancel-by');
+    var reason = row.getAttribute('data-cancel-reason');
+    timeline.push({
+      label: 'Cancelled' + (by ? ' by ' + by : ''),
+      value: cancelAt + (reason ? ' — ' + reason : '')
+    });
+  }
+
+  document.getElementById('bdTimeline').innerHTML = timeline.map(function(t) {
+    return '<div><strong>' + t.label + ':</strong> ' + t.value + '</div>';
+  }).join('');
+
+  // Your rating (if this completed ride was already rated)
+  var rating = parseInt(row.getAttribute('data-rating')) || 0;
+  var ratingWrap = document.getElementById('bdRatingWrap');
+  if (rating) {
+    ratingWrap.style.display = '';
+    document.getElementById('bdRatingStars').innerHTML =
+      '<i class="fas fa-star"></i>'.repeat(rating) + '<i class="fas fa-star" style="color:#ddd"></i>'.repeat(5 - rating);
+    document.getElementById('bdRatingReview').textContent = row.getAttribute('data-review') || '';
+  } else {
+    ratingWrap.style.display = 'none';
+  }
+
+  openModal('bookingDetailModal');
+}
+
+// ── Rate Ride Modal ──
+function setStar(n) {
+  document.getElementById('rateValue').value = n;
+  document.querySelectorAll('#starPicker i').forEach(function(star) {
+    var v = parseInt(star.getAttribute('data-star'));
+    star.style.color = v <= n ? '#FFA000' : '#ddd';
+  });
+}
+
+function openRateModal(row) {
+  var bookingId = row.getAttribute('data-booking-id');
+  document.getElementById('rateForm').action = '/student/transport/rate/' + bookingId;
+  document.getElementById('rateDriverName').textContent = row.getAttribute('data-driver-name') || '—';
+
+  var existingRating = parseInt(row.getAttribute('data-rating')) || 0;
+  document.getElementById('rateReview').value = row.getAttribute('data-review') || '';
+  setStar(existingRating);
+
+  openModal('rateModal');
+}
+
+// ── Book Cab Modal ──
+function openBookCabModal(btn) {
+  document.getElementById('bkDriverId').value          = btn.getAttribute('data-driver-id');
+  document.getElementById('bkDriverName').value        = btn.getAttribute('data-driver-name');
+  document.getElementById('bkDriverPhone').value       = btn.getAttribute('data-driver-phone');
+  document.getElementById('bkVehicleType').value       = btn.getAttribute('data-vehicle-type');
+  document.getElementById('bkVehicleReg').value        = btn.getAttribute('data-vehicle-reg');
+  document.getElementById('bkProviderName').textContent = btn.getAttribute('data-driver-name');
+  document.getElementById('bkProviderVehicle').textContent =
+    btn.getAttribute('data-vehicle-type') !== '—' ? ' · ' + btn.getAttribute('data-vehicle-type') : '';
+  openModal('bookCabModal');
+}
+
+// ── Cancel Booking ──
+let cancelCabTargetId = null;
+
+function openCancelCabModal(bookingId) {
+  cancelCabTargetId = bookingId;
+  openModal('cancelCabModal');
+}
+
+document.getElementById('confirmCancelCabBtn').addEventListener('click', function() {
+  if (cancelCabTargetId) {
+    document.getElementById('cancelCabForm-' + cancelCabTargetId).submit();
+  }
+});
+</script>
+
+<%- include('./student-footer') %>

@@ -147,6 +147,9 @@
 
   </aside>
 
+  <!-- Sidebar overlay for mobile -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
   <!-- ══════════════════════════════════════
        MAIN CONTENT
   ══════════════════════════════════════ -->
@@ -155,6 +158,9 @@
     <!-- ── Topbar ── -->
     <div class="topbar">
       <div class="topbar-left">
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+          <i class="fas fa-bars"></i>
+        </button>
         <h2>
   <%= typeof topbarGreeting !== 'undefined'
         ? topbarGreeting
@@ -307,4 +313,27 @@
   document.querySelector('.sidebar').addEventListener('mouseenter', function() {
     sNav.focus({ preventScroll: true });
   });
+
+  // ── Sidebar toggle for mobile ──
+  var sidebarToggle = document.getElementById('sidebarToggle');
+  var sidebar = document.querySelector('.sidebar');
+  var sidebarOverlay = document.getElementById('sidebarOverlay');
+  
+  function toggleSidebar() {
+    sidebar.classList.toggle('open');
+    sidebarOverlay.classList.toggle('open');
+  }
+  
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleSidebar();
+    });
+  }
+  
+  if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', function() {
+      toggleSidebar();
+    });
+  }
 </script>

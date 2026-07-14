@@ -21,9 +21,10 @@
   <button class="act-btn" style="background:#EEF5F0;color:#2D5A3D" onclick="showPage('students',this)"><i class="ti ti-school"></i> Students</button>
   <button class="act-btn" style="background:#F3E5F5;color:#7B1FA2" onclick="showPage('admins',this)"><i class="ti ti-shield"></i> Admins</button>
   <button class="act-btn" style="background:#FFF8E1;color:#E65100" onclick="showPage('wardens',this)"><i class="ti ti-user-check"></i> Wardens</button>
+  <button class="act-btn" style="background:#FFF3E0;color:#F57C00" onclick="showPage('drivers',this)"><i class="fas fa-taxi"></i> Drivers</button>
   <button class="act-btn" id="nav-pending" style="background:#FFEBEE;color:#C62828" onclick="showPage('pending',this)">
     <i class="ti ti-clock"></i> Pending Approvals
-    <% if (pendingStudents.length > 0) { %><span style="background:#C62828;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= pendingStudents.length %></span><% } %>
+    <% if (stats.pending > 0) { %><span style="background:#C62828;color:white;font-size:.55rem;padding:.1rem .35rem;border-radius:10px;font-weight:700;margin-left:.2rem"><%= stats.pending %></span><% } %>
   </button>
   <button class="act-btn" id="nav-add-user" style="background:#E8F5E9;color:#2E7D32" onclick="showPage('add-user',this)"><i class="ti ti-user-plus"></i> Add User</button>
 </div>
@@ -53,6 +54,10 @@
       <div class="s-icon pending"><i class="ti ti-clock"></i></div>
       <div class="s-info"><h4>Pending</h4><h3><%= stats.pending %></h3></div>
     </div>
+    <div class="stat-card clickable" onclick="showPage('drivers',null)">
+      <div class="s-icon" style="background:linear-gradient(135deg,rgba(245,124,0,.12),rgba(230,81,0,.08))"><i class="fas fa-taxi" style="color:#F57C00"></i></div>
+      <div class="s-info"><h4>Drivers</h4><h3><%= stats.drivers || 0 %></h3></div>
+    </div>
   </div>
 
   <div class="card">
@@ -60,10 +65,10 @@
       <h3><i class="ti ti-clock"></i> Pending Approvals</h3>
       <button class="add-btn" onclick="showPage('pending',null)">View All</button>
     </div>
-    <% if(pendingStudents.length > 0){ %>
+    <% if(stats.pending > 0){ %>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Student</th><th>User ID</th><th>Email</th><th>ID Document</th><th>Registered</th><th class="actions-th">Actions</th></tr></thead>
+        <thead><tr><th>User</th><th>User ID</th><th>Role</th><th>Email</th><th>Registered</th><th class="actions-th">Actions</th></tr></thead>
         <tbody>
           <% pendingStudents.forEach(student => { %>
           <tr class="pending-row">
@@ -74,19 +79,8 @@
               </div>
             </td>
             <td><code class="uid-code"><%= student.userId %></code></td>
+            <td><span class="role-badge student">student</span></td>
             <td><%= student.email %></td>
-            <td>
-              <%
-                const overviewIdUrl = student.idImage ? '/' + student.idImage : null;
-              %>
-              <% if (overviewIdUrl) { %>
-                <button class="act-btn btn-view-id" onclick="openImageLightbox('<%= overviewIdUrl %>', '<%= student.fullname %>')">
-                  <i class="fas fa-id-card"></i> View ID
-                </button>
-              <% } else { %>
-                <span class="no-id-badge"><i class="fas fa-exclamation-circle"></i> Not uploaded</span>
-              <% } %>
-            </td>
             <td><%= new Date(student.createdAt).toLocaleDateString() %></td>
             <td class="actions-cell">
               <div class="action-cell">
@@ -94,6 +88,30 @@
                   <button type="submit" class="act-btn btn-approve">Approve</button>
                 </form>
                 <form action="/admin/reject/<%= student._id %>" method="POST" style="display:inline">
+                  <button type="submit" class="act-btn btn-reject">Reject</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+          <% pendingDrivers.forEach(driver => { %>
+          <tr class="pending-row">
+            <td>
+              <div class="user-cell">
+                <div class="u-av" style="background:linear-gradient(135deg,#F57C00,#E65100)"><%= driver.fullname.charAt(0).toUpperCase() %></div>
+                <div><div class="u-name"><%= driver.fullname %></div></div>
+              </div>
+            </td>
+            <td><code class="uid-code"><%= driver.userId %></code></td>
+            <td><span class="role-badge" style="background:rgba(245,124,0,.12);color:#F57C00;font-size:.6rem">driver</span></td>
+            <td><%= driver.email %></td>
+            <td><%= new Date(driver.createdAt).toLocaleDateString() %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <form action="/admin/approve-driver/<%= driver._id %>" method="POST" style="display:inline">
+                  <button type="submit" class="act-btn btn-approve">Approve</button>
+                </form>
+                <form action="/admin/reject-driver/<%= driver._id %>" method="POST" style="display:inline">
                   <button type="submit" class="act-btn btn-reject">Reject</button>
                 </form>
               </div>
@@ -165,6 +183,7 @@
           <option value="student">Students</option>
           <option value="admin">Admins</option>
           <option value="warden">Wardens</option>
+          <option value="driver">Drivers</option>
         </select>
         <select class="filter-sel" id="filter-status" onchange="applyFilters()">
           <option value="all">All Status</option>
@@ -405,18 +424,84 @@
 </div>
 
 <!-- ══════════════════════════════════════
+     DRIVERS PAGE
+══════════════════════════════════════ -->
+<div class="page" id="page-drivers">
+  <div class="card">
+    <div class="card-head"><h3><i class="fas fa-taxi"></i> Drivers</h3><span class="count-pill"><%= (drivers || []).length %> total</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Driver</th><th>User ID</th><th>Status</th><th>Phone</th><th>Joined</th><th class="actions-th">Actions</th></tr></thead>
+        <tbody id="drivers-body">
+          <% (drivers || []).forEach((driver, index) => { %>
+          <tr>
+            <td><%= index+1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av" style="background:linear-gradient(135deg,#F57C00,#E65100)"><%= driver.fullname.charAt(0).toUpperCase() %></div>
+                <div>
+                  <div class="u-name"><%= driver.fullname %></div>
+                  <div class="u-email"><%= driver.email %></div>
+                </div>
+              </div>
+            </td>
+            <td><code class="uid-code"><%= driver.userId %></code></td>
+            <td><span class="status-badge <%= driver.status %>"><%= driver.status %></span></td>
+            <td><%= driver.phoneNumber || '—' %></td>
+            <td><%= new Date(driver.createdAt).toLocaleDateString() %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <button class="act-btn btn-view" data-action="view"
+                  data-id="<%= driver._id %>" data-fullname="<%= driver.fullname %>" data-email="<%= driver.email %>"
+                  data-role="<%= driver.role %>" data-status="<%= driver.status %>" data-userid="<%= driver.userId %>"
+                  data-phone="<%= driver.phoneNumber || '' %>" data-gender="<%= driver.gender || '' %>"
+                  data-dob="<%= driver.dateOfBirth ? new Date(driver.dateOfBirth).toISOString().split('T')[0] : '' %>"
+                  data-joined="<%= new Date(driver.createdAt).toLocaleDateString() %>">
+                  View
+                </button>
+                <% if (driver.status === 'pending') { %>
+                  <form action="/admin/approve-driver/<%= driver._id %>" method="POST" style="display:inline">
+                    <button type="submit" class="act-btn btn-approve">Approve</button>
+                  </form>
+                  <form action="/admin/reject-driver/<%= driver._id %>" method="POST" style="display:inline">
+                    <button type="submit" class="act-btn btn-reject">Reject</button>
+                  </form>
+                <% } else if (driver.status === 'approved') { %>
+                  <form action="/admin/suspend-driver/<%= driver._id %>" method="POST" style="display:inline"
+                    onsubmit="return confirm('Suspend this driver? They will not be able to login.')">
+                    <button type="submit" class="act-btn" style="background:#FFF8E1;color:#E65100">Suspend</button>
+                  </form>
+                <% } else if (driver.status === 'suspended') { %>
+                  <form action="/admin/unsuspend-driver/<%= driver._id %>" method="POST" style="display:inline">
+                    <button type="submit" class="act-btn" style="background:#E8F5E9;color:#2E7D32">Reactivate</button>
+                  </form>
+                <% } %>
+                <button class="act-btn btn-del" data-action="delete" data-id="<%= driver._id %>" data-name="<%= driver.fullname %>">
+                  Delete
+                </button>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
      PENDING APPROVALS PAGE
 ══════════════════════════════════════ -->
 <div class="page" id="page-pending">
   <div class="card">
     <div class="card-head">
       <h3><i class="ti ti-clock"></i> Pending Approvals</h3>
-      <span style="font-size:.75rem;color:#C62828;font-weight:600"><%= pendingStudents.length %> awaiting review</span>
+      <span style="font-size:.75rem;color:#C62828;font-weight:600"><%= stats.pending %> awaiting review</span>
     </div>
-    <% if(pendingStudents.length > 0){ %>
+    <% if(pendingStudents.length > 0 || pendingDrivers.length > 0){ %>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Student</th><th>User ID</th><th>Email</th><th>ID Document</th><th>Registered</th><th class="actions-th">Actions</th></tr></thead>
+        <thead><tr><th>User</th><th>User ID</th><th>Role</th><th>Email</th><th>Registered</th><th class="actions-th">Actions</th></tr></thead>
         <tbody>
           <% pendingStudents.forEach(student => {
                const pendingIdUrl = student.idImage ? '/' + student.idImage : null;
@@ -429,16 +514,8 @@
               </div>
             </td>
             <td><code class="uid-code"><%= student.userId %></code></td>
+            <td><span class="role-badge student">student</span></td>
             <td><%= student.email %></td>
-            <td>
-              <% if (pendingIdUrl) { %>
-                <button class="act-btn btn-view-id" onclick="openImageLightbox('<%= pendingIdUrl %>', '<%= student.fullname %>')">
-                  <i class="fas fa-id-card"></i> View ID
-                </button>
-              <% } else { %>
-                <span class="no-id-badge"><i class="fas fa-exclamation-circle"></i> Not uploaded</span>
-              <% } %>
-            </td>
             <td><%= new Date(student.createdAt).toLocaleDateString() %></td>
             <td class="actions-cell">
               <div class="action-cell">
@@ -446,6 +523,30 @@
                   <button type="submit" class="act-btn btn-approve">Approve</button>
                 </form>
                 <form action="/admin/reject/<%= student._id %>" method="POST" style="display:inline">
+                  <button type="submit" class="act-btn btn-reject">Reject</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+          <% pendingDrivers.forEach(driver => { %>
+          <tr class="pending-row">
+            <td>
+              <div class="user-cell">
+                <div class="u-av" style="background:linear-gradient(135deg,#F57C00,#E65100)"><%= driver.fullname.charAt(0).toUpperCase() %></div>
+                <div><div class="u-name"><%= driver.fullname %></div></div>
+              </div>
+            </td>
+            <td><code class="uid-code"><%= driver.userId %></code></td>
+            <td><span class="role-badge" style="background:rgba(245,124,0,.12);color:#F57C00;font-size:.6rem">driver</span></td>
+            <td><%= driver.email %></td>
+            <td><%= new Date(driver.createdAt).toLocaleDateString() %></td>
+            <td class="actions-cell">
+              <div class="action-cell">
+                <form action="/admin/approve-driver/<%= driver._id %>" method="POST" style="display:inline">
+                  <button type="submit" class="act-btn btn-approve">Approve</button>
+                </form>
+                <form action="/admin/reject-driver/<%= driver._id %>" method="POST" style="display:inline">
                   <button type="submit" class="act-btn btn-reject">Reject</button>
                 </form>
               </div>
@@ -469,7 +570,7 @@
     <div class="card-head">
       <h3><i class="ti ti-user-plus"></i> Add New User</h3>
     </div>
-    <form action="/admin/users/add" method="POST" id="add-user-form" novalidate>
+    <form action="/admin/users/add" method="POST" id="add-user-form" enctype="multipart/form-data" novalidate>
       <div class="form-section">
         <h4 class="form-section-title">Account Details</h4>
         <div class="form-grid">
@@ -503,6 +604,7 @@
               <option value="student">Student</option>
               <option value="admin">Admin</option>
               <option value="warden">Warden</option>
+              <option value="driver">Driver</option>
             </select>
           </div>
           <div class="form-group" id="uid-preview" style="display:none">
@@ -514,6 +616,34 @@
           </div>
         </div>
       </div>
+      <div class="form-section" id="idCardSection" style="display:none">
+        <h4 class="form-section-title">ID Card <span style="font-weight:400;font-size:.75rem;color:#C62828">(required for students)</span></h4>
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Upload ID Card <span class="req">*</span></label>
+            <div class="file-upload-wrap">
+              <label class="file-upload-label" for="au-idImage" id="au-idImage-label">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <span>Click to upload CNIC or Student ID card</span>
+                <span class="file-upload-hint">JPG, PNG, WebP or PDF — Max 5 MB</span>
+              </label>
+              <input type="file" name="idImage" id="au-idImage" accept=".jpg,.jpeg,.png,.webp,.pdf"
+                onchange="handleIdImagePreview(event)">
+            </div>
+            <div class="file-preview" id="au-idImage-preview" style="display:none">
+              <div class="file-preview-info">
+                <i class="fas fa-id-card"></i>
+                <span id="au-idImage-name"></span>
+              </div>
+              <button type="button" class="file-preview-remove" onclick="clearIdImage()" title="Remove file">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <span class="field-hint" id="au-idImage-hint">Upload a clear scan or photo of your CNIC or Student ID card.</span>
+          </div>
+        </div>
+      </div>
+
       <div class="form-section">
         <h4 class="form-section-title">Security</h4>
         <div class="form-grid">
@@ -600,6 +730,7 @@
             <option value="student">Student</option>
             <option value="admin">Admin</option>
             <option value="warden">Warden</option>
+            <option value="driver">Driver</option>
           </select>
         </div>
         <div class="edit-group">
@@ -682,6 +813,7 @@
         <div class="si-section-title"><i class="fas fa-users"></i> Guardian</div>
         <div class="si-grid">
           <div class="si-field"><label>Guardian Name</label><span id="sv-guardianName">—</span></div>
+          <div class="si-field"><label>Guardian Email</label><span id="sv-guardianEmail">—</span></div>
           <div class="si-field"><label>Guardian Contact</label><span id="sv-guardianContact">—</span></div>
           <div class="si-field"><label>Relation</label><span id="sv-guardianRelation">—</span></div>
         </div>
@@ -744,6 +876,10 @@
             <input type="text" name="guardianName" id="se-guardianName" placeholder="Guardian full name">
           </div>
           <div class="si-form-group">
+            <label>Guardian Email</label>
+            <input type="email" name="guardianEmail" id="se-guardianEmail" placeholder="guardian@email.com">
+          </div>
+          <div class="si-form-group">
             <label>Guardian Contact</label>
             <input type="tel" name="guardianContact" id="se-guardianContact" placeholder="Guardian phone number">
           </div>
@@ -776,34 +912,7 @@
 </div>
 
 
-<!-- ══════════════════════════════════════
-     IMAGE LIGHTBOX MODAL
-══════════════════════════════════════ -->
-<div class="modal-overlay" id="imageLightbox" onclick="closeImageLightbox()">
-  <div class="lightbox-box" onclick="event.stopPropagation()">
-    <div class="lightbox-head">
-      <span id="lightbox-title" class="lightbox-title"></span>
-      <div class="lightbox-actions">
-        <a id="lightbox-download" href="#" download class="lightbox-btn">
-          <i class="fas fa-download"></i> Download
-        </a>
-        <button class="lightbox-btn lightbox-close-btn" onclick="closeImageLightbox()">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-    </div>
-    <div class="lightbox-body">
-      <img id="lightbox-img" src="" alt="ID Document" class="lightbox-img">
-      <div id="lightbox-pdf-msg" class="lightbox-pdf-msg" style="display:none">
-        <i class="fas fa-file-pdf"></i>
-        <p>This document is a PDF file.</p>
-        <a id="lightbox-pdf-link" href="#" target="_blank" class="btn-primary" style="display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1.2rem;border-radius:6px;font-size:.82rem;text-decoration:none;margin-top:.5rem;">
-          <i class="fas fa-external-link-alt"></i> Open PDF
-        </a>
-      </div>
-    </div>
-  </div>
-</div>
+<%- include('../partials/id-lightbox') %>
 
 
 <!-- ══════════════════════════════════════
@@ -830,6 +939,7 @@ window.PAGE_TITLES = {
   'students'  : 'Students',
   'admins'    : 'Admins',
   'wardens'   : 'Wardens',
+  'drivers'   : 'Drivers',
   'pending'   : 'Pending Approvals',
   'add-user'  : 'Add User'
 };
@@ -851,7 +961,7 @@ function showPage(id, el) {
 window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
   const page   = params.get('page');
-  const validPages = ['overview','all-users','students','admins','wardens','pending','add-user'];
+  const validPages = ['overview','all-users','students','admins','wardens','drivers','pending','add-user'];
   if (page && validPages.includes(page)) {
     const navMap = {
       'pending': document.getElementById('nav-pending'),
@@ -861,6 +971,8 @@ window.addEventListener('DOMContentLoaded', () => {
   } else {
     renderAllUsersPagination();
   }
+  // Show ID Card section for default "student" role
+  updateUserIdPreview();
 });
 
 /* ═══════════════════════════════════════════════
@@ -929,12 +1041,13 @@ function renderAllUsersPagination() {
 /* ═══════════════════════════════════════════════
    GLOBAL SEARCH
 ═══════════════════════════════════════════════ */
-const SEARCH_TABLE_BODIES = ['all-body','students-body','admins-body','wardens-body'];
+const SEARCH_TABLE_BODIES = ['all-body','students-body','admins-body','wardens-body','drivers-body'];
 const SEARCH_PAGE_MAP = {
   'all-body'      : { page: 'all-users' },
   'students-body' : { page: 'students'  },
   'admins-body'   : { page: 'admins'    },
-  'wardens-body'  : { page: 'wardens'   }
+  'wardens-body'  : { page: 'wardens'   },
+  'drivers-body'  : { page: 'drivers'   }
 };
 
 function globalSearchHandler() {
@@ -953,7 +1066,7 @@ function globalSearchHandler() {
   });
   ALL_USERS_PAGE = 1;
   renderAllUsersPagination();
-  ['students-body','admins-body','wardens-body'].forEach(bodyId => {
+  ['students-body','admins-body','wardens-body','drivers-body'].forEach(bodyId => {
     const tbody = document.getElementById(bodyId);
     if (!tbody) return;
     tbody.querySelectorAll('tr').forEach(row => {
@@ -975,6 +1088,19 @@ async function updateUserIdPreview() {
   const role    = document.getElementById('au-role').value;
   const preview = document.getElementById('uid-preview');
   const val     = document.getElementById('uid-preview-val');
+
+  // Toggle ID Card section visibility based on role
+  const idCardSection = document.getElementById('idCardSection');
+  const idImageInput  = document.getElementById('au-idImage');
+  if (role === 'student') {
+    idCardSection.style.display = 'block';
+    idImageInput.required = true;
+  } else {
+    idCardSection.style.display = 'none';
+    idImageInput.required = false;
+    clearIdImage();
+  }
+
   if (!role) { preview.style.display = 'none'; return; }
   preview.style.display = 'flex';
   val.textContent = 'Loading…';
@@ -991,9 +1117,94 @@ async function updateUserIdPreview() {
 function clearAddForm() {
   document.getElementById('add-user-form').reset();
   document.getElementById('uid-preview').style.display = 'none';
+  document.getElementById('idCardSection').style.display = 'none';
+  document.getElementById('au-idImage').required = false;
+  clearIdImage();
   const hint = document.getElementById('au-password-hint');
   hint.style.color = '#888';
   hint.textContent = 'Must include uppercase, lowercase, number and special character.';
+}
+
+/* ═══════════════════════════════════════════════
+   ID CARD UPLOAD HELPERS
+═══════════════════════════════════════════════ */
+function handleIdImagePreview(event) {
+  const file   = event.target.files[0];
+  const label  = document.getElementById('au-idImage-label');
+  const name   = document.getElementById('au-idImage-name');
+  const prev   = document.getElementById('au-idImage-preview');
+  const hint   = document.getElementById('au-idImage-hint');
+
+  if (!file) {
+    prev.style.display = 'none';
+    label.style.display = 'flex';
+    return;
+  }
+
+  const ext  = file.name.split('.').pop().toLowerCase();
+  const allowed = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
+
+  if (!allowed.includes(ext)) {
+    hint.textContent = 'Only JPG, PNG, WebP and PDF files are allowed.';
+    hint.style.color = '#C62828';
+    event.target.value = '';
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    hint.textContent = 'File is too large. Maximum size is 5 MB.';
+    hint.style.color = '#C62828';
+    event.target.value = '';
+    return;
+  }
+
+  const wrap = document.querySelector('.file-upload-wrap');
+  if (wrap) { wrap.classList.remove('field-error'); }
+
+  hint.textContent = file.name + ' selected';
+  hint.style.color = '#2E7D32';
+  label.style.display = 'none';
+  name.textContent = file.name;
+  prev.style.display = 'flex';
+}
+
+function clearIdImage() {
+  const input  = document.getElementById('au-idImage');
+  const prev   = document.getElementById('au-idImage-preview');
+  const label  = document.getElementById('au-idImage-label');
+  const hint   = document.getElementById('au-idImage-hint');
+  const wrap   = document.querySelector('.file-upload-wrap');
+
+  input.value = '';
+  prev.style.display = 'none';
+  label.style.display = 'flex';
+  hint.textContent = 'Upload a clear scan or photo of your CNIC or Student ID card.';
+  hint.style.color = '#888';
+  if (wrap) { wrap.classList.remove('field-error'); }
+}
+
+/* ═══════════════════════════════════════════════
+   ID CARD FIELD VALIDATION
+═══════════════════════════════════════════════ */
+function validateIdImageField() {
+  const role    = document.getElementById('au-role').value;
+  const input   = document.getElementById('au-idImage');
+  const hint    = document.getElementById('au-idImage-hint');
+  const label   = document.getElementById('au-idImage-label');
+  const wrap    = document.querySelector('.file-upload-wrap');
+
+  // Validation only applies when role is student
+  if (role !== 'student') return true;
+
+  // Check if a file has been selected (either showing preview or has files in input)
+  const hasFile = input.files.length > 0;
+  if (!hasFile) {
+    hint.textContent = 'Please upload a CNIC or Student ID card. This field is required for student accounts.';
+    hint.style.color = '#C62828';
+    if (wrap) { wrap.classList.add('field-error'); }
+    return false;
+  }
+  return true;
 }
 
 function togglePw(inputId, btn) {
@@ -1029,9 +1240,26 @@ function validatePasswordField() {
 }
 
 document.getElementById('add-user-form').addEventListener('submit', function(e) {
+  let valid = true;
+  let firstError = null;
+
   if (!validatePasswordField()) {
-    e.preventDefault();
+    valid = false;
+    firstError = 'password';
     document.getElementById('au-password').focus();
+  }
+
+  if (!validateIdImageField()) {
+    valid = false;
+    if (!firstError) {
+      firstError = 'idImage';
+      const label = document.getElementById('au-idImage-label');
+      if (label) label.focus();
+    }
+  }
+
+  if (!valid) {
+    e.preventDefault();
   }
 });
 
@@ -1111,36 +1339,6 @@ function submitEdit() {
 }
 
 /* ═══════════════════════════════════════════════
-   IMAGE LIGHTBOX
-═══════════════════════════════════════════════ */
-function openImageLightbox(src, studentName) {
-  const isPdf = src.toLowerCase().endsWith('.pdf');
-  const img   = document.getElementById('lightbox-img');
-  const pdf   = document.getElementById('lightbox-pdf-msg');
-  const title = document.getElementById('lightbox-title');
-  const dl    = document.getElementById('lightbox-download');
-
-  title.textContent = `ID Document — ${studentName}`;
-  dl.href = src;
-
-  if (isPdf) {
-    img.style.display = 'none';
-    pdf.style.display = 'flex';
-    document.getElementById('lightbox-pdf-link').href = src;
-  } else {
-    pdf.style.display = 'none';
-    img.style.display = 'block';
-    img.src = src;
-  }
-  document.getElementById('imageLightbox').classList.add('open');
-}
-
-function closeImageLightbox() {
-  document.getElementById('imageLightbox').classList.remove('open');
-  document.getElementById('lightbox-img').src = '';
-}
-
-/* ═══════════════════════════════════════════════
    STUDENT INFO MODAL
 ═══════════════════════════════════════════════ */
 let _siUserId   = null;
@@ -1174,6 +1372,7 @@ async function openStudentInfoModal(userId, userName, userUid) {
     setValue('sv-homeAddress',      si?.homeAddress      || '—');
     setValue('sv-emergencyContact', si?.emergencyContact || '—');
     setValue('sv-guardianName',     si?.guardianName     || '—');
+    setValue('sv-guardianEmail',    si?.guardianEmail    || '—');
     setValue('sv-guardianContact',  si?.guardianContact  || '—');
     setValue('sv-guardianRelation', si?.guardianRelation || '—');
 
@@ -1198,6 +1397,7 @@ async function openStudentInfoModal(userId, userName, userUid) {
     setInput('se-homeAddress',      si?.homeAddress      || '');
     setInput('se-emergencyContact', si?.emergencyContact || '');
     setInput('se-guardianName',     si?.guardianName     || '');
+    setInput('se-guardianEmail',    si?.guardianEmail    || '');
     setInput('se-guardianContact',  si?.guardianContact  || '');
     setInput('se-guardianRelation', si?.guardianRelation || '');
     setInput('se-admissionDate',

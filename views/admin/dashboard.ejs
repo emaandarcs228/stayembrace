@@ -22,6 +22,20 @@
   <i class="fas fa-shield-halved wb-icon"></i>
 </div>
 
+<!-- ── Flash messages ── -->
+<% if (locals.successMessage) { %>
+  <div style="display:flex;align-items:center;gap:.6rem;padding:.7rem 1rem;border-radius:var(--radius-md);font-size:.78rem;font-weight:500;margin-bottom:1rem;background:#E8F5E9;color:#2E7D32;border:1px solid #c8e6c9;">
+    <i class="fas fa-check-circle" style="font-size:.9rem;flex-shrink:0"></i>
+    <span><%= successMessage %></span>
+  </div>
+<% } %>
+<% if (locals.errorMessage) { %>
+  <div style="display:flex;align-items:center;gap:.6rem;padding:.7rem 1rem;border-radius:var(--radius-md);font-size:.78rem;font-weight:500;margin-bottom:1rem;background:#FFEBEE;color:#C62828;border:1px solid #ffcdd2;">
+    <i class="fas fa-exclamation-circle" style="font-size:.9rem;flex-shrink:0"></i>
+    <span><%= errorMessage %></span>
+  </div>
+<% } %>
+
 <!-- ══════════════════════════════════════
      STAT CARDS — Top-level overview
 ══════════════════════════════════════ -->
@@ -41,7 +55,7 @@
     <div class="s-info">
       <h4>Pending Approvals</h4>
       <h3><%= stats.pendingApprovals %></h3>
-      <p>Student signups</p>
+      <p>Student &amp; driver signups</p>
     </div>
   </div>
 
@@ -186,6 +200,14 @@
           <small>Operational staff</small>
         </div>
         <div class="activity-time"><span class="badge badge-warning"><%= stats.wardens %></span></div>
+      </a>
+      <a href="/admin/users?page=drivers" class="activity-item" style="text-decoration:none;color:inherit">
+        <div class="activity-dot" style="background:#F57C00"></div>
+        <div class="activity-body">
+          <p>Drivers</p>
+          <small>Cab &amp; transport providers</small>
+        </div>
+        <div class="activity-time"><span class="badge" style="background:#F57C00;color:white"><%= stats.drivers || 0 %></span></div>
       </a>
       <a href="/admin/users?page=admins" class="activity-item" style="text-decoration:none;color:inherit">
         <div class="activity-dot purple"></div>

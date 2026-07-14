@@ -1,0 +1,217 @@
+<%
+  const activePage = 'dashboard';
+  const showProfileDropdown = true;
+  const _hr = new Date().getHours();
+  const currentGreeting = _hr < 12 ? 'Morning' : (_hr < 17 ? 'Afternoon' : 'Evening');
+%>
+<%- include('driver-header') %>
+
+<!-- ══════════════════════════════════════
+     WELCOME BANNER
+══════════════════════════════════════ -->
+<div class="welcome-banner">
+  <div class="wb-text">
+    <h2>Good <%= currentGreeting %>, <%= user.fullname.split(' ')[0] %>!</h2>
+    <p>Cab &amp; Transport Provider &nbsp;·&nbsp; <%= currentDate %></p>
+  </div>
+  <i class="fas fa-taxi wb-icon"></i>
+</div>
+
+<!-- ══════════════════════════════════════
+     STAT CARDS
+══════════════════════════════════════ -->
+<div class="stats-row">
+
+  <div class="stat-card">
+    <div class="s-icon orange"><i class="fas fa-id-card"></i></div>
+    <div class="s-info">
+      <h4>User ID</h4>
+      <h3 style="font-size:1rem;font-family:monospace"><%= user.userId %></h3>
+      <p><%= user.status %></p>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="s-icon blue"><i class="fas fa-phone"></i></div>
+    <div class="s-info">
+      <h4>Contact</h4>
+      <h3 style="font-size:.95rem"><%= user.phoneNumber || '—' %></h3>
+      <p><%= user.email %></p>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="s-icon <%= driver && driver.vehicleType ? 'teal' : 'red' %>"><i class="fas fa-car"></i></div>
+    <div class="s-info">
+      <h4>Vehicle</h4>
+      <h3 style="font-size:.9rem"><%= driver && driver.vehicleRegistration ? driver.vehicleRegistration : 'Not set' %></h3>
+      <p><%= driver && driver.vehicleType ? driver.vehicleType : '—' %></p>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="s-icon purple"><i class="fas fa-road"></i></div>
+    <div class="s-info">
+      <h4>Service Area</h4>
+      <h3 style="font-size:.9rem"><%= driver && driver.serviceArea ? driver.serviceArea : '—' %></h3>
+      <p><%= driver && driver.experienceYears ? driver.experienceYears + ' yrs exp' : 'New driver' %></p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     ACCOUNT OVERVIEW
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-user-circle"></i> Account Overview</h3>
+    <span class="status-badge <%= user.status %>"><%= user.status %></span>
+  </div>
+  <div class="detail-grid">
+    <div class="detail-field">
+      <label>Full Name</label>
+      <span><%= user.fullname %></span>
+    </div>
+    <div class="detail-field">
+      <label>Gender</label>
+      <span><%= user.gender || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Email</label>
+      <span><%= user.email %></span>
+    </div>
+    <div class="detail-field">
+      <label>Phone Number</label>
+      <span><%= user.phoneNumber || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Date of Birth</label>
+      <span><%= user.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Role</label>
+      <span><span class="role-badge driver">Driver</span></span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     VEHICLE & LICENSE DETAILS
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-car"></i> Vehicle &amp; License Details</h3>
+  </div>
+  <% if (driver && driver._id) { %>
+  <div class="detail-grid">
+    <div class="detail-field">
+      <label>Vehicle Type</label>
+      <span><%= driver.vehicleType || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Vehicle Registration</label>
+      <span><%= driver.vehicleRegistration || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Vehicle Model</label>
+      <span><%= driver.vehicleModel || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>License Number</label>
+      <span><%= driver.licenseNumber || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>License Expiry</label>
+      <span><%= driver.licenseExpiry ? new Date(driver.licenseExpiry).toLocaleDateString() : '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Service Area</label>
+      <span><%= driver.serviceArea || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>CNIC</label>
+      <span><%= driver.cnic || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Experience</label>
+      <span><%= driver.experienceYears ? driver.experienceYears + ' years' : '—' %></span>
+    </div>
+  </div>
+  <% } else { %>
+  <div class="empty-state">
+    <i class="fas fa-car-side"></i>
+    <h4>No vehicle information available</h4>
+    <p>Contact admin to update your vehicle &amp; license details.</p>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══════════════════════════════════════
+     QUICK ACTIONS
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+  </div>
+  <div class="quick-grid">
+    <a href="/driver/profile" class="quick-tile">
+      <i class="ti ti-user"></i>
+      View Profile
+    </a>
+    <a href="/driver/vehicle" class="quick-tile">
+      <i class="ti ti-car"></i>
+      Manage Vehicle
+    </a>
+    <a href="/logout" class="quick-tile">
+      <i class="fas fa-sign-out-alt"></i>
+      Logout
+    </a>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     SERVICES SNAPSHOT
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-grip-horizontal"></i> Quick Info</h3>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border)">
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        Account Status
+      </div>
+      <div style="font-size:1.1rem;font-weight:700;color:<%= user.status === 'approved' ? 'var(--accent)' : '#C62828' %>"><%= user.status %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)"><%= user.status === 'approved' ? 'Active &amp; verified' : 'Awaiting approval' %></div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        User ID
+      </div>
+      <div style="font-size:.9rem;font-weight:700;font-family:monospace;color:var(--text-primary)"><%= user.userId %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)">Since <%= new Date(user.createdAt).toLocaleDateString() %></div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        Vehicle
+      </div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary)"><%= driver && driver.vehicleRegistration ? driver.vehicleRegistration : '—' %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)"><%= driver && driver.vehicleType ? driver.vehicleType : 'Not set' %></div>
+    </div>
+
+    <div style="background:white;padding:1rem 1.2rem">
+      <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">
+        License
+      </div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary)"><%= driver && driver.licenseNumber ? 'Issued' : '—' %></div>
+      <div style="font-size:.65rem;color:var(--text-muted)"><%= driver && driver.licenseExpiry ? 'Exp: ' + new Date(driver.licenseExpiry).toLocaleDateString() : 'Not provided' %></div>
+    </div>
+
+  </div>
+</div>
+
+<%- include('driver-footer') %>

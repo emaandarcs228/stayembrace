@@ -59,6 +59,7 @@ const notificationSchema = new mongoose.Schema({
                 'RoomRequest',
                 'VisitorRequest',
                 'GuestRoomBooking',
+                'CabBooking',
                 'Attendance'
             ],
             default : null

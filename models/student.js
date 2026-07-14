@@ -64,6 +64,11 @@ const studentSchema = new mongoose.Schema({
         default: null
     },
 
+    guardianEmail: {
+        type: String,
+        default: null
+    },
+
     // ── Hostel ──────────────────────────────────────────────────────
     // room will be linked once Room model exists
     room: {

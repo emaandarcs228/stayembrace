@@ -18,7 +18,8 @@ const dirs = [
     'public/uploads/profiles',
     'public/uploads/ids',
     'public/uploads/complaints',
-    'public/uploads/mess'
+    'public/uploads/mess',
+    'public/uploads/driver-docs'
 ];
 dirs.forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -31,10 +32,12 @@ const storage = multer.diskStorage({
     destination(req, file, cb) {
     if (file.fieldname === 'idImage') {
         cb(null, 'public/uploads/ids');
-    } else if (file.fieldname === 'attachment') {   // ADD THIS BLOCK
+    } else if (file.fieldname === 'attachment') {
         cb(null, 'public/uploads/complaints');
-    } else if (file.fieldname === 'menuItemImage') {   // ADD THIS BLOCK
-            cb(null, 'public/uploads/mess');
+    } else if (file.fieldname === 'menuItemImage') {
+        cb(null, 'public/uploads/mess');
+    } else if (['cnicFront', 'cnicBack', 'licenseImage', 'vehicleDoc'].includes(file.fieldname)) {
+        cb(null, 'public/uploads/driver-docs');
     } else {
         cb(null, 'public/uploads/profiles');
     }

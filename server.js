@@ -39,12 +39,14 @@ const pageRoutes = require('./routes/pageRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const wardenRoutes = require('./routes/wardenRoutes'); 
+const driverRoutes = require('./routes/driverRoutes');
 
 app.use('/', pageRoutes);
 app.use('/', authRoutes);
 app.use('/admin', adminRoutes);
 app.use('/student', studentRoutes);
 app.use('/warden', wardenRoutes);
+app.use('/driver', driverRoutes);
 
 // 404 handler
 app.use((req, res) => {

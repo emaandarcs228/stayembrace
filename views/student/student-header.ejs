@@ -100,6 +100,12 @@
         <span>Mobile Load</span>
       </a>
 
+      <a href="/student/transport"
+         class="nav-item <%= activePage === 'transport' ? 'active' : '' %>">
+        <i class="ti ti-car"></i>
+        <span>Transport</span>
+      </a>
+
       <!-- ── Finance ── -->
       <div class="s-section">Finance</div>
 
@@ -133,6 +139,9 @@
 
   </aside>
 
+  <!-- Sidebar overlay for mobile -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
   <!-- ══════════════════════════════════════
        MAIN CONTENT
   ══════════════════════════════════════ -->
@@ -141,6 +150,9 @@
     <!-- ── Topbar ── -->
     <div class="topbar">
       <div class="topbar-left">
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+          <i class="fas fa-bars"></i>
+        </button>
         <%
           /*
             topbarGreeting takes priority over pageTitle so that pages like
@@ -318,4 +330,27 @@
   document.querySelector('.sidebar').addEventListener('mouseenter', function() {
     sNav.focus({ preventScroll: true });
   });
+
+  // ── Sidebar toggle for mobile ──
+  var sidebarToggle = document.getElementById('sidebarToggle');
+  var sidebar = document.querySelector('.sidebar');
+  var sidebarOverlay = document.getElementById('sidebarOverlay');
+  
+  function toggleSidebar() {
+    sidebar.classList.toggle('open');
+    sidebarOverlay.classList.toggle('open');
+  }
+  
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleSidebar();
+    });
+  }
+  
+  if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', function() {
+      toggleSidebar();
+    });
+  }
 </script>

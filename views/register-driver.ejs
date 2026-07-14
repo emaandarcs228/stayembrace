@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Registration – STAY EMBRACE</title>
+    <link rel="icon" href="/images/logo-brow.png">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/css/auth.css">
+    <style>
+      .driver-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+      .driver-form-grid .full { grid-column: 1 / -1; }
+      @media (max-width: 600px) { .driver-form-grid { grid-template-columns: 1fr; } }
+      .doc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: .5rem; }
+      @media (max-width: 600px) { .doc-grid { grid-template-columns: 1fr; } }
+      .doc-label { font-size: .62rem; font-weight: 600; color: rgba(255,255,255,.8); text-transform: uppercase; letter-spacing: 1px; margin-bottom: .2rem; display: block; }
+
+      /* Enhanced document upload box matching student registration style */
+      .doc-upload-box {
+        border: 1.5px dashed rgba(255,255,255,.25);
+        border-radius: 12px;
+        padding: 1rem .8rem;
+        text-align: center;
+        cursor: pointer;
+        background: rgba(255,255,255,.08);
+        backdrop-filter: blur(5px);
+        transition: border-color .2s, background .2s;
+        min-height: 90px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .3rem;
+        position: relative;
+      }
+      .doc-upload-box:hover,
+      .doc-upload-box.drag-over { border-color: #4A7C59; background: rgba(255,255,255,.12); }
+      .doc-upload-box.has-file { border-style: solid; border-color: rgba(74,124,89,.6); background: rgba(74,124,89,.08); }
+      .doc-upload-box.has-error { border-color: rgba(255,100,100,.6); background: rgba(255,50,50,.06); }
+
+      .doc-upload-box .doc-icon { font-size: 1.5rem; color: rgba(255,255,255,.5); transition: color .2s; }
+      .doc-upload-box .doc-main-text { font-size: .75rem; font-weight: 500; color: rgba(255,255,255,.6); }
+      .doc-upload-box .doc-sub-text { font-size: .62rem; color: rgba(255,255,255,.4); }
+
+      /* Preview image */
+      .doc-upload-box .doc-preview-img {
+        max-height: 70px; max-width: 100%; border-radius: 6px;
+        object-fit: contain; display: none;
+      }
+      /* PDF icon inside preview */
+      .doc-upload-box .doc-pdf-icon {
+        font-size: 1.8rem; color: rgba(255,120,120,.9); display: none;
+      }
+      .doc-upload-box .doc-name-text {
+        font-size: .62rem; color: rgba(255,255,255,.8); font-weight: 500;
+        word-break: break-all; display: none; max-width: 100%;
+        line-height: 1.3;
+      }
+
+      .doc-upload-box.has-file .doc-icon,
+      .doc-upload-box.has-file .doc-main-text,
+      .doc-upload-box.has-file .doc-sub-text { display: none; }
+
+      /* Remove button */
+      .doc-remove-btn {
+        display: none;
+        position: absolute; top: 4px; right: 4px;
+        width: 22px; height: 22px; border-radius: 50%;
+        background: rgba(200,50,50,.7); border: none;
+        color: white; font-size: .6rem; cursor: pointer;
+        align-items: center; justify-content: center;
+        transition: background .2s;
+        z-index: 2;
+      }
+      .doc-remove-btn:hover { background: rgba(200,50,50,1); }
+      .doc-upload-box.has-file .doc-remove-btn { display: flex; }
+
+      .doc-upload-box .doc-verify-text {
+        font-size: .58rem; color: rgba(150,255,150,.8); display: none;
+      }
+
+      .doc-error {
+        display: none;
+        color: rgba(255,150,150,0.9);
+        font-size: .6rem;
+        margin-top: .2rem;
+      }
+
+      .le-month-cell {
+        padding: .5rem .3rem; text-align: center; border-radius: 8px;
+        cursor: pointer; font-size: .78rem; font-weight: 500;
+        color: rgba(255,255,255,.7); transition: background .15s, color .15s;
+      }
+      .le-month-cell:hover { background: rgba(255,255,255,.12); color: white; }
+      .le-month-cell.selected { background: rgba(74,124,89,.5); color: white; font-weight: 600; }
+      .le-month-cell.disabled { opacity: .3; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div class="auth-container" style="background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.45)), url('/images/hostel.jpg') center/cover no-repeat;">
+    <div class="auth-card" style="max-width:520px">
+
+        <a href="/register" class="auth-logo-link">
+            <img src="/images/logo-head.png" alt="EMBRACE" class="auth-logo-img">
+            <span class="auth-logo-text">STAY EMBRACE</span>
+        </a>
+
+        <div class="auth-header">
+            <div class="role-badge">TRANSPORT PROVIDER</div>
+            <h2>Driver Registration</h2>
+            <p>Register as a cab or transport provider</p>
+        </div>
+
+        <% if (locals.error) { %>
+            <div class="error-message"><%= error %></div>
+        <% } %>
+
+        <form class="auth-form" action="/register/driver" method="POST" enctype="multipart/form-data" id="driverForm">
+            <input type="hidden" name="gender" id="genderInput" required>
+            <input type="hidden" name="dateOfBirth" id="dobInput" required>
+
+            <div class="driver-form-grid">
+
+                <!-- ── Personal Information ── -->
+                <div class="full" style="font-size:.62rem;font-weight:700;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:1.5px;border-bottom:1px solid rgba(255,255,255,.2);padding-bottom:.35rem;margin-bottom:.25rem">Personal Information</div>
+                <input type="text" name="fullname" placeholder="Full Name" required autocomplete="name" style="grid-column:1/-1">
+                <input type="email" name="email" placeholder="Email Address" required autocomplete="email" style="grid-column:1/-1">
+                <input type="tel" name="phoneNumber" placeholder="Phone Number" required>
+                <input type="text" name="cnic" placeholder="CNIC Number (e.g. 35202-1234567-8)"
+                  pattern="^\d{5}-\d{7}-\d{1}$"
+                  title="Format: XXXXX-XXXXXXX-X (e.g. 35202-1234567-8)"
+                  id="cnicInput"
+                  oninput="validatePakField(this, 'cnic-error')">
+                <span id="cnic-error" class="field-hint" style="color:rgba(255,150,150,0.9);font-size:.62rem;display:none;grid-column:1/-1">Enter a valid CNIC: XXXXX-XXXXXXX-X (e.g. 35202-1234567-8)</span>
+
+                <!-- Gender select -->
+                <div class="custom-select-wrapper" style="margin:0">
+                    <div class="custom-select-trigger" id="genderTrigger" style="margin:0">
+                        <span id="genderLabel">Select Gender</span>
+                        <i class="fas fa-chevron-down arrow"></i>
+                    </div>
+                    <div class="custom-select-options" id="genderOptions">
+                        <div class="custom-select-option" data-value="male"><i class="fas fa-mars"></i> Male</div>
+                        <div class="custom-select-option" data-value="female"><i class="fas fa-venus"></i> Female</div>
+                    </div>
+                </div>
+
+                <!-- Date of birth -->
+                <div class="custom-date-wrapper" style="margin:0">
+                    <div class="custom-date-trigger" id="dobTrigger" style="margin:0">
+                        <span id="dobLabel">Date of Birth</span>
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div class="custom-date-panel" id="dobPanel">
+                        <div class="date-nav">
+                            <button type="button" id="prevMonth"><i class="fas fa-chevron-left"></i></button>
+                            <div class="date-nav-selects">
+                                <select id="monthSelect"></select>
+                                <select id="yearSelect"></select>
+                            </div>
+                            <button type="button" id="nextMonth"><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                        <div class="date-grid-header">
+                            <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+                        </div>
+                        <div class="date-grid" id="dateGrid"></div>
+                    </div>
+                </div>
+
+                <!-- ── License Information ── -->
+                <div class="full" style="font-size:.62rem;font-weight:700;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:1.5px;border-bottom:1px solid rgba(255,255,255,.2);padding-bottom:.35rem;margin-bottom:.25rem;margin-top:.3rem">License Information</div>
+                <input type="text" name="licenseNumber" placeholder="Driving License Number" style="grid-column:1/-1"
+                  pattern="^[A-Za-z0-9\-]{6,20}$"
+                  title="6-20 characters, letters, numbers, hyphens"
+                  id="licenseInput"
+                  oninput="validatePakField(this, 'license-error')">
+                <span id="license-error" class="field-hint" style="color:rgba(255,150,150,0.9);font-size:.62rem;display:none;grid-column:1/-1">Enter a valid license number (6-20 characters, letters, numbers, hyphens)</span>
+                <!-- License Expiry - custom month/year picker -->
+                <div class="custom-date-wrapper" style="margin:0;grid-column:1/-1">
+                    <div class="custom-date-trigger" id="licenseExpiryTrigger" style="margin:0">
+                        <span id="licenseExpiryLabel">License Expiry (MM/YYYY)</span>
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div class="custom-date-panel" id="licenseExpiryPanel">
+                        <div class="date-nav">
+                            <button type="button" id="lePrevMonth"><i class="fas fa-chevron-left"></i></button>
+                            <div class="date-nav-selects">
+                                <select id="leMonthSelect"></select>
+                                <select id="leYearSelect"></select>
+                            </div>
+                            <button type="button" id="leNextMonth"><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                        <div class="le-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:.6rem">
+                            <div class="le-month-cell" data-month="0">Jan</div>
+                            <div class="le-month-cell" data-month="1">Feb</div>
+                            <div class="le-month-cell" data-month="2">Mar</div>
+                            <div class="le-month-cell" data-month="3">Apr</div>
+                            <div class="le-month-cell" data-month="4">May</div>
+                            <div class="le-month-cell" data-month="5">Jun</div>
+                            <div class="le-month-cell" data-month="6">Jul</div>
+                            <div class="le-month-cell" data-month="7">Aug</div>
+                            <div class="le-month-cell" data-month="8">Sep</div>
+                            <div class="le-month-cell" data-month="9">Oct</div>
+                            <div class="le-month-cell" data-month="10">Nov</div>
+                            <div class="le-month-cell" data-month="11">Dec</div>
+                        </div>
+                    </div>
+                    <input type="hidden" name="licenseExpiry" id="licenseExpiryInput">
+                </div>
+
+                <!-- ── Vehicle Information ── -->
+                <div class="full" style="font-size:.62rem;font-weight:700;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:1.5px;border-bottom:1px solid rgba(255,255,255,.2);padding-bottom:.35rem;margin-bottom:.25rem;margin-top:.3rem">Vehicle Information</div>
+                <select name="vehicleType" style="width:100%;padding:.9rem 1rem;border:1px solid rgba(255,255,255,.2);border-radius:12px;font-size:.9rem;background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);font-family:'Poppins',sans-serif;backdrop-filter:blur(5px);margin-bottom:.6rem;appearance:none">
+                    <option value="" style="background:#1a1a1a;color:#ccc">Select Vehicle Type</option>
+                    <option value="car" style="background:#1a1a1a;color:#ccc">Car</option>
+                    <option value="van" style="background:#1a1a1a;color:#ccc">Van</option>
+                    <option value="bus" style="background:#1a1a1a;color:#ccc">Bus</option>
+                    <option value="rickshaw" style="background:#1a1a1a;color:#ccc">Rickshaw</option>
+                    <option value="motorcycle" style="background:#1a1a1a;color:#ccc">Motorcycle</option>
+                    <option value="other" style="background:#1a1a1a;color:#ccc">Other</option>
+                </select>
+                <input type="text" name="vehicleRegistration" placeholder="Vehicle Reg. No. (e.g. LEP-1234)"
+                  pattern="^[A-Za-z]{2,3}[- ]?\d{3,4}$"
+                  title="Format: XXX-XXXX (e.g. LEP-1234, ABC 567)"
+                  id="vehicleRegInput"
+                  oninput="validatePakField(this, 'vreg-error')">
+                <span id="vreg-error" class="field-hint" style="color:rgba(255,150,150,0.9);font-size:.62rem;display:none;grid-column:1/-1">Enter a valid registration: XXX-XXXX (e.g. LEP-1234, ABC-567)</span>
+                <input type="text" name="vehicleModel" placeholder="Vehicle Model / Year">
+                <input type="text" name="serviceArea" placeholder="Service Area / City" style="grid-column:1/-1">
+                <!-- Years of Experience - custom select -->
+                <div class="custom-select-wrapper" style="margin:0">
+                    <div class="custom-select-trigger" id="expTrigger" style="margin:0">
+                        <span id="expLabel">Years of Experience</span>
+                        <i class="fas fa-chevron-down arrow"></i>
+                    </div>
+                    <div class="custom-select-options" id="expOptions" style="max-height:180px;overflow-y:auto">
+                        <div class="custom-select-option" data-value="">—</div>
+                    </div>
+                    <input type="hidden" name="experienceYears" id="expInput">
+                </div>
+
+                <!-- ── Document Upload Section ── -->
+                <div class="full" style="font-size:.62rem;font-weight:700;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:1.5px;border-bottom:1px solid rgba(255,255,255,.2);padding-bottom:.35rem;margin-bottom:.5rem;margin-top:.3rem;grid-column:1/-1">
+                    Document Upload &nbsp;·&nbsp; JPG, PNG, PDF &nbsp;·&nbsp; Max 5 MB each
+                </div>
+
+                <div class="doc-grid" style="grid-column:1/-1">
+                    <!-- CNIC Front -->
+                    <div>
+                        <span class="doc-label">CNIC Front</span>
+                        <div class="doc-upload-box" id="cnicFrontBox" onclick="document.getElementById('cnicFrontInput').click()">
+                            <i class="fas fa-cloud-upload-alt doc-icon"></i>
+                            <span class="doc-main-text">Click to upload</span>
+                            <span class="doc-sub-text">or drag &amp; drop</span>
+                            <img class="doc-preview-img" id="cnicFrontPreview" src="" alt="CNIC Front">
+                            <i class="fas fa-file-pdf doc-pdf-icon" id="cnicFrontPdfIcon"></i>
+                            <span class="doc-name-text" id="cnicFrontName"></span>
+                            <span class="doc-verify-text" id="cnicFrontVerify">✓ Verified</span>
+                            <button type="button" class="doc-remove-btn" id="cnicFrontRemove" title="Remove file"><i class="fas fa-times"></i></button>
+                        </div>
+                        <span class="doc-error" id="cnicFrontError"></span>
+                        <input type="file" id="cnicFrontInput" name="cnicFront" accept=".jpg,.jpeg,.png,.webp,.pdf" style="display:none">
+                    </div>
+                    <!-- CNIC Back -->
+                    <div>
+                        <span class="doc-label">CNIC Back</span>
+                        <div class="doc-upload-box" id="cnicBackBox" onclick="document.getElementById('cnicBackInput').click()">
+                            <i class="fas fa-cloud-upload-alt doc-icon"></i>
+                            <span class="doc-main-text">Click to upload</span>
+                            <span class="doc-sub-text">or drag &amp; drop</span>
+                            <img class="doc-preview-img" id="cnicBackPreview" src="" alt="CNIC Back">
+                            <i class="fas fa-file-pdf doc-pdf-icon" id="cnicBackPdfIcon"></i>
+                            <span class="doc-name-text" id="cnicBackName"></span>
+                            <span class="doc-verify-text" id="cnicBackVerify">✓ Verified</span>
+                            <button type="button" class="doc-remove-btn" id="cnicBackRemove" title="Remove file"><i class="fas fa-times"></i></button>
+                        </div>
+                        <span class="doc-error" id="cnicBackError"></span>
+                        <input type="file" id="cnicBackInput" name="cnicBack" accept=".jpg,.jpeg,.png,.webp,.pdf" style="display:none">
+                    </div>
+                    <!-- License -->
+                    <div>
+                        <span class="doc-label">Driving License</span>
+                        <div class="doc-upload-box" id="licenseImageBox" onclick="document.getElementById('licenseImageInput').click()">
+                            <i class="fas fa-cloud-upload-alt doc-icon"></i>
+                            <span class="doc-main-text">Click to upload</span>
+                            <span class="doc-sub-text">or drag &amp; drop</span>
+                            <img class="doc-preview-img" id="licenseImagePreview" src="" alt="License">
+                            <i class="fas fa-file-pdf doc-pdf-icon" id="licenseImagePdfIcon"></i>
+                            <span class="doc-name-text" id="licenseImageName"></span>
+                            <span class="doc-verify-text" id="licenseImageVerify">✓ Verified</span>
+                            <button type="button" class="doc-remove-btn" id="licenseImageRemove" title="Remove file"><i class="fas fa-times"></i></button>
+                        </div>
+                        <span class="doc-error" id="licenseImageError"></span>
+                        <input type="file" id="licenseImageInput" name="licenseImage" accept=".jpg,.jpeg,.png,.webp,.pdf" style="display:none">
+                    </div>
+                    <!-- Vehicle Doc -->
+                    <div>
+                        <span class="doc-label">Vehicle Registration</span>
+                        <div class="doc-upload-box" id="vehicleDocBox" onclick="document.getElementById('vehicleDocInput').click()">
+                            <i class="fas fa-cloud-upload-alt doc-icon"></i>
+                            <span class="doc-main-text">Click to upload</span>
+                            <span class="doc-sub-text">or drag &amp; drop</span>
+                            <img class="doc-preview-img" id="vehicleDocPreview" src="" alt="Vehicle Doc">
+                            <i class="fas fa-file-pdf doc-pdf-icon" id="vehicleDocPdfIcon"></i>
+                            <span class="doc-name-text" id="vehicleDocName"></span>
+                            <span class="doc-verify-text" id="vehicleDocVerify">✓ Verified</span>
+                            <button type="button" class="doc-remove-btn" id="vehicleDocRemove" title="Remove file"><i class="fas fa-times"></i></button>
+                        </div>
+                        <span class="doc-error" id="vehicleDocError"></span>
+                        <input type="file" id="vehicleDocInput" name="vehicleDoc" accept=".jpg,.jpeg,.png,.webp,.pdf" style="display:none">
+                    </div>
+                </div>
+
+                <!-- ── Password ── -->
+                <div class="full" style="margin-top:.3rem">
+                    <div class="password-field">
+                        <input id="password" type="password" name="password" placeholder="Password (min 8 chars, uppercase, lowercase, number, special)" required autocomplete="new-password">
+                        <button type="button" class="password-toggle" onclick="togglePassword('password', this)"><i class="fas fa-eye"></i></button>
+                    </div>
+                    <div class="password-field">
+                        <input id="confirm_password" type="password" name="confirm_password" placeholder="Confirm Password" required autocomplete="new-password">
+                        <button type="button" class="password-toggle" onclick="togglePassword('confirm_password', this)"><i class="fas fa-eye"></i></button>
+                    </div>
+                    <span id="confirm-match" class="match-text"></span>
+                </div>
+
+            </div>
+
+            <button type="submit" class="btn-auth" id="submitBtn" style="margin-top:.8rem">Register as Driver</button>
+        </form>
+
+        <p class="terms-text">By continuing, you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.</p>
+
+        <div class="auth-footer">
+            Already have an account? <a href="/login">Login</a>
+        </div>
+
+    </div>
+</div>
+
+<script>
+function togglePassword(fieldId, btn) {
+    const input = document.getElementById(fieldId);
+    const icon  = btn.querySelector('i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.replace('fa-eye', 'fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.replace('fa-eye-slash', 'fa-eye');
+    }
+}
+
+// ── PASSWORD MATCH ──
+const confirmInput = document.getElementById('confirm_password');
+const matchText    = document.getElementById('confirm-match');
+confirmInput.addEventListener('input', () => {
+    const pw = document.getElementById('password').value;
+    if (!confirmInput.value) { matchText.textContent = ''; return; }
+    if (confirmInput.value === pw) {
+        matchText.textContent  = 'Passwords match';
+        matchText.style.color  = 'rgba(150,255,150,0.9)';
+    } else {
+        matchText.textContent  = 'Passwords do not match';
+        matchText.style.color  = 'rgba(255,150,150,0.9)';
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// DOCUMENT UPLOAD — Enhanced with preview, drag & drop, remove
+// ══════════════════════════════════════════════════════════════════
+
+// Known magic bytes for allowed formats (client-side verification)
+const FILE_SIGNATURES = {
+  jpeg: [[0xFF, 0xD8, 0xFF]],
+  png:  [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
+  pdf:  [[0x25, 0x50, 0x44, 0x46]],
+  webp: [[0x52, 0x49, 0x46, 0x46], [0x57, 0x45, 0x42, 0x50]]
+};
+
+function checkFileSignature(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const arr = new Uint8Array(e.target.result).subarray(0, 12);
+      for (const [fmt, sigs] of Object.entries(FILE_SIGNATURES)) {
+        let match = true;
+        for (const sig of sigs) {
+          const offset = (fmt === 'webp' && sig === FILE_SIGNATURES.webp[1]) ? 8 : 0;
+          for (let i = 0; i < sig.length; i++) {
+            if (arr[offset + i] !== sig[i]) { match = false; break; }
+          }
+          if (!match) break;
+        }
+        if (match) { resolve(true); return; }
+      }
+      resolve(false);
+    };
+    reader.onerror = function() { resolve(false); };
+    reader.readAsArrayBuffer(file.slice(0, 12));
+  });
+}
+
+/**
+ * Initialize one document upload field with preview, drag & drop, remove.
+ * @param {string} fieldName - e.g. 'cnicFront'
+ */
+function initDocUpload(fieldName) {
+    const input     = document.getElementById(fieldName + 'Input');
+    const box       = document.getElementById(fieldName + 'Box');
+    const preview   = document.getElementById(fieldName + 'Preview');
+    const pdfIcon   = document.getElementById(fieldName + 'PdfIcon');
+    const nameEl    = document.getElementById(fieldName + 'Name');
+    const verifyEl  = document.getElementById(fieldName + 'Verify');
+    const removeBtn = document.getElementById(fieldName + 'Remove');
+    const errorEl   = document.getElementById(fieldName + 'Error');
+
+    // ── Click on box triggers file input ──
+    box.addEventListener('click', function(e) {
+        // Don't trigger if clicking the remove button
+        if (e.target.closest('.doc-remove-btn')) return;
+        input.click();
+    });
+
+    // ── Drag & Drop ──
+    box.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        box.classList.add('drag-over');
+    });
+    box.addEventListener('dragleave', function() {
+        box.classList.remove('drag-over');
+    });
+    box.addEventListener('drop', function(e) {
+        e.preventDefault();
+        box.classList.remove('drag-over');
+        if (e.dataTransfer.files.length) {
+            input.files = e.dataTransfer.files;
+            handleDocFile(input, box, preview, pdfIcon, nameEl, verifyEl, errorEl);
+        }
+    });
+
+    // ── File input change ──
+    input.addEventListener('change', function() {
+        handleDocFile(input, box, preview, pdfIcon, nameEl, verifyEl, errorEl);
+    });
+
+    // ── Remove button ──
+    removeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        clearDocFile(input, box, preview, pdfIcon, nameEl, verifyEl, errorEl);
+    });
+}
+
+/**
+ * Process a selected file: validate, show preview, update UI.
+ */
+function handleDocFile(input, box, preview, pdfIcon, nameEl, verifyEl, errorEl) {
+    const file = input.files[0];
+    if (!file) return;
+
+    // Reset UI
+    errorEl.style.display = 'none';
+    errorEl.textContent = '';
+    box.classList.remove('has-error');
+    box.classList.remove('has-file');
+    preview.style.display = 'none';
+    pdfIcon.style.display = 'none';
+    nameEl.style.display = 'none';
+    verifyEl.style.display = 'none';
+
+    // Show "Verifying…" state
+    nameEl.textContent = 'Verifying…';
+    nameEl.style.display = 'block';
+
+    // File size check (min 5 KB)
+    if (file.size < 5120) {
+        input.value = '';
+        nameEl.textContent = '';
+        nameEl.style.display = 'none';
+        showDocError(box, errorEl, 'File too small — min 5 KB');
+        return;
+    }
+
+    // Magic byte check
+    checkFileSignature(file).then(isValid => {
+        if (!isValid) {
+            input.value = '';
+            nameEl.textContent = '';
+            nameEl.style.display = 'none';
+            showDocError(box, errorEl, 'Invalid file — not a genuine image/PDF');
+            return;
+        }
+
+        // File is valid — show preview
+        box.classList.add('has-file');
+        nameEl.textContent = file.name;
+        nameEl.style.display = 'block';
+        verifyEl.style.display = 'block';
+
+        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+        if (isPdf) {
+            // Show PDF icon
+            pdfIcon.style.display = 'block';
+            preview.style.display = 'none';
+        } else {
+            // Show image preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+            pdfIcon.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * Clear a document upload field completely.
+ */
+function clearDocFile(input, box, preview, pdfIcon, nameEl, verifyEl, errorEl) {
+    input.value = '';
+    box.classList.remove('has-file', 'has-error');
+    preview.style.display = 'none';
+    preview.src = '';
+    pdfIcon.style.display = 'none';
+    nameEl.style.display = 'none';
+    nameEl.textContent = '';
+    verifyEl.style.display = 'none';
+    errorEl.style.display = 'none';
+    errorEl.textContent = '';
+}
+
+/**
+ * Show an error message on a document upload box.
+ */
+function showDocError(box, errorEl, msg) {
+    box.classList.add('has-error');
+    errorEl.textContent = msg;
+    errorEl.style.display = 'block';
+}
+
+// ── Initialize all 4 document upload fields ──
+['cnicFront', 'cnicBack', 'licenseImage', 'vehicleDoc'].forEach(initDocUpload);
+
+// ── EXPERIENCE YEARS DROPDOWN ──
+const expTrigger   = document.getElementById('expTrigger');
+const expOptions   = document.getElementById('expOptions');
+const expLabel     = document.getElementById('expLabel');
+const expInput     = document.getElementById('expInput');
+
+for (let y = 0; y <= 50; y++) {
+    const opt = document.createElement('div');
+    opt.className = 'custom-select-option';
+    opt.dataset.value = y;
+    opt.textContent = y + (y === 0 ? ' year' : ' years');
+    expOptions.appendChild(opt);
+}
+
+expTrigger.addEventListener('click', () => {
+    const isOpen = expOptions.classList.toggle('open');
+    expTrigger.classList.toggle('open', isOpen);
+});
+expOptions.querySelectorAll('.custom-select-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+        if (opt.dataset.value === '') return;
+        expInput.value       = opt.dataset.value;
+        expLabel.textContent = opt.textContent.trim();
+        expTrigger.classList.add('selected');
+        expTrigger.classList.remove('open');
+        expOptions.classList.remove('open');
+        expOptions.querySelectorAll('.custom-select-option').forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+    });
+});
+
+// ── GENDER DROPDOWN ──
+const genderTrigger = document.getElementById('genderTrigger');
+const genderOptions = document.getElementById('genderOptions');
+const genderLabel   = document.getElementById('genderLabel');
+const genderInput   = document.getElementById('genderInput');
+
+genderTrigger.addEventListener('click', () => {
+    const isOpen = genderOptions.classList.toggle('open');
+    genderTrigger.classList.toggle('open', isOpen);
+});
+genderOptions.querySelectorAll('.custom-select-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+        genderInput.value       = opt.dataset.value;
+        genderLabel.textContent = opt.textContent.trim();
+        genderTrigger.classList.add('selected');
+        genderTrigger.classList.remove('open');
+        genderOptions.classList.remove('open');
+        genderOptions.querySelectorAll('.custom-select-option').forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+    });
+});
+document.addEventListener('click', e => {
+    if (!genderTrigger.contains(e.target) && !genderOptions.contains(e.target)) {
+        genderTrigger.classList.remove('open');
+        genderOptions.classList.remove('open');
+    }
+    if (!expTrigger.contains(e.target) && !expOptions.contains(e.target)) {
+        expTrigger.classList.remove('open');
+        expOptions.classList.remove('open');
+    }
+});
+
+// ── LICENSE EXPIRY MONTH PICKER ──
+const leTrigger   = document.getElementById('licenseExpiryTrigger');
+const lePanel     = document.getElementById('licenseExpiryPanel');
+const leLabel     = document.getElementById('licenseExpiryLabel');
+const leInput     = document.getElementById('licenseExpiryInput');
+const leMonthSel  = document.getElementById('leMonthSelect');
+const leYearSel   = document.getElementById('leYearSelect');
+const leMonths    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let leYear        = new Date().getFullYear();
+let leMonth       = -1;
+
+leMonths.forEach((m, i) => { const o = document.createElement('option'); o.value = i; o.textContent = m; leMonthSel.appendChild(o); });
+for (let y = new Date().getFullYear(); y <= new Date().getFullYear() + 15; y++) { const o = document.createElement('option'); o.value = y; o.textContent = y; leYearSel.appendChild(o); }
+
+function leRenderCells() {
+  document.querySelectorAll('.le-month-cell').forEach(cell => {
+    const m = parseInt(cell.dataset.month);
+    cell.classList.toggle('selected', m === leMonth);
+    const isPast = leYear < new Date().getFullYear() || (leYear === new Date().getFullYear() && m < new Date().getMonth());
+    cell.classList.toggle('disabled', isPast);
+  });
+  leMonthSel.value = leMonth >= 0 ? leMonth : '';
+  leYearSel.value  = leYear;
+}
+
+leTrigger.addEventListener('click', () => {
+  const isOpen = lePanel.classList.toggle('open');
+  leTrigger.classList.toggle('open', isOpen);
+  if (isOpen) leRenderCells();
+});
+
+document.querySelectorAll('.le-month-cell').forEach(cell => {
+  cell.addEventListener('click', () => {
+    if (cell.classList.contains('disabled')) return;
+    leMonth = parseInt(cell.dataset.month);
+    const mm = String(leMonth + 1).padStart(2, '0');
+    leLabel.textContent = `${leMonths[leMonth]} ${leYear}`;
+    leInput.value = `${leYear}-${mm}`;
+    leTrigger.classList.add('selected');
+    lePanel.classList.remove('open');
+    leTrigger.classList.remove('open');
+    leRenderCells();
+  });
+});
+
+document.getElementById('lePrevMonth').addEventListener('click', () => { leYear--; leRenderCells(); });
+document.getElementById('leNextMonth').addEventListener('click', () => { leYear++; leRenderCells(); });
+leMonthSel.addEventListener('change', () => { leMonth = parseInt(leMonthSel.value); leRenderCells(); });
+leYearSel.addEventListener('change',  () => { leYear  = parseInt(leYearSel.value);  leRenderCells(); });
+document.addEventListener('click', e => {
+  const wrapper = document.getElementById('licenseExpiryTrigger').closest('.custom-date-wrapper');
+  if (!wrapper || !wrapper.contains(e.target)) {
+    lePanel.classList.remove('open');
+    leTrigger.classList.remove('open');
+  }
+});
+
+// ── DATE PICKER ──
+const dobTrigger  = document.getElementById('dobTrigger');
+const dobPanel    = document.getElementById('dobPanel');
+const dobLabel    = document.getElementById('dobLabel');
+const dobInput    = document.getElementById('dobInput');
+const dateGrid    = document.getElementById('dateGrid');
+const monthSelect = document.getElementById('monthSelect');
+const yearSelect  = document.getElementById('yearSelect');
+const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const today      = new Date();
+let viewYear     = 1990;
+let viewMonth    = 0;
+let selectedDate = null;
+
+months.forEach((m, i) => { const o = document.createElement('option'); o.value = i; o.textContent = m; monthSelect.appendChild(o); });
+for (let y = today.getFullYear(); y >= 1950; y--) { const o = document.createElement('option'); o.value = y; o.textContent = y; yearSelect.appendChild(o); }
+
+function syncSelects() { monthSelect.value = viewMonth; yearSelect.value = viewYear; }
+
+function renderCalendar() {
+    syncSelects();
+    dateGrid.innerHTML = '';
+    const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    for (let i = 0; i < firstDay; i++) { const el = document.createElement('div'); el.className = 'date-cell empty'; dateGrid.appendChild(el); }
+    for (let d = 1; d <= daysInMonth; d++) {
+        const el = document.createElement('div');
+        el.className = 'date-cell';
+        el.textContent = d;
+        const thisDate = new Date(viewYear, viewMonth, d);
+        if (thisDate > today) el.classList.add('disabled');
+        if (d === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear()) el.classList.add('today');
+        if (selectedDate && d === selectedDate.getDate() && viewMonth === selectedDate.getMonth() && viewYear === selectedDate.getFullYear()) el.classList.add('selected');
+        el.addEventListener('click', () => {
+            selectedDate = new Date(viewYear, viewMonth, d);
+            dobLabel.textContent = `${d} ${months[viewMonth]} ${viewYear}`;
+            dobTrigger.classList.add('selected');
+            const mm = String(viewMonth + 1).padStart(2, '0');
+            const dd = String(d).padStart(2, '0');
+            dobInput.value = `${viewYear}-${mm}-${dd}`;
+            dobPanel.classList.remove('open');
+            dobTrigger.classList.remove('open');
+            renderCalendar();
+        });
+        dateGrid.appendChild(el);
+    }
+}
+
+dobTrigger.addEventListener('click', () => {
+    const isOpen = dobPanel.classList.toggle('open');
+    dobTrigger.classList.toggle('open', isOpen);
+    if (isOpen) renderCalendar();
+});
+document.getElementById('prevMonth').addEventListener('click', () => { viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } renderCalendar(); });
+document.getElementById('nextMonth').addEventListener('click', () => { viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } renderCalendar(); });
+monthSelect.addEventListener('change', () => { viewMonth = parseInt(monthSelect.value); renderCalendar(); });
+yearSelect.addEventListener('change',  () => { viewYear  = parseInt(yearSelect.value);  renderCalendar(); });
+document.addEventListener('click', e => { const wrapper = document.querySelector('.custom-date-wrapper'); if (!wrapper || !wrapper.contains(e.target)) { dobPanel.classList.remove('open'); dobTrigger.classList.remove('open'); } });
+renderCalendar();
+
+// ── PAKISTANI FORMAT VALIDATION ──
+function validatePakField(input, errorId) {
+    const errorEl = document.getElementById(errorId);
+    if (!input.value) {
+        errorEl.style.display = 'none';
+        input.style.borderColor = 'rgba(255,255,255,.2)';
+        return true;
+    }
+    const valid = input.checkValidity();
+    errorEl.style.display = valid ? 'none' : 'block';
+    input.style.borderColor = valid ? 'rgba(74,124,89,.6)' : 'rgba(255,100,100,.6)';
+    return valid;
+}
+
+// ── SUBMIT VALIDATION + SPINNER ──
+document.getElementById('driverForm').addEventListener('submit', function(e) {
+    const fields = [
+        { id: 'cnicInput',        errorId: 'cnic-error',      name: 'CNIC' },
+        { id: 'licenseInput',     errorId: 'license-error',   name: 'License Number' },
+        { id: 'vehicleRegInput',  errorId: 'vreg-error',      name: 'Vehicle Registration' }
+    ];
+    let valid = true;
+    fields.forEach(f => {
+        const input = document.getElementById(f.id);
+        if (input && input.value && !validatePakField(input, f.errorId)) {
+            valid = false;
+        }
+    });
+    if (!valid) {
+        e.preventDefault();
+        return;
+    }
+    const btn = document.getElementById('submitBtn');
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting…';
+});
+</script>
+
+</body>
+</html>

@@ -158,6 +158,25 @@ body {
     color: white;
 }
 
+/* Driver */
+.portal-option.driver {
+    border: 1px solid #F57C00;
+    background: white;
+}
+.portal-option.driver:hover {
+    background: #FFF3E0;
+    transform: translateY(-2px);
+}
+.portal-option.driver .portal-icon-circle {
+    border-color: #F57C00;
+    color: #F57C00;
+    background: #FFF3E0;
+}
+.portal-option.driver:hover .portal-icon-circle {
+    background: #F57C00;
+    color: white;
+}
+
 .portal-icon-circle {
     width: 55px;
     height: 55px;

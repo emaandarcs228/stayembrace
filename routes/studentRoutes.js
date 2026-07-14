@@ -115,4 +115,17 @@ router.post('/visitors/cancel/:id', studentMiddleware, studentController.cancelV
 router.post('/visitors/guest-room/request', studentMiddleware, studentController.postGuestBookingRequest);
 router.post('/visitors/guest-room/cancel/:id', studentMiddleware, studentController.cancelGuestBooking);
 router.get('/visitors/guest-room/available-rooms', studentMiddleware, studentController.getAvailableGuestRoomsForDates);
+
+// ══════════════════════════════════════
+// TRANSPORT — View approved providers
+// ══════════════════════════════════════
+router.get('/transport', studentMiddleware, studentController.getTransport);
+
+// ══════════════════════════════════════
+// CAB BOOKING — Book & cancel rides
+// ══════════════════════════════════════
+router.post('/transport/book', studentMiddleware, studentController.postCabBooking);
+router.post('/transport/cancel/:id', studentMiddleware, studentController.cancelCabBooking);
+router.post('/transport/rate/:id', studentMiddleware, studentController.rateCabBooking);
+
 module.exports = router;

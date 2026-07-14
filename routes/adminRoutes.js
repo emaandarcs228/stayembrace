@@ -20,6 +20,14 @@ router.post('/approve/:id', adminMiddleware, adminController.approveStudent);
 router.post('/reject/:id', adminMiddleware, adminController.rejectStudent);
 
 // ======================
+// DRIVER APPROVAL & STATUS MANAGEMENT
+// ======================
+router.post('/approve-driver/:id', adminMiddleware, adminController.approveDriver);
+router.post('/reject-driver/:id', adminMiddleware, adminController.rejectDriver);
+router.post('/suspend-driver/:id', adminMiddleware, adminController.suspendDriver);
+router.post('/unsuspend-driver/:id', adminMiddleware, adminController.unsuspendDriver);
+
+// ======================
 // USER MANAGEMENT
 // ======================
 router.get('/users', adminMiddleware, adminController.getUserManagement);
@@ -28,7 +36,7 @@ router.get('/users/view/:id', adminMiddleware, adminController.viewUser);
 router.get('/users/edit/:id', adminMiddleware, adminController.getEditUser);
 router.post('/users/edit/:id', adminMiddleware, adminController.updateUser);
 router.post('/users/delete/:id', adminMiddleware, adminController.deleteUser);
-router.post('/users/add', adminMiddleware, adminController.addUser);
+router.post('/users/add', adminMiddleware, upload.single('idImage'), adminController.addUser);
 
 // ======================
 // STUDENT ADDITIONAL INFO
@@ -149,15 +157,21 @@ router.post('/operations/mobile-load/reject/:id',        adminMiddleware, operat
 router.post('/operations/mobile-load/override/:id',      adminMiddleware, operationController.overrideMobileLoad);
 
 // ======================
+// CAB BOOKING CONFIRMATION
+// ======================
+router.post('/operations/cab-bookings/confirm/:id', adminMiddleware, operationController.confirmCabBooking);
+
+// ======================
+// WARDEN ACTIVITY LOG
+// ======================
+router.get('/operations/activity', adminMiddleware, adminController.getWardenActivityLog);
+
+// ======================
 // ADMIN PROFILE
 // ======================
-router.get('/profile', adminMiddleware, async (req, res) => {
-    try {
-        res.render('admin/profile', { user: req.user });
-    } catch (err) {
-        console.error('Profile Error:', err);
-        res.status(500).send('Server Error');
-    }
-});
+router.get('/profile', adminMiddleware, adminController.getAdminProfile);
+router.post('/profile/update', adminMiddleware, adminController.updateAdminProfile);
+router.post('/profile/picture', adminMiddleware, upload.single('profileImage'), adminController.updateAdminProfileImage);
+router.post('/profile/password', adminMiddleware, adminController.changeAdminPassword);
 
 module.exports = router;

@@ -1,0 +1,102 @@
+<%
+  const activePage = 'profile';
+  const showProfileDropdown = true;
+%>
+<%- include('driver-header') %>
+
+<!-- ══════════════════════════════════════
+     PROFILE INFORMATION
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-user-circle"></i> Profile Information</h3>
+    <span class="status-badge <%= user.status %>"><%= user.status %></span>
+  </div>
+  <div class="detail-grid">
+    <div class="detail-field">
+      <label>User ID</label>
+      <span style="font-family:monospace"><%= user.userId %></span>
+    </div>
+    <div class="detail-field">
+      <label>Full Name</label>
+      <span><%= user.fullname %></span>
+    </div>
+    <div class="detail-field">
+      <label>Email</label>
+      <span><%= user.email %></span>
+    </div>
+    <div class="detail-field">
+      <label>Phone Number</label>
+      <span><%= user.phoneNumber || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Gender</label>
+      <span><%= user.gender || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Date of Birth</label>
+      <span><%= user.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Role</label>
+      <span><span class="role-badge driver">Driver</span></span>
+    </div>
+    <div class="detail-field">
+      <label>Status</label>
+      <span><span class="status-badge <%= user.status %>"><%= user.status %></span></span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     DRIVER & VEHICLE DETAILS
+══════════════════════════════════════ -->
+<% if (driver && driver._id) { %>
+<div class="card">
+  <div class="card-head">
+    <h3><i class="fas fa-id-card"></i> Driver &amp; Vehicle Details</h3>
+  </div>
+  <div class="detail-grid">
+    <div class="detail-field">
+      <label>CNIC</label>
+      <span><%= driver.cnic || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>License Number</label>
+      <span><%= driver.licenseNumber || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>License Expiry</label>
+      <span><%= driver.licenseExpiry ? new Date(driver.licenseExpiry).toLocaleDateString() : '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Vehicle Type</label>
+      <span><%= driver.vehicleType || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Vehicle Registration</label>
+      <span><%= driver.vehicleRegistration || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Vehicle Model</label>
+      <span><%= driver.vehicleModel || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Service Area</label>
+      <span><%= driver.serviceArea || '—' %></span>
+    </div>
+    <div class="detail-field">
+      <label>Experience</label>
+      <span><%= driver.experienceYears ? driver.experienceYears + ' years' : '—' %></span>
+    </div>
+  </div>
+</div>
+<% } %>
+
+<div style="margin-top:1rem">
+  <a href="/driver/dashboard" class="btn-sec" style="display:inline-flex;align-items:center;gap:.4rem">
+    <i class="fas fa-arrow-left"></i> Back to Dashboard
+  </a>
+</div>
+
+<%- include('driver-footer') %>

@@ -31,6 +31,7 @@ async function getSidebarBadges(user) {
         unreadCount,
         recentNotifsRaw,
         pendingApprovalsCount,
+        pendingDriverCount,
         pendingPaymentsCount,
         opsPendingDisputes,
         opsEscalatedLeaves,
@@ -56,6 +57,7 @@ async function getSidebarBadges(user) {
             ]
         }).sort({ createdAt: -1 }).limit(5).lean(),
         User.countDocuments({ role: 'student', status: 'pending' }),
+        User.countDocuments({ role: 'driver', status: 'pending' }),
         Payment.countDocuments({ status: { $in: ['Pending', 'Cash Received'] } }),
         Attendance.countDocuments({ notes: { $regex: /^\[DISPUTE\]/ } }),
         LeaveRequest.countDocuments({
@@ -88,8 +90,8 @@ async function getSidebarBadges(user) {
     return {
         unreadCount,
         recentNotifs,
-        pendingApprovalsCount,
-        pendingPaymentsCount,
+        pendingApprovalsCount: pendingApprovalsCount + pendingDriverCount,
+        pendingPaymentsCount: pendingPaymentsCount,
         opsPendingDisputes,
         opsEscalatedLeaves,
         opsStaleComplaints,

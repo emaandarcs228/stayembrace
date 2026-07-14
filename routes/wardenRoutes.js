@@ -84,4 +84,12 @@ router.get('/visitor-requests', wardenMiddleware, wardenController.getVisitorReq
 router.post('/visitor-requests/approve/:id', wardenMiddleware, wardenController.approveVisitorRequest);
 router.post('/visitor-requests/reject/:id', wardenMiddleware, wardenController.rejectVisitorRequest);
 
+// ══════════════════════════════════════
+// PROFILE
+// ══════════════════════════════════════
+router.get('/profile',              wardenMiddleware, wardenController.getProfile);
+router.post('/profile/update',      wardenMiddleware, wardenController.updateProfile);
+router.post('/profile/picture',     wardenMiddleware, upload.single('profileImage'), wardenController.updateProfileImage);
+router.post('/profile/password',    wardenMiddleware, wardenController.changePassword);
+
 module.exports = router;
