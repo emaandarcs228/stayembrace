@@ -5,6 +5,18 @@
 %>
 <%- include('warden-header') %>
 
+<!-- ── Tab Navigation: Active / History ── -->
+<div class="page-tabs" style="margin-bottom:.7rem">
+  <button class="act-btn active" id="ml-nav-active" style="background:#E8F5E9;color:#2E7D32" onclick="switchMLTab('active')">
+    <i class="ti ti-sparkles"></i> Active
+    <span class="badge badge-success" style="margin-left:.3rem" id="ml-badge-active">0</span>
+  </button>
+  <button class="act-btn" id="ml-nav-history" style="background:#F5F5F5;color:#666" onclick="switchMLTab('history')">
+    <i class="ti ti-history"></i> History
+    <span class="badge badge-neutral" style="margin-left:.3rem" id="ml-badge-history">0</span>
+  </button>
+</div>
+
 <!-- ── Filters ── -->
 <div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
 
@@ -63,7 +75,7 @@
          const isPaid    = dueStatus === 'Paid';
          const isDone    = ml.requestStatus === 'Completed' || ml.requestStatus === 'Rejected';
     %>
-    <div style="display:flex;align-items:center;gap:.8rem;padding:.85rem 1.2rem;border-bottom:1px solid #f5f5f5;flex-wrap:wrap">
+    <div class="ml-row" data-status-cat="<%= ['Pending','Payment Done'].includes(ml.requestStatus) ? 'active' : 'history' %>" style="display:flex;align-items:center;gap:.8rem;padding:.85rem 1.2rem;border-bottom:1px solid #f5f5f5;flex-wrap:wrap">
 
       <!-- Student -->
       <div class="user-cell" style="min-width:160px;flex:1">
@@ -173,6 +185,43 @@
 </div>
 
 <script>
+function countMLCats() {
+  var activeCount = 0, historyCount = 0;
+  document.querySelectorAll('.ml-row').forEach(function(row) {
+    var cat = row.getAttribute('data-status-cat');
+    if (cat === 'active') activeCount++;
+    else historyCount++;
+  });
+  var badgeActive = document.getElementById('ml-badge-active');
+  var badgeHistory = document.getElementById('ml-badge-history');
+  if (badgeActive) badgeActive.textContent = activeCount;
+  if (badgeHistory) badgeHistory.textContent = historyCount;
+}
+
+function switchMLTab(cat) {
+  document.querySelectorAll('#ml-nav-active, #ml-nav-history').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('ml-nav-' + cat).classList.add('active');
+
+  document.querySelectorAll('.card').forEach(function(c) { c.style.display = ''; });
+
+  document.querySelectorAll('.ml-row').forEach(function(row) {
+    var rowCat = row.getAttribute('data-status-cat');
+    row.style.display = rowCat === cat ? '' : 'none';
+  });
+
+  // Count visible rows per card; hide empty states for cards that have visible rows
+  document.querySelectorAll('.card').forEach(function(c) {
+    var hasVisible = false;
+    c.querySelectorAll('.ml-row').forEach(function(r) {
+      if (r.style.display !== 'none') hasVisible = true;
+    });
+    var emptyState = c.querySelector('.empty-state');
+    if (emptyState && c.querySelectorAll('.ml-row').length > 0) {
+      emptyState.style.display = hasVisible ? 'none' : '';
+    }
+  });
+}
+
 function applyFilter(key, val) {
   var params = new URLSearchParams(window.location.search);
   params.set(key, val);
@@ -183,6 +232,11 @@ function openRejectModal(id) {
   document.getElementById('rejectForm').action = '/warden/mobile-load/reject/' + id;
   openModal('rejectModal');
 }
+
+window.addEventListener('DOMContentLoaded', function() {
+  countMLCats();
+  switchMLTab('active');
+});
 </script>
 
 <%- include('warden-footer') %>

@@ -17,6 +17,19 @@
 
 <!-- ══ MY LEAVES PAGE ══ -->
 <div class="page active" id="page-list">
+
+  <!-- ── Tab Navigation: Active / History ── -->
+  <div class="page-tabs" style="margin-bottom:.7rem">
+    <button class="act-btn active" id="sl-nav-active" style="background:#E8F5E9;color:#2E7D32" onclick="switchSLTab('active')">
+      <i class="ti ti-sparkles"></i> Active
+      <span class="badge badge-success" style="margin-left:.3rem" id="sl-badge-active">0</span>
+    </button>
+    <button class="act-btn" id="sl-nav-history" style="background:#E3F2FD;color:#1565C0" onclick="switchSLTab('history')">
+      <i class="ti ti-history"></i> History
+      <span class="badge badge-neutral" style="margin-left:.3rem" id="sl-badge-history">0</span>
+    </button>
+  </div>
+
   <div class="card">
     <div class="card-head">
       <h3><i class="ti ti-calendar-off"></i> All Leave Requests</h3>
@@ -41,6 +54,9 @@
         </thead>
         <tbody>
           <% leaves.forEach(function(lv, i) {
+               const isActiveLv = lv.status === 'Pending';
+          %>
+          <tr class="sl-row" data-status-cat="<%= isActiveLv ? 'active' : 'history' %>">
                const typeMap = {
                  'Home'       : 'badge-info',
                  'Local'      : 'badge-neutral',
@@ -264,6 +280,37 @@
 </div>
 
 <script>
+/* ── Student Leave: Active/History tab ── */
+function countSLCats() {
+  var activeCount = 0, historyCount = 0;
+  document.querySelectorAll('.sl-row').forEach(function(row) {
+    var cat = row.getAttribute('data-status-cat');
+    if (cat === 'active') activeCount++;
+    else historyCount++;
+  });
+  var badgeActive = document.getElementById('sl-badge-active');
+  var badgeHistory = document.getElementById('sl-badge-history');
+  if (badgeActive) badgeActive.textContent = activeCount;
+  if (badgeHistory) badgeHistory.textContent = historyCount;
+}
+
+function switchSLTab(cat) {
+  document.querySelectorAll('#sl-nav-active, #sl-nav-history').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('sl-nav-' + cat).classList.add('active');
+
+  var hasVisible = false;
+  document.querySelectorAll('.sl-row').forEach(function(row) {
+    var rowCat = row.getAttribute('data-status-cat');
+    row.style.display = rowCat === cat ? '' : 'none';
+    if (row.style.display !== 'none') hasVisible = true;
+  });
+
+  var emptyState = document.querySelector('#page-list .empty-state');
+  if (emptyState) {
+    emptyState.style.display = hasVisible ? 'none' : '';
+  }
+}
+
 // Activate first tab
 document.getElementById('btn-list').classList.add('active');
 
@@ -275,6 +322,8 @@ document.getElementById('btn-list').classList.add('active');
     document.getElementById('btn-apply').classList.add('active');
     document.getElementById('btn-list').classList.remove('active');
   }
+  countSLCats();
+  switchSLTab('active');
 })();
 
 function handleTypeChange(type) {

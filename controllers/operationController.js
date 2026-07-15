@@ -914,6 +914,7 @@ exports.getLaundryRequests = async (req, res) => {
     try {
         const base = await buildAdminOpsLocals(req);
         const laundryData = await laundryActions.getLaundryPageData({ weekKey: req.query.week });
+        const activeTab = req.query.tab || 'free';
 
         const badges = await getSidebarBadges(req.user);
 
@@ -923,6 +924,7 @@ exports.getLaundryRequests = async (req, res) => {
             activePage   : 'ops-laundry',
             pageTitle    : 'Laundry Oversight',
             pageSubtitle : "View warden's weekly laundry pickups and override stuck requests",
+            activeTab,
             ...laundryData,
             successMessage: req.query.success || null,
             errorMessage  : req.query.error   || null
@@ -1041,6 +1043,134 @@ exports.overrideMobileLoad = async (req, res) => {
     } catch (err) {
         console.error('operationController overrideMobileLoad:', err);
         res.redirect('/admin/operations/mobile-load?error=Failed+to+override+request.');
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// TRANSPORT MANAGEMENT — List all cab bookings
+// Route: /admin/operations/cab-bookings
+//
+// Admin can view, search, filter, and confirm all transport bookings.
+// ═══════════════════════════════════════════════════════════════════
+exports.getCabBookings = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).send('Access Denied');
+        }
+
+        const base = await buildAdminOpsLocals(req);
+        const badges = await getSidebarBadges(req.user);
+
+        const page       = Math.max(1, parseInt(req.query.page) || 1);
+        const limit      = Math.min(100, Math.max(10, parseInt(req.query.limit) || 20));
+        const skip       = (page - 1) * limit;
+
+        const search     = (req.query.search || '').trim();
+        const statusF    = req.query.status || 'all';
+        const driverF    = req.query.driver || 'all';
+
+        // ── Build query ──
+        const match = {};
+        if (statusF !== 'all') match.status = statusF;
+
+        // ── Fetch bookings with population ──
+        let query = CabBooking.find(match)
+            .populate({
+                path: 'student',
+                select: 'guardianName guardianContact',
+                populate: { path: 'user', select: 'fullname userId phoneNumber profileImage' }
+            })
+            .sort({ createdAt: -1 })
+            .lean();
+
+        let allBookings = await query;
+
+        // Apply search filter (client-side after population)
+        if (search) {
+            const q = search.toLowerCase();
+            allBookings = allBookings.filter(b => {
+                const studentName = b.student?.user?.fullname?.toLowerCase() || '';
+                const studentId   = b.student?.user?.userId?.toLowerCase() || '';
+                const driverName  = (b.driverName || '').toLowerCase();
+                const pickup      = (b.pickupLocation || '').toLowerCase();
+                const dest        = (b.dropoffLocation || '').toLowerCase();
+                return studentName.includes(q) || studentId.includes(q) ||
+                       driverName.includes(q) || pickup.includes(q) || dest.includes(q);
+            });
+        }
+
+        // Apply driver filter (client-side)
+        if (driverF !== 'all') {
+            allBookings = allBookings.filter(b =>
+                b.driver?.toString() === driverF || b.driverName === driverF
+            );
+        }
+
+        // ── Counts —─
+        const totalAll    = allBookings.length;
+        const totalPending    = allBookings.filter(b => b.status === 'Pending').length;
+        const totalConfirmed  = allBookings.filter(b => b.status === 'Confirmed').length;
+        const totalInProgress = allBookings.filter(b => b.status === 'In Progress').length;
+        const totalCompleted  = allBookings.filter(b => b.status === 'Completed').length;
+        const totalCancelled  = allBookings.filter(b => b.status === 'Cancelled').length;
+
+        // ── Unique drivers for filter dropdown ──
+        const driverMap = {};
+        allBookings.forEach(b => {
+            if (b.driver && !driverMap[b.driver.toString()]) {
+                driverMap[b.driver.toString()] = {
+                    id: b.driver.toString(),
+                    name: b.driverName || 'Unknown'
+                };
+            }
+        });
+        const uniqueDrivers = Object.values(driverMap).sort((a, b) => a.name.localeCompare(b.name));
+
+        // ── Paginate ──
+        const totalPages = Math.max(1, Math.ceil(totalAll / limit));
+        const safePage   = Math.min(page, totalPages);
+        const paginated  = allBookings.slice((safePage - 1) * limit, safePage * limit);
+
+        // ── Helper: status badge class ──
+        const statusClass = {
+            'Pending'     : 'badge-warning',
+            'Confirmed'   : 'badge-info',
+            'In Progress' : 'badge-primary',
+            'Completed'   : 'badge-success',
+            'Cancelled'   : 'badge-danger'
+        };
+
+        res.render('admin/cabBookings', {
+            ...base,
+            ...badges,
+            activePage    : 'ops-cab-bookings',
+            pageTitle     : 'Transport Management',
+            pageSubtitle  : 'Monitor and manage all student transport bookings',
+            bookings      : paginated,
+            total         : totalAll,
+            page          : safePage,
+            totalPages,
+            limit,
+            search,
+            statusF,
+            driverF,
+            uniqueDrivers,
+            counts: {
+                all        : totalAll,
+                pending    : totalPending,
+                confirmed  : totalConfirmed,
+                inProgress : totalInProgress,
+                completed  : totalCompleted,
+                cancelled  : totalCancelled
+            },
+            statusClass,
+            successMessage: req.query.success || null,
+            errorMessage  : req.query.error   || null
+        });
+
+    } catch (err) {
+        console.error('getCabBookings Error:', err);
+        res.status(500).send('Server Error');
     }
 };
 

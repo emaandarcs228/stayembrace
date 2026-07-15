@@ -5,6 +5,18 @@
 %>
 <%- include('admin-header') %>
 
+<!-- ── Tab Navigation: Active / History ── -->
+<div class="page-tabs" style="margin-bottom:.7rem">
+  <button class="act-btn active" id="aml-nav-active" style="background:#E8F5E9;color:#2E7D32" onclick="switchAMLTab('active')">
+    <i class="ti ti-sparkles"></i> Active
+    <span class="badge badge-success" style="margin-left:.3rem" id="aml-badge-active">0</span>
+  </button>
+  <button class="act-btn" id="aml-nav-history" style="background:#F5F5F5;color:#666" onclick="switchAMLTab('history')">
+    <i class="ti ti-history"></i> History
+    <span class="badge badge-neutral" style="margin-left:.3rem" id="aml-badge-history">0</span>
+  </button>
+</div>
+
 <!-- ── Filters ── -->
 <div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
 
@@ -63,7 +75,7 @@
          const isPaid    = dueStatus === 'Paid';
          const isDone    = ml.requestStatus === 'Completed' || ml.requestStatus === 'Rejected';
     %>
-    <div style="display:flex;align-items:center;gap:.8rem;padding:.85rem 1.2rem;border-bottom:1px solid #f5f5f5;flex-wrap:wrap">
+    <div class="aml-row" data-status-cat="<%= ['Pending','Payment Done'].includes(ml.requestStatus) ? 'active' : 'history' %>" style="display:flex;align-items:center;gap:.8rem;padding:.85rem 1.2rem;border-bottom:1px solid #f5f5f5;flex-wrap:wrap">
 
       <!-- Student -->
       <div class="user-cell" style="min-width:160px;flex:1">
@@ -210,11 +222,46 @@
 </div>
 
 <script>
+function countAMLCats() {
+  var activeCount = 0, historyCount = 0;
+  document.querySelectorAll('.aml-row').forEach(function(row) {
+    var cat = row.getAttribute('data-status-cat');
+    if (cat === 'active') activeCount++;
+    else historyCount++;
+  });
+  var badgeActive = document.getElementById('aml-badge-active');
+  var badgeHistory = document.getElementById('aml-badge-history');
+  if (badgeActive) badgeActive.textContent = activeCount;
+  if (badgeHistory) badgeHistory.textContent = historyCount;
+}
+
+function switchAMLTab(cat) {
+  document.querySelectorAll('#aml-nav-active, #aml-nav-history').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('aml-nav-' + cat).classList.add('active');
+
+  var hasVisible = false;
+  document.querySelectorAll('.aml-row').forEach(function(row) {
+    var rowCat = row.getAttribute('data-status-cat');
+    row.style.display = rowCat === cat ? '' : 'none';
+    if (row.style.display !== 'none') hasVisible = true;
+  });
+
+  var emptyState = document.querySelector('.card .empty-state');
+  if (emptyState) {
+    emptyState.style.display = hasVisible ? 'none' : '';
+  }
+}
+
 function applyFilter(key, val) {
   var params = new URLSearchParams(window.location.search);
   params.set(key, val);
   window.location.href = '/admin/operations/mobile-load?' + params.toString();
 }
+
+window.addEventListener('DOMContentLoaded', function() {
+  countAMLCats();
+  switchAMLTab('active');
+});
 
 function openRejectModal(id) {
   document.getElementById('rejectForm').action = '/admin/operations/mobile-load/reject/' + id;

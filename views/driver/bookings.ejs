@@ -1,0 +1,182 @@
+<%
+  const activePage = 'bookings';
+  const showProfileDropdown = true;
+%>
+<%- include('driver-header') %>
+
+<!-- ══════════════════════════════════════
+     CAB BOOKINGS
+══════════════════════════════════════ -->
+
+<!-- ── Sub-nav ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
+  <button class="act-btn btn-view" id="btn-active" onclick="switchTab('active', this)">
+    <i class="ti ti-sparkles"></i> Active
+    <% if (activeBookings.length > 0) { %>
+    <span class="badge badge-success" style="margin-left:.3rem;font-size:.55rem"><%= activeBookings.length %></span>
+    <% } %>
+  </button>
+  <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-history" onclick="switchTab('history', this)">
+    <i class="ti ti-history"></i> History
+    <% if (pastBookings.length > 0) { %>
+    <span class="badge badge-neutral" style="margin-left:.3rem;font-size:.55rem"><%= pastBookings.length %></span>
+    <% } %>
+  </button>
+</div>
+
+<!-- ══ ACTIVE BOOKINGS ══ -->
+<div class="page active" id="page-active">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-calendar-check" style="color:#2E7D32"></i> Active Ride Requests</h3>
+      <span class="count-pill"><%= activeBookings.length %> request<%= activeBookings.length !== 1 ? 's' : '' %></span>
+    </div>
+
+    <% if (activeBookings.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Student</th>
+            <th>Pickup</th>
+            <th>Destination</th>
+            <th>Date / Time</th>
+            <th>Pass.</th>
+            <th>Status</th>
+            <th>Booked</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% activeBookings.forEach(function(b, i) {
+               const statusMap = {
+                 'Pending'     : 'badge-warning',
+                 'Confirmed'   : 'badge-info',
+                 'In Progress' : 'badge-purple'
+               };
+               const studentName = b.student?.user?.fullname || '—';
+               const studentPhone = b.student?.user?.phoneNumber || '';
+               const pickupDate = new Date(b.pickupDate);
+               const createdAt = b.createdAt ? new Date(b.createdAt) : null;
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td>
+              <div style="font-weight:600;font-size:.78rem"><%= studentName %></div>
+              <div style="font-size:.65rem;color:var(--text-muted)"><%= studentPhone %></div>
+            </td>
+            <td style="font-size:.72rem;max-width:130px;word-break:break-word"><%= b.pickupLocation %></td>
+            <td style="font-size:.72rem;max-width:130px;word-break:break-word"><%= b.dropoffLocation %></td>
+            <td style="font-size:.72rem">
+              <%= pickupDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+              <% if (b.pickupTime) { %><div style="font-size:.62rem;color:var(--text-muted)"><%= b.pickupTime %></div><% } %>
+            </td>
+            <td style="text-align:center"><span class="count-pill"><%= b.passengerCount %></span></td>
+            <td><span class="badge <%= statusMap[b.status] || 'badge-neutral' %>"><%= b.status %></span></td>
+            <td style="font-size:.68rem;color:var(--text-muted)">
+              <%= createdAt ? createdAt.toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) : '—' %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-calendar-off"></i>
+      <h4>No active ride requests</h4>
+      <p>New bookings from students will appear here once assigned.</p>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /page-active -->
+
+<!-- ══ HISTORY BOOKINGS ══ -->
+<div class="page" id="page-history">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-history" style="color:#1565C0"></i> Booking History</h3>
+      <span class="count-pill"><%= pastBookings.length %> record<%= pastBookings.length !== 1 ? 's' : '' %></span>
+    </div>
+
+    <% if (pastBookings.length > 0) { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Student</th>
+            <th>Pickup</th>
+            <th>Destination</th>
+            <th>Date</th>
+            <th>Pass.</th>
+            <th>Status</th>
+            <th>Rated</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% pastBookings.forEach(function(b, i) {
+               const statusMap = {
+                 'Completed' : 'badge-success',
+                 'Cancelled' : 'badge-neutral'
+               };
+               const studentName = b.student?.user?.fullname || '—';
+               const pickupDate = new Date(b.pickupDate);
+               const hasRating = b.rating && b.rating > 0;
+          %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td>
+              <div style="font-weight:600;font-size:.78rem"><%= studentName %></div>
+            </td>
+            <td style="font-size:.72rem;max-width:130px;word-break:break-word"><%= b.pickupLocation %></td>
+            <td style="font-size:.72rem;max-width:130px;word-break:break-word"><%= b.dropoffLocation %></td>
+            <td style="font-size:.72rem">
+              <%= pickupDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+            </td>
+            <td style="text-align:center"><span class="count-pill"><%= b.passengerCount %></span></td>
+            <td><span class="badge <%= statusMap[b.status] || 'badge-neutral' %>"><%= b.status %></span></td>
+            <td>
+              <% if (hasRating) { %>
+                <span class="badge badge-warning">
+                  <i class="fas fa-star" style="font-size:.55rem"></i> <%= b.rating %>/5
+                </span>
+              <% } else { %>
+                <span style="color:#ccc;font-size:.7rem">—</span>
+              <% } %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-history"></i>
+      <h4>No booking history yet</h4>
+      <p>Completed and cancelled bookings will appear here.</p>
+    </div>
+    <% } %>
+  </div>
+</div><!-- /page-history -->
+
+<script>
+// ── Tab switching ──
+function switchTab(name, btnEl) {
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('#btn-active, #btn-history').forEach(function(b) {
+    b.classList.remove('btn-view');
+    b.style.background = '#f5f5f5';
+    b.style.color = 'var(--text-secondary)';
+  });
+  btnEl.classList.add('btn-view');
+  btnEl.style.background = '';
+  btnEl.style.color = '';
+}
+
+// Activate initial tab
+document.getElementById('btn-active').classList.add('active');
+</script>
+
+<%- include('driver-footer') %>

@@ -456,7 +456,7 @@
           <% guestRooms.forEach(function(room, i) {
                var safeDescG = (room.description || '').replace(/\\/g, '\\\\').replace(/'/g, '&#39;');
           %>
-          <tr>
+          <tr data-search-hidden="0">
             <td><%= i+1 %></td>
             <td><strong><%= room.roomNo %></strong></td>
             <td><span class="block-badge block-<%= room.block.toLowerCase() %>">Block <%= room.block %></span></td>
@@ -1008,13 +1008,34 @@ function renderRoomsPagination() {
 /* ═══ GLOBAL SEARCH ═══ */
 function globalSearchHandler() {
   var q = document.getElementById('globalSearch').value.trim().toLowerCase();
+  var hasStudentMatch = false, hasGuestMatch = false;
+
+  // Search Student Rooms
   document.querySelectorAll('#rooms-body tr').forEach(function(row) {
     var m = q === '' || row.textContent.toLowerCase().indexOf(q) !== -1;
     row.dataset.searchHidden = m ? '0' : '1';
+    if (m && q !== '') hasStudentMatch = true;
   });
+
+  // Search Guest Rooms
+  document.querySelectorAll('#page-guest-rooms tbody tr').forEach(function(row) {
+    var m = q === '' || row.textContent.toLowerCase().indexOf(q) !== -1;
+    row.dataset.searchHidden = m ? '0' : '1';
+    if (m && q !== '') hasGuestMatch = true;
+    row.style.display = m ? '' : 'none';
+  });
+
   ROOMS_PAGE = 1;
   renderRoomsPagination();
-  if (q !== '') showPage('all-rooms', document.getElementById('nav-student-rooms'));
+
+  // Navigate to the tab that has matching results
+  if (q !== '') {
+    if (hasStudentMatch) {
+      showPage('all-rooms', document.getElementById('nav-student-rooms'));
+    } else if (hasGuestMatch) {
+      showPage('guest-rooms', document.getElementById('nav-guest-rooms'));
+    }
+  }
 }
 
 /* ═══ ADD ROOM HELPERS ═══ */

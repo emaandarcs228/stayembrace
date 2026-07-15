@@ -28,6 +28,7 @@ const MenuItem = require('../models/menuItem');
 const MessLog  = require('../models/messDailyLog');
 const laundryActions = require('../services/laundryActions');
 const mobileLoadActions = require('../services/mobileLoadActions');
+const CabBooking = require('../models/cabBooking');
 
 // ─────────────────────────────────────────────────────────────
 // HELPERS
@@ -242,9 +243,20 @@ exports.getAttendance = async (req, res) => {
             .populate('room', 'roomNo block')
             .lean();
 
-        const notMarked = allActiveStudents.filter(s =>
+        let notMarked = allActiveStudents.filter(s =>
+            s.user !== null &&
             !markedStudentIds.includes(s._id.toString())
         );
+
+        // Deduplicate by user ref to prevent duplicate entries caused by
+        // multiple Student records pointing to the same User.
+        const seenUserIds = new Set();
+        notMarked = notMarked.filter(s => {
+            const uid = s.user._id.toString();
+            if (seenUserIds.has(uid)) return false;
+            seenUserIds.add(uid);
+            return true;
+        });
 
         // ── Monthly / Yearly overview ─────────────────────────────────
         const selectedYear  = parseInt(req.query.year  || today.getFullYear());
@@ -881,6 +893,7 @@ exports.getLaundryRequests = async (req, res) => {
     try {
         const base = await buildBaseLocals(req);
         const laundryData = await laundryActions.getLaundryPageData({ weekKey: req.query.week });
+        const activeTab   = req.query.tab || 'free';
 
         res.render('warden/laundry', {
             ...base,
@@ -888,6 +901,7 @@ exports.getLaundryRequests = async (req, res) => {
             pageTitle      : 'Laundry',
             pageSubtitle   : 'Weekly pickup and delivery management',
             ...laundryData,
+            activeTab,
             successMessage : req.query.success || null,
             errorMessage   : req.query.error   || null
         });
@@ -1022,6 +1036,86 @@ exports.rejectMobileLoad = async (req, res) => {
     } catch (err) {
         console.error('rejectMobileLoad:', err);
         res.redirect('/warden/mobile-load?error=Failed+to+reject.');
+    }
+};
+
+// ─────────────────────────────────────────────────────────────
+// TRANSPORT MANAGEMENT
+// ─────────────────────────────────────────────────────────────
+exports.getCabBookings = async (req, res) => {
+    try {
+        const base = await buildBaseLocals(req);
+
+        const search   = (req.query.search || '').trim();
+        const statusF  = req.query.status || 'all';
+
+        // Build query
+        const match = {};
+        if (statusF !== 'all') match.status = statusF;
+
+        let bookings = await CabBooking.find(match)
+            .populate({
+                path: 'student',
+                select: 'guardianName guardianContact',
+                populate: { path: 'user', select: 'fullname userId phoneNumber profileImage' }
+            })
+            .sort({ createdAt: -1 })
+            .lean();
+
+        // Apply search filter (client-side after population)
+        if (search) {
+            const q = search.toLowerCase();
+            bookings = bookings.filter(b => {
+                const studentName = b.student?.user?.fullname?.toLowerCase() || '';
+                const studentId   = b.student?.user?.userId?.toLowerCase() || '';
+                const driverName  = (b.driverName || '').toLowerCase();
+                const pickup      = (b.pickupLocation || '').toLowerCase();
+                const dest        = (b.dropoffLocation || '').toLowerCase();
+                return studentName.includes(q) || studentId.includes(q) ||
+                       driverName.includes(q) || pickup.includes(q) || dest.includes(q);
+            });
+        }
+
+        const totalAll        = bookings.length;
+        const totalPending    = bookings.filter(b => b.status === 'Pending').length;
+        const totalConfirmed  = bookings.filter(b => b.status === 'Confirmed').length;
+        const totalInProgress = bookings.filter(b => b.status === 'In Progress').length;
+        const totalCompleted  = bookings.filter(b => b.status === 'Completed').length;
+        const totalCancelled  = bookings.filter(b => b.status === 'Cancelled').length;
+
+        const statusClass = {
+            'Pending'     : 'badge-warning',
+            'Confirmed'   : 'badge-info',
+            'In Progress' : 'badge-primary',
+            'Completed'   : 'badge-success',
+            'Cancelled'   : 'badge-danger'
+        };
+
+        res.render('warden/cabBookings', {
+            ...base,
+            activePage    : 'cab-bookings',
+            pageTitle     : 'Transport Bookings',
+            pageSubtitle  : 'Monitor student transport activity',
+            bookings,
+            total         : totalAll,
+            search,
+            statusF,
+            statusClass,
+            counts: {
+                all        : totalAll,
+                pending    : totalPending,
+                confirmed  : totalConfirmed,
+                inProgress : totalInProgress,
+                completed  : totalCompleted,
+                cancelled  : totalCancelled
+            },
+            successMessage : req.query.success || null,
+            errorMessage   : req.query.error   || null
+        });
+
+    } catch (err) {
+        console.error('getCabBookings:', err);
+        res.status(500).send('Server Error');
     }
 };
 

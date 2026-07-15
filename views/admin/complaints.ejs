@@ -108,6 +108,19 @@
      ALL COMPLAINTS (oversight + override)
 ══════════════════════════════════════════ -->
 <div class="page" id="page-all">
+
+  <!-- ── Active / History Tab Navigation ── -->
+  <div class="page-tabs" style="margin-bottom:.7rem">
+    <button class="act-btn active" id="ac-nav-active" style="background:#E8F5E9;color:#2E7D32" onclick="switchACTab('active')">
+      <i class="ti ti-sparkles"></i> Active
+      <span class="badge badge-success" style="margin-left:.3rem" id="ac-badge-active">0</span>
+    </button>
+    <button class="act-btn" id="ac-nav-history" style="background:#F5F5F5;color:#666" onclick="switchACTab('history')">
+      <i class="ti ti-history"></i> History
+      <span class="badge badge-neutral" style="margin-left:.3rem" id="ac-badge-history">0</span>
+    </button>
+  </div>
+
   <div class="card">
     <div class="card-head">
       <h3><i class="ti ti-list-details"></i> All Complaints</h3>
@@ -115,7 +128,7 @@
     </div>
 
     <form method="GET" action="/admin/operations/complaints"
-          style="display:flex; gap:1rem; align-items:center; padding:0 1.2rem 1.2rem; flex-wrap:wrap">
+          style="display:flex; gap:1rem; align-items:center; padding:1.2rem 1.2rem 1.2rem; flex-wrap:wrap">
       <input type="hidden" name="page" value="all">
       <select name="category" class="filter-sel" onchange="this.form.submit()">
         <option value="all" <%= activeCategory === 'all' ? 'selected' : '' %>>All Categories</option>
@@ -127,7 +140,7 @@
         <option value="Other"          <%= activeCategory === 'Other'          ? 'selected' : '' %>>Other</option>
       </select>
       <select name="status" class="filter-sel" onchange="this.form.submit()">
-        <option value="all" <%= activeStatus === 'all' ? 'selected' : '' %>>All Statuses</option>
+        <option value="all" <%= activeStatus === 'all' ? 'selected' : '' %>>All</option>
         <option value="Submitted"    <%= activeStatus === 'Submitted'    ? 'selected' : '' %>>Submitted</option>
         <option value="Acknowledged" <%= activeStatus === 'Acknowledged' ? 'selected' : '' %>>Acknowledged</option>
         <option value="In Progress"  <%= activeStatus === 'In Progress'  ? 'selected' : '' %>>In Progress</option>
@@ -143,8 +156,9 @@
         </thead>
         <tbody>
           <% allComplaints.forEach(c => {
-               const isAnon = c.isAnonymous; %>
-          <tr>
+               const isAnon = c.isAnonymous;
+               const isActiveC = ['Submitted','Acknowledged','In Progress'].includes(c.status); %>
+          <tr class="ac-row" data-status-cat="<%= isActiveC ? 'active' : 'history' %>">
             <td>
               <% if (!isAnon && c.student && c.student.user) { %>
               <div class="user-cell">
@@ -249,11 +263,49 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+/* ── All Complaints: Active/History tab ── */
+function countACCats() {
+  var activeCount = 0, historyCount = 0;
+  document.querySelectorAll('.ac-row').forEach(function(row) {
+    var cat = row.getAttribute('data-status-cat');
+    if (cat === 'active') activeCount++;
+    else historyCount++;
+  });
+  var badgeActive = document.getElementById('ac-badge-active');
+  var badgeHistory = document.getElementById('ac-badge-history');
+  if (badgeActive) badgeActive.textContent = activeCount;
+  if (badgeHistory) badgeHistory.textContent = historyCount;
+}
+
+function switchACTab(cat) {
+  document.querySelectorAll('#ac-nav-active, #ac-nav-history').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('ac-nav-' + cat).classList.add('active');
+
+  var hasVisible = false;
+  document.querySelectorAll('.ac-row').forEach(function(row) {
+    var rowCat = row.getAttribute('data-status-cat');
+    row.style.display = rowCat === cat ? '' : 'none';
+    if (row.style.display !== 'none') hasVisible = true;
+  });
+
+  // Show/hide empty state based on visible rows
+  var emptyState = document.querySelector('#page-all .empty-state');
+  if (emptyState) {
+    emptyState.style.display = hasVisible ? 'none' : '';
+  }
+}
+
 function showPage(pageId, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + pageId).classList.add('active');
   document.querySelectorAll('.page-tabs .act-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
+
+  // Initialize all-complaints tabs when switching to that page
+  if (pageId === 'all') {
+    countACCats();
+    switchACTab('active');
+  }
 }
 
 function openComplaintModal(data) {

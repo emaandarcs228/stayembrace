@@ -5,21 +5,34 @@
 %>
 <%- include('student-header') %>
 
-<!-- ── Sub-nav ── -->
+<!-- ── Sub-nav (standard page tabs) ── -->
 <div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
   <button class="act-btn btn-view" id="btn-list" onclick="showPage('list', this)">
     <i class="ti ti-list"></i> My Visitor Requests
   </button>
-  <button class="act-btn" style="background:var(--green-light);color:var(--green-dark)" id="btn-apply" onclick="showPage('apply', this)">
+  <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-apply" onclick="showPage('apply', this)">
     <i class="ti ti-plus"></i> Request Visitor
   </button>
-  <button class="act-btn" style="background:#F3E5F5;color:#8E24AA" id="btn-bookings" onclick="showPage('bookings', this)">
+  <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-bookings" onclick="showPage('bookings', this)">
     <i class="ti ti-home-2"></i> Guest Room Bookings
   </button>
 </div>
 
 <!-- ══ MY VISITOR REQUESTS PAGE ══ -->
 <div class="page active" id="page-list">
+
+  <!-- ── Active / History Tab Navigation ── -->
+  <div class="page-tabs" style="margin-bottom:.7rem">
+    <button class="act-btn active" id="sv-nav-active" style="background:#E8F5E9;color:#2E7D32" onclick="switchSVTab('active')">
+      <i class="ti ti-sparkles"></i> Active
+      <span class="badge badge-success" style="margin-left:.3rem" id="sv-badge-active">0</span>
+    </button>
+    <button class="act-btn" id="sv-nav-history" style="background:#E3F2FD;color:#1565C0" onclick="switchSVTab('history')">
+      <i class="ti ti-history"></i> History
+      <span class="badge badge-neutral" style="margin-left:.3rem" id="sv-badge-history">0</span>
+    </button>
+  </div>
+
   <div class="card">
     <div class="card-head">
       <h3><i class="ti ti-users"></i> All Visitor Requests</h3>
@@ -51,8 +64,9 @@
                };
                const visitDate   = new Date(vr.visitDate);
                const alreadyBooked = bookedVisitorRequestIds.includes(String(vr._id));
+               const isActiveVr = vr.status === 'Pending';
           %>
-          <tr>
+          <tr class="sv-row" data-status-cat="<%= isActiveVr ? 'active' : 'history' %>">
             <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
             <td>
               <div style="font-weight:600;font-size:.8rem"><%= vr.visitorName %></div>
@@ -332,6 +346,37 @@
 </div>
 
 <script>
+/* ── Student Visitor: Active/History tab ── */
+function countSVCats() {
+  var activeCount = 0, historyCount = 0;
+  document.querySelectorAll('.sv-row').forEach(function(row) {
+    var cat = row.getAttribute('data-status-cat');
+    if (cat === 'active') activeCount++;
+    else historyCount++;
+  });
+  var badgeActive = document.getElementById('sv-badge-active');
+  var badgeHistory = document.getElementById('sv-badge-history');
+  if (badgeActive) badgeActive.textContent = activeCount;
+  if (badgeHistory) badgeHistory.textContent = historyCount;
+}
+
+function switchSVTab(cat) {
+  document.querySelectorAll('#sv-nav-active, #sv-nav-history').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('sv-nav-' + cat).classList.add('active');
+
+  var hasVisible = false;
+  document.querySelectorAll('.sv-row').forEach(function(row) {
+    var rowCat = row.getAttribute('data-status-cat');
+    row.style.display = rowCat === cat ? '' : 'none';
+    if (row.style.display !== 'none') hasVisible = true;
+  });
+
+  var emptyState = document.querySelector('#page-list .empty-state');
+  if (emptyState) {
+    emptyState.style.display = hasVisible ? 'none' : '';
+  }
+}
+
 // Activate first tab
 document.getElementById('btn-list').classList.add('active');
 
@@ -344,6 +389,12 @@ document.getElementById('btn-list').classList.add('active');
     document.getElementById('btn-' + page).classList.add('active');
     document.getElementById('btn-list').classList.remove('active');
   }
+})();
+
+// Initialize tabs on load
+(function() {
+  countSVCats();
+  switchSVTab('active');
 })();
 
 function openRejectModal(button) {

@@ -5,6 +5,18 @@
 %>
 <%- include('warden-header') %>
 
+<!-- ── Tab Navigation: Active / History ── -->
+<div class="page-tabs" style="margin-bottom:.7rem">
+  <button class="act-btn active" id="vr-nav-active" style="background:#E8F5E9;color:#2E7D32" onclick="switchVRTab('active')">
+    <i class="ti ti-sparkles"></i> Active
+    <span class="badge badge-success" style="margin-left:.3rem" id="vr-badge-active">0</span>
+  </button>
+  <button class="act-btn" id="vr-nav-history" style="background:#F5F5F5;color:#666" onclick="switchVRTab('history')">
+    <i class="ti ti-history"></i> History
+    <span class="badge badge-neutral" style="margin-left:.3rem" id="vr-badge-history">0</span>
+  </button>
+</div>
+
 <!-- ── Filter Tabs ── -->
 <div class="filter-tabs" style="margin-bottom:1.2rem">
 
@@ -58,7 +70,7 @@
        const appliedDate  = new Date(vr.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short' });
        const isPending    = vr.status === 'Pending';
   %>
-  <div class="card" style="margin-bottom:0">
+  <div class="vr-card" data-status-cat="<%= isPending ? 'active' : 'history' %>" style="margin-bottom:0">
 
     <!-- Card Header -->
     <div class="card-head">
@@ -178,5 +190,42 @@
 </div>
 
 <% } %>
+
+<script>
+function countVRCats() {
+  var activeCount = 0, historyCount = 0;
+  document.querySelectorAll('.vr-card').forEach(function(card) {
+    var cat = card.getAttribute('data-status-cat');
+    if (cat === 'active') activeCount++;
+    else historyCount++;
+  });
+  var badgeActive = document.getElementById('vr-badge-active');
+  var badgeHistory = document.getElementById('vr-badge-history');
+  if (badgeActive) badgeActive.textContent = activeCount;
+  if (badgeHistory) badgeHistory.textContent = historyCount;
+}
+
+function switchVRTab(cat) {
+  document.querySelectorAll('#vr-nav-active, #vr-nav-history').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('vr-nav-' + cat).classList.add('active');
+
+  var hasVisible = false;
+  document.querySelectorAll('.vr-card').forEach(function(card) {
+    var rowCat = card.getAttribute('data-status-cat');
+    card.style.display = rowCat === cat ? '' : 'none';
+    if (card.style.display !== 'none') hasVisible = true;
+  });
+
+  var emptyState = document.querySelector('.card .empty-state');
+  if (emptyState) {
+    emptyState.style.display = hasVisible ? 'none' : '';
+  }
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+  countVRCats();
+  switchVRTab('active');
+});
+</script>
 
 <%- include('warden-footer') %>

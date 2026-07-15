@@ -13,8 +13,8 @@
     to   { opacity: 1; transform: translateY(0); }
   }
   @keyframes pulseGlow {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(245,124,0,.2); }
-    50%      { box-shadow: 0 0 0 8px rgba(245,124,0,0); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(76,175,80,.2); }
+    50%      { box-shadow: 0 0 0 8px rgba(76,175,80,0); }
   }
   @keyframes shimmer {
     0%   { background-position: -200% 0; }
@@ -30,51 +30,7 @@
   .fade-in-d5 { animation-delay: .25s; }
   .fade-in-d6 { animation-delay: .3s; }
 
-  /* ── Tab system ── */
-  .tp-tabs {
-    display: flex;
-    gap: .35rem;
-    margin-bottom: 1.5rem;
-    padding: .25rem;
-    background: #f8f9fa;
-    border-radius: var(--radius-lg);
-    width: fit-content;
-  }
-  .tp-tab {
-    display: flex;
-    align-items: center;
-    gap: .4rem;
-    padding: .5rem 1.1rem;
-    border: none;
-    background: transparent;
-    border-radius: var(--radius-md);
-    font-size: .78rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-family: inherit;
-    transition: all .25s;
-  }
-  .tp-tab i { font-size: .85rem; }
-  .tp-tab:hover { color: var(--text-primary); }
-  .tp-tab.active {
-    background: white;
-    color: var(--text-primary);
-    box-shadow: 0 1px 4px rgba(0,0,0,.06);
-  }
-  .tp-tab .tab-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 .35rem;
-    border-radius: 9px;
-    font-size: .55rem;
-    font-weight: 700;
-    background: #FFF3E0;
-    color: #E65100;
-  }
+  
 
   /* ── Search bar ── */
   .tp-search-wrap {
@@ -90,8 +46,8 @@
     max-width: 420px;
   }
   .tp-search-wrap:focus-within {
-    border-color: #F57C00;
-    box-shadow: 0 0 0 3px rgba(245,124,0,.12);
+    border-color: #2E7D32;
+    box-shadow: 0 0 0 3px rgba(46,125,50,.12);
   }
   .tp-search-wrap i {
     font-size: .85rem;
@@ -124,13 +80,13 @@
     transition: all .2s;
   }
   .tp-filter-btn:hover {
-    border-color: #F57C00;
-    color: #F57C00;
+    border-color: #2E7D32;
+    color: #2E7D32;
   }
   .tp-filter-btn.active {
-    background: #FFF8E1;
-    border-color: #FFB74D;
-    color: #E65100;
+    background: #E8F5E9;
+    border-color: #81C784;
+    color: #2E7D32;
   }
 
   /* ── Provider cards ── */
@@ -173,7 +129,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #F57C00, #E65100);
+    background: #1565C0;
   }
   .tp-verified-badge {
     position: absolute;
@@ -259,46 +215,9 @@
   .tp-expiry.warning  { color: #E65100; }
   .tp-expiry.expired  { color: #C62828; }
 
-  .tp-call-btn, .tp-email-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: .35rem;
-    padding: .38rem .7rem;
-    border-radius: var(--radius-md);
-    font-size: .72rem;
-    font-weight: 500;
-    text-decoration: none;
-    transition: all .2s;
-  }
-  .tp-call-btn  { background: #E8F5E9; color: #2E7D32; }
-  .tp-call-btn:hover  { background: #C8E6C9; }
-  .tp-email-btn { background: #E3F2FD; color: #1565C0; }
-  .tp-email-btn:hover { background: #BBDEFB; }
 
-  .tp-book-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: .4rem;
-    padding: .45rem 1rem;
-    border-radius: var(--radius-md);
-    font-size: .75rem;
-    font-weight: 600;
-    background: linear-gradient(135deg, #F57C00, #E65100);
-    color: white;
-    border: none;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all .3s cubic-bezier(.34,1.56,.64,1);
-    white-space: nowrap;
-  }
-  .tp-book-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(245,124,0,.35);
-  }
-  .tp-book-btn:active {
-    transform: translateY(0);
-  }
+
+
 
   /* ── Online indicator ── */
   .tp-online-dot {
@@ -319,7 +238,7 @@
     gap: .2rem;
     font-size: .7rem;
     font-weight: 700;
-    color: #E65100;
+    color: #2E7D32;
   }
   .tp-rating-badge i { font-size: .65rem; color: #FFA000; }
 
@@ -341,20 +260,18 @@
   @media (max-width: 600px) {
     .tp-card-avatar { width: 48px; height: 48px; font-size: 1.1rem; }
     .tp-section { padding: .55rem .9rem; }
-    .tp-tabs { width: 100%; }
-    .tp-tab { flex: 1; justify-content: center; font-size: .72rem; padding: .4rem .6rem; }
   }
 </style>
 
-<!-- ═══ TABS ═══ -->
-<div class="tp-tabs fade-in">
-  <button class="tp-tab active" id="tab-providers" onclick="switchTab('providers', this)">
+<!-- ── Sub-nav ── -->
+<div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap" class="fade-in">
+  <button class="act-btn btn-view" id="btn-providers" onclick="showPage('providers', this)">
     <i class="ti ti-car"></i> Providers
   </button>
-  <button class="tp-tab" id="tab-bookings" onclick="switchTab('bookings', this)">
+  <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-bookings" onclick="showPage('bookings', this)">
     <i class="ti ti-calendar-check"></i> My Bookings
     <% if (typeof myBookings !== 'undefined' && myBookings.filter(b => b.status === 'Pending').length > 0) { %>
-      <span class="tab-badge"><%= myBookings.filter(b => b.status === 'Pending').length %></span>
+      <span class="badge badge-warning" style="margin-left:.3rem;font-size:.55rem"><%= myBookings.filter(b => b.status === 'Pending').length %></span>
     <% } %>
   </button>
 </div>
@@ -385,7 +302,6 @@
     </span>
     <span class="badge badge-success" style="font-size:.6rem"><i class="ti ti-shield-check"></i> Verified</span>
     <span class="badge badge-info" style="font-size:.6rem"><i class="ti ti-id"></i> Licensed</span>
-    <span class="badge badge-teal" style="font-size:.6rem"><i class="ti ti-file-check"></i> Documented</span>
   </div>
 
   <% if (providers.length > 0) { %>
@@ -424,7 +340,7 @@
          data-search="<%= (p.fullname + ' ' + (p.vehicleType || '') + ' ' + (p.serviceArea || '') + ' ' + (p.vehicleRegistration || '') + ' ' + p.phoneNumber).toLowerCase() %>">
 
       <!-- ── HEADER with avatar ── -->
-      <div class="tp-section" style="display:flex;align-items:center;gap:1rem;padding:1.1rem 1.25rem;background:linear-gradient(135deg,#FFF8E1,#FFFDE7);position:relative">
+      <div class="tp-section" style="display:flex;align-items:center;gap:1rem;padding:1.1rem 1.25rem;background:#f8f9fa;position:relative">
         <!-- Verified service indicator -->
         <% if (p.isVerified) { %>
         <span style="position:absolute;top:.6rem;right:.75rem;display:flex;align-items:center;gap:.25rem;font-size:.55rem;font-weight:600;color:#4CAF50">
@@ -491,7 +407,7 @@
         <div class="tp-label"><i class="ti ti-map-pin"></i> Service Route</div>
         <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
           <span style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;font-weight:500;color:var(--text-primary)">
-            <i class="ti ti-map" style="color:#F57C00"></i>
+            <i class="ti ti-map" style="color:#2E7D32"></i>
             <% if (p.serviceArea !== '—') { %>
               <%= p.serviceArea %>
             <% } else { %>
@@ -552,13 +468,13 @@
       <div class="tp-section" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;background:#fafafa">
 
         <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
-          <a href="tel:<%= p.phoneNumber %>" class="tp-call-btn"><i class="ti ti-phone"></i> <%= p.phoneNumber %></a>
+        <a href="tel:<%= p.phoneNumber %>" class="act-btn btn-approve" style="text-decoration:none;font-size:.72rem"><i class="ti ti-phone"></i> <%= p.phoneNumber %></a>
           <% if (p.email && p.email !== '—') { %>
-            <a href="mailto:<%= p.email %>" class="tp-email-btn"><i class="ti ti-mail"></i></a>
+            <a href="mailto:<%= p.email %>" class="act-btn btn-view" style="text-decoration:none;font-size:.72rem"><i class="ti ti-mail"></i></a>
           <% } %>
         </div>
 
-        <button class="tp-book-btn"
+        <button class="act-btn btn-approve" style="font-weight:600"
           data-driver-id="<%= p._id %>"
           data-driver-name="<%= p.fullname %>"
           data-driver-phone="<%= p.phoneNumber %>"
@@ -619,7 +535,7 @@
 
   <div class="card">
     <div class="card-head">
-      <h3><i class="ti ti-calendar-check" style="color:#F57C00"></i> My Cab Bookings</h3>
+      <h3><i class="ti ti-calendar-check" style="color:#2E7D32"></i> My Cab Bookings</h3>
       <span class="count-pill" id="bookingCount"><%= myBookings.length %> total</span>
     </div>
 
@@ -715,7 +631,7 @@
                 </form>
                 <% } %>
                 <% if (b.status === 'Completed') { %>
-                <button type="button" class="act-btn btn-view" style="background:#FFF3E0;color:#E65100" onclick="event.stopPropagation();openRateModal(this.closest('tr'))">
+                <button type="button" class="act-btn btn-view" style="background:#E8F5E9;color:#2E7D32" onclick="event.stopPropagation();openRateModal(this.closest('tr'))">
                   <i class="fas fa-star"></i> <%= b.rating ? 'Edit' : 'Rate' %>
                 </button>
                 <% } %>
@@ -729,14 +645,14 @@
 
     <!-- ── Empty filter/search state ── -->
     <div id="noBookingResults" class="empty-state" style="display:none">
-      <i class="ti ti-search-off" style="color:#F57C00"></i>
+      <i class="ti ti-search-off" style="color:var(--text-muted)"></i>
       <h4>No bookings match your search</h4>
       <p>Try a different search term or status filter.</p>
     </div>
 
     <% } else { %>
     <div class="empty-state">
-      <i class="ti ti-calendar-off" style="color:#F57C00"></i>
+      <i class="ti ti-calendar-off" style="color:var(--text-muted)"></i>
       <h4>No cab bookings yet</h4>
       <p>Browse providers above and tap <strong>"Book Now"</strong> to get started.</p>
     </div>
@@ -751,7 +667,7 @@
 <div class="modal-overlay" id="bookingDetailModal" onclick="if(event.target===this)closeModal('bookingDetailModal')">
   <div class="modal-box" style="max-width:520px">
     <div class="modal-head">
-      <h3><i class="ti ti-file-text" style="color:#F57C00"></i> Booking Details</h3>
+      <h3><i class="ti ti-file-text" style="color:#1565C0"></i> Booking Details</h3>
       <button class="modal-close" onclick="closeModal('bookingDetailModal')"><i class="fas fa-times"></i></button>
     </div>
 
@@ -809,7 +725,7 @@
 <div class="modal-overlay" id="rateModal" onclick="if(event.target===this)closeModal('rateModal')">
   <div class="modal-box" style="max-width:460px">
     <div class="modal-head">
-      <h3><i class="fas fa-star" style="color:#F57C00"></i> Rate Your Ride</h3>
+      <h3><i class="fas fa-star" style="color:#FFA000"></i> Rate Your Ride</h3>
       <button class="modal-close" onclick="closeModal('rateModal')"><i class="fas fa-times"></i></button>
     </div>
 
@@ -853,7 +769,7 @@
 <div class="modal-overlay" id="bookCabModal" onclick="if(event.target===this)closeModal('bookCabModal')">
   <div class="modal-box" style="max-width:520px">
     <div class="modal-head">
-      <h3><i class="ti ti-taxi" style="color:#F57C00"></i> Book a Cab</h3>
+      <h3><i class="ti ti-taxi" style="color:#2E7D32"></i> Book a Cab</h3>
       <button class="modal-close" onclick="closeModal('bookCabModal')"><i class="fas fa-times"></i></button>
     </div>
 
@@ -935,13 +851,8 @@
 </div>
 
 <script>
-// ── Tab switching ──
-function switchTab(name, btn) {
-  document.querySelectorAll('.tp-tab').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + name).classList.add('active');
-}
+// Activate initial sub-nav tab
+document.getElementById('btn-providers').classList.add('active');
 
 // ── Vehicle filter ──
 let currentFilter = 'all';

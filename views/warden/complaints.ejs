@@ -5,6 +5,18 @@
 %>
 <%- include('warden-header') %>
 
+<!-- ── Tab Navigation: Active / History ── -->
+<div class="page-tabs" style="margin-bottom:.7rem">
+  <button class="act-btn active" id="c-nav-active" style="background:#E8F5E9;color:#2E7D32" onclick="switchCTab('active')">
+    <i class="ti ti-sparkles"></i> Active
+    <span class="badge badge-success" style="margin-left:.3rem" id="c-badge-active">0</span>
+  </button>
+  <button class="act-btn" id="c-nav-history" style="background:#F5F5F5;color:#666" onclick="switchCTab('history')">
+    <i class="ti ti-history"></i> History
+    <span class="badge badge-neutral" style="margin-left:.3rem" id="c-badge-history">0</span>
+  </button>
+</div>
+
 <!-- ── Filters ── -->
 <div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
 
@@ -22,7 +34,7 @@
   %>
   <a href="/warden/complaints?status=<%= encodeURIComponent(s) %>&category=<%= activeCategory %>"
      class="filter-tab <%= colorMap[s] %> <%= isActive ? 'is-active' : '' %>">
-    <%= s === 'all' ? 'All Statuses' : s %>
+    <%= s === 'all' ? 'All' : s %>
   </a>
   <% }); %>
 </div>
@@ -75,7 +87,7 @@
          const cardId      = 'card-' + c._id;
          const formId      = 'form-' + c._id;
     %>
-    <div style="border-bottom:1px solid var(--border);padding:0" id="<%= cardId %>">
+    <div style="border-bottom:1px solid var(--border);padding:0" id="<%= cardId %>" data-status-cat="<%= ['Submitted','Acknowledged','In Progress'].includes(c.status) ? 'active' : 'history' %>">
 
       <!-- Row header -->
       <div style="display:flex;align-items:center;gap:.8rem;padding:.85rem 1.2rem;cursor:pointer"
@@ -218,6 +230,39 @@
 <% } %>
 
 <script>
+function countCCats() {
+  var activeCount = 0, historyCount = 0;
+  document.querySelectorAll('[data-status-cat]').forEach(function(el) {
+    var cat = el.getAttribute('data-status-cat');
+    if (cat === 'active') activeCount++;
+    else if (cat === 'history') historyCount++;
+  });
+  var badgeActive = document.getElementById('c-badge-active');
+  var badgeHistory = document.getElementById('c-badge-history');
+  if (badgeActive) badgeActive.textContent = activeCount;
+  if (badgeHistory) badgeHistory.textContent = historyCount;
+}
+
+function switchCTab(cat) {
+  document.querySelectorAll('#c-nav-active, #c-nav-history').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('c-nav-' + cat).classList.add('active');
+
+  document.querySelectorAll('[data-status-cat]').forEach(function(el) {
+    var rowCat = el.getAttribute('data-status-cat');
+    el.style.display = rowCat === cat ? '' : 'none';
+  });
+
+  // Count visible complaint cards; show/hide empty state
+  var hasVisible = false;
+  document.querySelectorAll('[data-status-cat]').forEach(function(el) {
+    if (el.style.display !== 'none') hasVisible = true;
+  });
+  var emptyState = document.querySelector('.card .empty-state');
+  if (emptyState) {
+    emptyState.style.display = hasVisible ? 'none' : '';
+  }
+}
+
 function toggleComplaint(id) {
   var body    = document.getElementById('body-' + id);
   var chevron = document.getElementById('chevron-' + id);
@@ -226,6 +271,11 @@ function toggleComplaint(id) {
   body.style.display    = isOpen ? 'none' : 'block';
   chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 }
+
+window.addEventListener('DOMContentLoaded', function() {
+  countCCats();
+  switchCTab('active');
+});
 </script>
 
 <%- include('warden-footer') %>

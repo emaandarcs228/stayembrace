@@ -91,7 +91,7 @@ exports.registerStudent = async (req, res) => {
 
         if (!isStrongPassword(password)) {
             return fail(
-                'Password must be at least 8 characters and include uppercase, lowercase, number, and special character.'
+                'Password must be at least 8 characters with at least 3 of: uppercase, lowercase, number, special character.'
             );
         }
 
@@ -187,7 +187,7 @@ exports.registerDriver = async (req, res) => {
         }
 
         if (!isStrongPassword(password)) {
-            return fail('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.');
+            return fail('Password must be at least 8 characters with at least 3 of: uppercase, lowercase, number, special character.');
         }
 
         const existingUser = await User.findOne({ email });

@@ -98,12 +98,12 @@
           <tr class="pending-row">
             <td>
               <div class="user-cell">
-                <div class="u-av" style="background:linear-gradient(135deg,#F57C00,#E65100)"><%= driver.fullname.charAt(0).toUpperCase() %></div>
+                <div class="u-av d"><%= driver.fullname.charAt(0).toUpperCase() %></div>
                 <div><div class="u-name"><%= driver.fullname %></div></div>
               </div>
             </td>
             <td><code class="uid-code"><%= driver.userId %></code></td>
-            <td><span class="role-badge" style="background:rgba(245,124,0,.12);color:#F57C00;font-size:.6rem">driver</span></td>
+            <td><span class="role-badge driver">driver</span></td>
             <td><%= driver.email %></td>
             <td><%= new Date(driver.createdAt).toLocaleDateString() %></td>
             <td class="actions-cell">
@@ -438,7 +438,7 @@
             <td><%= index+1 %></td>
             <td>
               <div class="user-cell">
-                <div class="u-av" style="background:linear-gradient(135deg,#F57C00,#E65100)"><%= driver.fullname.charAt(0).toUpperCase() %></div>
+                <div class="u-av d"><%= driver.fullname.charAt(0).toUpperCase() %></div>
                 <div>
                   <div class="u-name"><%= driver.fullname %></div>
                   <div class="u-email"><%= driver.email %></div>
@@ -479,6 +479,17 @@
                 <button class="act-btn btn-del" data-action="delete" data-id="<%= driver._id %>" data-name="<%= driver.fullname %>">
                   Delete
                 </button>
+                <% if (driver.status === 'approved' || driver.status === 'suspended') { %>
+                  <button class="act-btn" style="background:#FFF3E0;color:#F57C00"
+                    onclick="openDriverInfoModal('<%= driver._id %>', '<%= driver.fullname.replace(/'/g, "\\'") %>', '<%= driver.userId %>')">
+                    <i class="fas fa-truck"></i> Driver Info
+                  </button>
+                <% } else { %>
+                  <button class="act-btn btn-student-info-locked" disabled
+                    title="Driver info is only available after the account is approved">
+                    <i class="fas fa-lock"></i> Driver Info
+                  </button>
+                <% } %>
               </div>
             </td>
           </tr>
@@ -533,12 +544,12 @@
           <tr class="pending-row">
             <td>
               <div class="user-cell">
-                <div class="u-av" style="background:linear-gradient(135deg,#F57C00,#E65100)"><%= driver.fullname.charAt(0).toUpperCase() %></div>
+                <div class="u-av d"><%= driver.fullname.charAt(0).toUpperCase() %></div>
                 <div><div class="u-name"><%= driver.fullname %></div></div>
               </div>
             </td>
             <td><code class="uid-code"><%= driver.userId %></code></td>
-            <td><span class="role-badge" style="background:rgba(245,124,0,.12);color:#F57C00;font-size:.6rem">driver</span></td>
+            <td><span class="role-badge driver">driver</span></td>
             <td><%= driver.email %></td>
             <td><%= new Date(driver.createdAt).toLocaleDateString() %></td>
             <td class="actions-cell">
@@ -628,7 +639,7 @@
                 <span class="file-upload-hint">JPG, PNG, WebP or PDF — Max 5 MB</span>
               </label>
               <input type="file" name="idImage" id="au-idImage" accept=".jpg,.jpeg,.png,.webp,.pdf"
-                onchange="handleIdImagePreview(event)">
+                onchange="handleIdImagePreview(event)" onpaste="return false">
             </div>
             <div class="file-preview" id="au-idImage-preview" style="display:none">
               <div class="file-preview-info">
@@ -652,13 +663,13 @@
             <div class="pw-wrap">
               <input type="password" name="password" id="au-password"
                 placeholder="Min 8 chars, mixed case + symbol" required
-                pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$"
+                minlength="8"
                 oninput="validatePasswordField()">
               <button type="button" class="pw-toggle" onclick="togglePw('au-password', this)">
                 <i class="fas fa-eye"></i>
               </button>
             </div>
-            <span class="field-hint" id="au-password-hint">Must include uppercase, lowercase, number and special character.</span>
+            <span class="field-hint" id="au-password-hint">Min 8 chars with at least 3 of: uppercase, lowercase, number, special character.</span>
           </div>
         </div>
       </div>
@@ -912,6 +923,142 @@
 </div>
 
 
+<!-- ══════════════════════════════════════
+     DRIVER INFO MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="driverInfoModal" onclick="handleDIOverlayClick(event)">
+  <div class="modal-box modal-box-wide">
+    <div class="modal-head">
+      <h3 id="di-modal-title"><i class="fas fa-truck"></i> Driver Information</h3>
+      <button class="modal-close" onclick="closeDriverInfoModal()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div id="di-loading" class="si-loading-state">
+      <i class="fas fa-spinner fa-spin"></i> Loading driver information…
+    </div>
+
+    <div id="di-content" style="display:none">
+
+      <div class="si-user-banner">
+        <div class="si-avatar" id="di-avatar">D</div>
+        <div class="si-user-info">
+          <div class="si-user-name" id="di-user-name">—</div>
+          <div class="si-user-meta">
+            <code class="uid-code" id="di-user-id">—</code>
+            <span class="role-badge driver">driver</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="di-view-section">
+
+        <div class="si-section-title"><i class="fas fa-id-badge"></i> Identity</div>
+        <div class="si-grid">
+          <div class="si-field"><label>CNIC</label><span id="dv-cnic">—</span></div>
+          <div class="si-field"><label>Verified</label><span id="dv-verified">—</span></div>
+        </div>
+
+        <div class="si-section-title"><i class="fas fa-id-card"></i> License</div>
+        <div class="si-grid">
+          <div class="si-field"><label>License Number</label><span id="dv-licenseNumber">—</span></div>
+          <div class="si-field"><label>License Expiry</label><span id="dv-licenseExpiry">—</span></div>
+        </div>
+
+        <div class="si-section-title"><i class="fas fa-car"></i> Vehicle</div>
+        <div class="si-grid">
+          <div class="si-field"><label>Vehicle Type</label><span id="dv-vehicleType">—</span></div>
+          <div class="si-field"><label>Registration No.</label><span id="dv-vehicleRegistration">—</span></div>
+          <div class="si-field"><label>Model / Year</label><span id="dv-vehicleModel">—</span></div>
+        </div>
+
+        <div class="si-section-title"><i class="fas fa-briefcase"></i> Professional</div>
+        <div class="si-grid">
+          <div class="si-field"><label>Service Area</label><span id="dv-serviceArea">—</span></div>
+          <div class="si-field"><label>Experience</label><span id="dv-experienceYears">—</span></div>
+        </div>
+
+      </div>
+
+      <form id="di-edit-section" method="POST" style="display:none">
+        <div class="si-section-title"><i class="fas fa-id-badge"></i> Identity</div>
+        <div class="si-form-grid">
+          <div class="si-form-group">
+            <label>CNIC</label>
+            <input type="text" name="cnic" id="de-cnic" placeholder="XXXXX-XXXXXXX-X">
+          </div>
+        </div>
+
+        <div class="si-section-title"><i class="fas fa-id-card"></i> License</div>
+        <div class="si-form-grid">
+          <div class="si-form-group">
+            <label>License Number</label>
+            <input type="text" name="licenseNumber" id="de-licenseNumber" placeholder="e.g. LRN-1234567">
+          </div>
+          <div class="si-form-group">
+            <label>License Expiry</label>
+            <input type="date" name="licenseExpiry" id="de-licenseExpiry">
+          </div>
+        </div>
+
+        <div class="si-section-title"><i class="fas fa-car"></i> Vehicle</div>
+        <div class="si-form-grid">
+          <div class="si-form-group">
+            <label>Vehicle Type</label>
+            <select name="vehicleType" id="de-vehicleType">
+              <option value="">— Select —</option>
+              <option value="car">Car</option>
+              <option value="van">Van</option>
+              <option value="bus">Bus</option>
+              <option value="rickshaw">Rickshaw</option>
+              <option value="motorcycle">Motorcycle</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="si-form-group">
+            <label>Registration No.</label>
+            <input type="text" name="vehicleRegistration" id="de-vehicleRegistration" placeholder="e.g. LEP-1234">
+          </div>
+          <div class="si-form-group">
+            <label>Model / Year</label>
+            <input type="text" name="vehicleModel" id="de-vehicleModel" placeholder="e.g. Toyota 2022">
+          </div>
+        </div>
+
+        <div class="si-section-title"><i class="fas fa-briefcase"></i> Professional</div>
+        <div class="si-form-grid">
+          <div class="si-form-group">
+            <label>Service Area</label>
+            <input type="text" name="serviceArea" id="de-serviceArea" placeholder="e.g. Lahore">
+          </div>
+          <div class="si-form-group">
+            <label>Experience (Years)</label>
+            <input type="number" name="experienceYears" id="de-experienceYears" placeholder="e.g. 5" min="0" max="99">
+          </div>
+        </div>
+      </form>
+
+    </div>
+
+    <div class="modal-foot" id="di-modal-foot">
+      <div class="mf-left">
+        <button class="btn-modal-edit" id="di-btn-edit" onclick="diSwitchToEdit()">
+          <i class="fas fa-pen"></i> Edit Info
+        </button>
+        <button class="btn-modal-save" id="di-btn-save" style="display:none" onclick="diSubmit()">
+          <i class="fas fa-save"></i> Save Info
+        </button>
+        <button class="btn-modal-cancel" id="di-btn-cancel" style="display:none" onclick="diSwitchToView()">
+          Cancel
+        </button>
+      </div>
+      <button class="btn-modal-close-si" onclick="closeDriverInfoModal()">
+        <i class="fas fa-times"></i> Close
+      </button>
+    </div>
+  </div>
+</div>
+
+
 <%- include('../partials/id-lightbox') %>
 
 
@@ -1121,8 +1268,42 @@ function clearAddForm() {
   document.getElementById('au-idImage').required = false;
   clearIdImage();
   const hint = document.getElementById('au-password-hint');
-  hint.style.color = '#888';
-  hint.textContent = 'Must include uppercase, lowercase, number and special character.';
+  hint.style.color = '#888';    hint.textContent = 'Min 8 chars with at least 3 of: uppercase, lowercase, number, special character.';
+}
+
+/* ═══════════════════════════════════════════════
+   FILE SIGNATURE VALIDATION (magic bytes)
+═══════════════════════════════════════════════ */
+var FILE_SIGS = {
+  jpeg: [[0xFF, 0xD8, 0xFF]],
+  png:  [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
+  pdf:  [[0x25, 0x50, 0x44, 0x46]],
+  webp: [[0x52, 0x49, 0x46, 0x46], [0x57, 0x45, 0x42, 0x50]]
+};
+
+function checkFileSignature(file) {
+  return new Promise(function(resolve) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var arr = new Uint8Array(e.target.result).subarray(0, 12);
+      for (var fmt in FILE_SIGS) {
+        var sigs = FILE_SIGS[fmt];
+        var match = true;
+        for (var si = 0; si < sigs.length; si++) {
+          var sig = sigs[si];
+          var offset = (fmt === 'webp' && si === 1) ? 8 : 0;
+          for (var bi = 0; bi < sig.length; bi++) {
+            if (arr[offset + bi] !== sig[bi]) { match = false; break; }
+          }
+          if (!match) break;
+        }
+        if (match) { resolve(true); return; }
+      }
+      resolve(false);
+    };
+    reader.onerror = function() { resolve(false); };
+    reader.readAsArrayBuffer(file.slice(0, 12));
+  });
 }
 
 /* ═══════════════════════════════════════════════
@@ -1134,6 +1315,7 @@ function handleIdImagePreview(event) {
   const name   = document.getElementById('au-idImage-name');
   const prev   = document.getElementById('au-idImage-preview');
   const hint   = document.getElementById('au-idImage-hint');
+  const wrap   = document.querySelector('.file-upload-wrap');
 
   if (!file) {
     prev.style.display = 'none';
@@ -1141,31 +1323,40 @@ function handleIdImagePreview(event) {
     return;
   }
 
-  const ext  = file.name.split('.').pop().toLowerCase();
-  const allowed = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
-
-  if (!allowed.includes(ext)) {
-    hint.textContent = 'Only JPG, PNG, WebP and PDF files are allowed.';
-    hint.style.color = '#C62828';
-    event.target.value = '';
-    return;
-  }
-
+  // File size check
   if (file.size > 5 * 1024 * 1024) {
     hint.textContent = 'File is too large. Maximum size is 5 MB.';
     hint.style.color = '#C62828';
     event.target.value = '';
+    if (wrap) wrap.classList.add('field-error');
+    return;
+  }
+  if (file.size < 5120) {
+    hint.textContent = 'File is too small — minimum 5 KB.';
+    hint.style.color = '#C62828';
+    event.target.value = '';
+    if (wrap) wrap.classList.add('field-error');
     return;
   }
 
-  const wrap = document.querySelector('.file-upload-wrap');
-  if (wrap) { wrap.classList.remove('field-error'); }
+  // Validate magic bytes (reject pasted screenshots with no genuine file signature)
+  checkFileSignature(file).then(function(isValid) {
+    if (!isValid) {
+      hint.textContent = 'Invalid file — not a recognised image or PDF. Please use a genuine uploaded file.';
+      hint.style.color = '#C62828';
+      event.target.value = '';
+      if (wrap) wrap.classList.add('field-error');
+      return;
+    }
 
-  hint.textContent = file.name + ' selected';
-  hint.style.color = '#2E7D32';
-  label.style.display = 'none';
-  name.textContent = file.name;
-  prev.style.display = 'flex';
+    // File is valid
+    if (wrap) wrap.classList.remove('field-error');
+    hint.textContent = file.name + ' selected';
+    hint.style.color = '#2E7D32';
+    label.style.display = 'none';
+    name.textContent = file.name;
+    prev.style.display = 'flex';
+  });
 }
 
 function clearIdImage() {
@@ -1225,16 +1416,17 @@ function togglePw(inputId, btn) {
 function validatePasswordField() {
   const input = document.getElementById('au-password');
   const hint  = document.getElementById('au-password-hint');
-  const valid = input.checkValidity();
-  if (input.value.length === 0) {
+  const val   = input.value;
+  const valid = val.length >= 8 && isStrongPasswordClient(val);
+  if (val.length === 0) {
     hint.style.color = '#888';
-    hint.textContent = 'Must include uppercase, lowercase, number and special character.';
+    hint.textContent = 'Min 8 chars with at least 3 of: uppercase, lowercase, number, special character.';
   } else if (valid) {
     hint.style.color = '#2E7D32';
     hint.textContent = '✓ Password meets requirements.';
   } else {
     hint.style.color = '#C62828';
-    hint.textContent = '✗ Needs uppercase, lowercase, number, and special character (min 8 chars).';
+    hint.textContent = '✗ Needs min 8 chars with at least 3 of: uppercase, lowercase, number, special character.';
   }
   return valid;
 }
@@ -1545,6 +1737,154 @@ document.addEventListener('click', function (e) {
   if (delBtn) {
     openDeleteModal(delBtn.dataset.id, delBtn.dataset.name);
     return;
+  }
+});
+
+/* ═══════════════════════════════════════════════
+   DRIVER INFO MODAL
+═══════════════════════════════════════════════ */
+function handleDIOverlayClick(e) {
+  if (e.target === document.getElementById('driverInfoModal')) closeDriverInfoModal();
+}
+
+function closeDriverInfoModal() {
+  document.getElementById('driverInfoModal').classList.remove('open');
+  diSwitchToView();
+}
+
+async function openDriverInfoModal(userId, userName, userUid) {
+  diSwitchToView();
+  // Store the MongoDB _id on the modal for later use in diSubmit()
+  document.getElementById('driverInfoModal').dataset.currentId = userId;
+  document.getElementById('driverInfoModal').classList.add('open');
+  document.getElementById('di-loading').style.display = 'flex';
+  document.getElementById('di-content').style.display  = 'none';
+  document.getElementById('di-user-name').textContent   = userName;
+  document.getElementById('di-user-id').textContent     = userUid;
+  document.getElementById('di-avatar').textContent      = userName.charAt(0).toUpperCase();
+
+  try {
+    console.log('[DriverInfo] Fetching:', `/admin/drivers/${userId}/info`);
+    const res  = await fetch(`/admin/drivers/${userId}/info`);
+    console.log('[DriverInfo] Response status:', res.status, res.statusText);
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await res.text();
+      console.log('[DriverInfo] Non-JSON response:', text.substring(0, 500));
+      alert('Server returned: ' + (contentType || 'no content-type') + ' — ' + text.substring(0, 200));
+      closeDriverInfoModal();
+      return;
+    }
+    const data = await res.json();
+    console.log('[DriverInfo] Data:', data);
+    if (!res.ok || data.error) {
+      alert(data.error || 'Failed to load driver information.');
+      closeDriverInfoModal();
+      return;
+    }
+    const dInfo = data.driverInfo || {};
+    // View fields
+    document.getElementById('dv-cnic').textContent               = dInfo.cnic || '—';
+    document.getElementById('dv-verified').textContent           = dInfo.isVerified ? 'Yes' : 'No';
+    document.getElementById('dv-licenseNumber').textContent      = dInfo.licenseNumber || '—';
+    document.getElementById('dv-licenseExpiry').textContent      = dInfo.licenseExpiry ? new Date(dInfo.licenseExpiry).toLocaleDateString() : '—';
+    document.getElementById('dv-vehicleType').textContent        = dInfo.vehicleType ? dInfo.vehicleType.charAt(0).toUpperCase() + dInfo.vehicleType.slice(1) : '—';
+    document.getElementById('dv-vehicleRegistration').textContent = dInfo.vehicleRegistration || '—';
+    document.getElementById('dv-vehicleModel').textContent       = dInfo.vehicleModel || '—';
+    document.getElementById('dv-serviceArea').textContent        = dInfo.serviceArea || '—';
+    document.getElementById('dv-experienceYears').textContent    = dInfo.experienceYears ? dInfo.experienceYears + ' yrs' : '—';
+
+    // Edit fields
+    document.getElementById('de-cnic').value                = dInfo.cnic || '';
+    document.getElementById('de-licenseNumber').value       = dInfo.licenseNumber || '';
+    document.getElementById('de-licenseExpiry').value        = dInfo.licenseExpiry ? new Date(dInfo.licenseExpiry).toISOString().split('T')[0] : '';
+    document.getElementById('de-vehicleType').value          = dInfo.vehicleType || '';
+    document.getElementById('de-vehicleRegistration').value = dInfo.vehicleRegistration || '';
+    document.getElementById('de-vehicleModel').value         = dInfo.vehicleModel || '';
+    document.getElementById('de-serviceArea').value          = dInfo.serviceArea || '';
+    document.getElementById('de-experienceYears').value      = dInfo.experienceYears || '';
+
+    document.getElementById('di-loading').style.display = 'none';
+    document.getElementById('di-content').style.display  = 'block';
+  } catch (err) {
+    console.error('[DriverInfo] Error:', err);
+    alert('Failed to load driver information. Check console (F12) for details.');
+    closeDriverInfoModal();
+  }
+}
+
+function diSwitchToEdit() {
+  document.getElementById('di-view-section').style.display = 'none';
+  document.getElementById('di-edit-section').style.display  = 'block';
+  document.getElementById('di-btn-edit').style.display      = 'none';
+  document.getElementById('di-btn-save').style.display      = 'flex';
+  document.getElementById('di-btn-cancel').style.display    = 'flex';
+  document.getElementById('di-modal-title').innerHTML       = '<i class="fas fa-truck"></i> Edit Driver Information';
+}
+
+function diSwitchToView() {
+  document.getElementById('di-view-section').style.display = 'block';
+  document.getElementById('di-edit-section').style.display  = 'none';
+  document.getElementById('di-btn-edit').style.display      = 'flex';
+  document.getElementById('di-btn-save').style.display      = 'none';
+  document.getElementById('di-btn-cancel').style.display    = 'none';
+  document.getElementById('di-modal-title').innerHTML       = '<i class="fas fa-truck"></i> Driver Information';
+}
+
+async function diSubmit() {
+  const mongoId = document.getElementById('driverInfoModal').dataset.currentId;
+  if (!mongoId) {
+    alert('Session error: missing driver reference. Please close and reopen the modal.');
+    return;
+  }
+
+  const payload = {
+    cnic                : document.getElementById('de-cnic').value.trim(),
+    licenseNumber       : document.getElementById('de-licenseNumber').value.trim(),
+    licenseExpiry       : document.getElementById('de-licenseExpiry').value || null,
+    vehicleType         : document.getElementById('de-vehicleType').value,
+    vehicleRegistration : document.getElementById('de-vehicleRegistration').value.trim(),
+    vehicleModel        : document.getElementById('de-vehicleModel').value.trim(),
+    serviceArea         : document.getElementById('de-serviceArea').value.trim(),
+    experienceYears     : document.getElementById('de-experienceYears').value
+  };
+
+  try {
+    const res  = await fetch(`/admin/drivers/${mongoId}/info`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      alert(data.error || 'Failed to save driver information.');
+      return;
+    }
+    diSwitchToView();
+    document.getElementById('di-user-name').textContent = data.driver.fullname || document.getElementById('di-user-name').textContent;
+    // Re-populate view fields from response
+    const d = data.driverInfo || {};
+    document.getElementById('dv-cnic').textContent               = d.cnic || '—';
+    document.getElementById('dv-verified').textContent           = d.isVerified ? 'Yes' : 'No';
+    document.getElementById('dv-licenseNumber').textContent      = d.licenseNumber || '—';
+    document.getElementById('dv-licenseExpiry').textContent      = d.licenseExpiry ? new Date(d.licenseExpiry).toLocaleDateString() : '—';
+    document.getElementById('dv-vehicleType').textContent        = d.vehicleType ? d.vehicleType.charAt(0).toUpperCase() + d.vehicleType.slice(1) : '—';
+    document.getElementById('dv-vehicleRegistration').textContent = d.vehicleRegistration || '—';
+    document.getElementById('dv-vehicleModel').textContent       = d.vehicleModel || '—';
+    document.getElementById('dv-serviceArea').textContent        = d.serviceArea || '—';
+    document.getElementById('dv-experienceYears').textContent    = d.experienceYears ? d.experienceYears + ' yrs' : '—';
+    alert('Driver information saved successfully!');
+  } catch (err) {
+    alert('Failed to save driver information.');
+  }
+}
+
+// Also allow the driver info modal to be closed from the input if needed
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') {
+    if (document.getElementById('driverInfoModal').classList.contains('open')) {
+      closeDriverInfoModal();
+    }
   }
 });
 </script>

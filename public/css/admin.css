@@ -702,6 +702,7 @@ tbody tr:last-child td { border-bottom: none; }
 .u-av.s { background: #E3F2FD; color: #1565C0; }
 .u-av.a { background: #F3E5F5; color: #7B1FA2; }
 .u-av.w { background: #FFF8E1; color: #E65100; }
+.u-av.d { background: #FFF3E0; color: #E65100; }
 .u-name  { font-weight: 500; font-size: .78rem; }
 .u-sub   { font-size: .67rem; color: var(--text-muted); }
 .u-email { font-size: .7rem; color: var(--text-muted); }
@@ -854,6 +855,7 @@ td.actions-th, th.actions-th { min-width: 160px; }
 .role-badge.student { background: #E3F2FD; color: #1565C0; }
 .role-badge.admin   { background: #F3E5F5; color: #7B1FA2; }
 .role-badge.warden  { background: #FFF8E1; color: #E65100; }
+.role-badge.driver  { background: #FFF3E0; color: #E65100; }
 .status-badge.approved  { background: #E8F5E9; color: #2E7D32; }
 .status-badge.pending   { background: #FFEBEE; color: #C62828; }
 .status-badge.rejected  { background: #FAFAFA; color: #888; }

@@ -15,6 +15,11 @@ router.get('/dashboard', driverMiddleware, driverController.getDashboard);
 router.get('/profile', driverMiddleware, driverController.getProfile);
 
 // ══════════════════════════════════════
+// CAB BOOKINGS
+// ══════════════════════════════════════
+router.get('/bookings', driverMiddleware, driverController.getBookings);
+
+// ══════════════════════════════════════
 // VEHICLE MANAGEMENT
 // ══════════════════════════════════════
 router.get('/vehicle', driverMiddleware, driverController.getVehicle);

@@ -80,7 +80,7 @@
             <div class="upload-label">Identity Document &nbsp;·&nbsp; CNIC or Student ID</div>
             <span class="upload-note">Upload a clear photo or scan &nbsp;·&nbsp; JPG, PNG, PDF &nbsp;·&nbsp; Max 5 MB</span>
 
-            <input type="file" id="idImage" name="idImage" accept=".jpg,.jpeg,.png,.webp,.pdf" required class="file-input-hidden">
+            <input type="file" id="idImage" name="idImage" accept=".jpg,.jpeg,.png,.webp,.pdf" required class="file-input-hidden" onpaste="return false">
 
             <div class="file-upload-box" id="fileUploadBox" onclick="document.getElementById('idImage').click()">
                 <div id="fileUploadIcon"><i class="fas fa-cloud-upload-alt"></i></div>
@@ -317,30 +317,89 @@ uploadBox.addEventListener('drop', e => {
     }
 });
 
+// ── Magic byte signatures for client-side validation ──
+var FILE_SIGS = {
+  jpeg: [[0xFF, 0xD8, 0xFF]],
+  png:  [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
+  pdf:  [[0x25, 0x50, 0x44, 0x46]],
+  webp: [[0x52, 0x49, 0x46, 0x46], [0x57, 0x45, 0x42, 0x50]]
+};
+
+function checkFileSignature(file) {
+  return new Promise(function(resolve) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var arr = new Uint8Array(e.target.result).subarray(0, 12);
+      for (var fmt in FILE_SIGS) {
+        var sigs = FILE_SIGS[fmt];
+        var match = true;
+        for (var si = 0; si < sigs.length; si++) {
+          var sig = sigs[si];
+          var offset = (fmt === 'webp' && si === 1) ? 8 : 0;
+          for (var bi = 0; bi < sig.length; bi++) {
+            if (arr[offset + bi] !== sig[bi]) { match = false; break; }
+          }
+          if (!match) break;
+        }
+        if (match) { resolve(true); return; }
+      }
+      resolve(false);
+    };
+    reader.onerror = function() { resolve(false); };
+    reader.readAsArrayBuffer(file.slice(0, 12));
+  });
+}
+
 function handleFileSelect() {
     const file = fileInput.files[0];
     if (!file) return;
-    const isPdf = file.type === 'application/pdf' || file.name.endsWith('.pdf');
-    uploadBox.classList.add('has-file');
-    removeBtn.style.display = 'inline-flex';
-    if (isPdf) {
-        filePreview.style.display  = 'none';
-        uploadIcon.innerHTML       = '<i class="fas fa-file-pdf" style="color:rgba(255,120,120,0.9);font-size:2rem;"></i>';
-        uploadText.style.display   = 'none';
-        fileNameDisp.textContent   = file.name;
-        fileNameDisp.style.display = 'block';
-    } else {
-        const reader = new FileReader();
-        reader.onload = ev => {
-            filePreview.src           = ev.target.result;
-            filePreview.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-        uploadText.style.display   = 'none';
-        uploadIcon.style.display   = 'none';
-        fileNameDisp.textContent   = file.name;
-        fileNameDisp.style.display = 'block';
+
+    // File size check
+    if (file.size < 5120) {
+        uploadText.style.display = '';
+        uploadIcon.innerHTML = '<i class="fas fa-exclamation-circle" style="color:rgba(255,150,150,0.9);font-size:2rem;"></i>';
+        uploadIcon.style.display = '';
+        uploadText.querySelector('.file-upload-main').textContent = 'File too small — min 5 KB';
+        uploadText.querySelector('.file-upload-sub').textContent = 'Please select a valid ID document';
+        fileInput.value = '';
+        return;
     }
+
+    // Magic byte validation (reject pasted screenshots without genuine file signature)
+    checkFileSignature(file).then(function(isValid) {
+        if (!isValid) {
+            uploadText.style.display = '';
+            uploadIcon.innerHTML = '<i class="fas fa-exclamation-triangle" style="color:rgba(255,150,150,0.9);font-size:2rem;"></i>';
+            uploadIcon.style.display = '';
+            uploadText.querySelector('.file-upload-main').textContent = 'Invalid file type';
+            uploadText.querySelector('.file-upload-sub').textContent = 'Not a recognised image or PDF. Use a genuine uploaded file.';
+            fileInput.value = '';
+            return;
+        }
+
+        // File is valid — proceed with preview
+        const isPdf = file.type === 'application/pdf' || file.name.endsWith('.pdf');
+        uploadBox.classList.add('has-file');
+        removeBtn.style.display = 'inline-flex';
+        if (isPdf) {
+            filePreview.style.display  = 'none';
+            uploadIcon.innerHTML       = '<i class="fas fa-file-pdf" style="color:rgba(255,120,120,0.9);font-size:2rem;"></i>';
+            uploadText.style.display   = 'none';
+            fileNameDisp.textContent   = file.name;
+            fileNameDisp.style.display = 'block';
+        } else {
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                filePreview.src           = ev.target.result;
+                filePreview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+            uploadText.style.display   = 'none';
+            uploadIcon.style.display   = 'none';
+            fileNameDisp.textContent   = file.name;
+            fileNameDisp.style.display = 'block';
+        }
+    });
 }
 
 function clearFileInput() {

@@ -195,7 +195,7 @@
                 <i class="fas fa-eye"></i>
               </button>
             </div>
-            <p class="field-hint">Must be at least 8 characters with uppercase, lowercase, number, and special character.</p>
+            <p class="field-hint">Min 8 chars with at least 3 of: uppercase, lowercase, number, special character.</p>
           </div>
           <div class="form-group">
             <label>Confirm New Password <span class="req">*</span></label>
@@ -266,7 +266,7 @@
       var strength = (hasLower ? 1 : 0) + (hasUpper ? 1 : 0) + (hasDigit ? 1 : 0) + (hasSpecial ? 1 : 0);
       if (newPwd.length < 8 || strength < 3) {
         e.preventDefault();
-        alert('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.');
+        alert('Password must be at least 8 characters with at least 3 of: uppercase, lowercase, number, special character.');
         return;
       }
     });

@@ -16,6 +16,7 @@ const GuestRoomBooking = require('../models/guestRoomBooking');
 const { getSidebarBadges } = require('../utils/sidebarBadges');
 const WardenActivityLog   = require('../models/wardenActivityLog');
 const Driver              = require('../models/driver');
+const { validateFile }    = require('../utils/validateFile');
 // ======================
 // HELPER — normalise the idImage path stored in the DB.
 // Multer saves to  public/uploads/ids/file.jpg
@@ -583,7 +584,7 @@ exports.addUser = async (req, res) => {
             return fail('Invalid role.');
 
         if (!isStrongPassword(password))
-            return fail('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.');
+            return fail('Password must be at least 8 characters with at least 3 of: uppercase, lowercase, number, special character.');
 
         const existing = await User.findOne({ email });
         if (existing)
@@ -593,6 +594,14 @@ exports.addUser = async (req, res) => {
         // Checked after cheap text validations to minimise orphaned files on disk.
         if (role === 'student' && !req.file)
             return fail('ID Card upload is required for student accounts.');
+
+        // ── Validate uploaded file magic bytes (reject pasted/corrupt files) ──
+        if (req.file) {
+            const fileResult = validateFile(req.file.path);
+            if (!fileResult.valid) {
+                return fail('ID Card upload: ' + fileResult.reason);
+            }
+        }
 
         const hashedPassword = await bcrypt.hash(password, 10);
         const userId         = await generateUserId(role);
@@ -1141,6 +1150,99 @@ exports.changeAdminPassword = async (req, res) => {
 
 
 // ============================================================
+// DRIVER INFO — GET
+// GET /admin/drivers/:userId/info
+// ============================================================
+exports.getDriverInfo = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin')
+            return res.status(403).json({ error: 'Access Denied' });
+
+        console.log('[getDriverInfo] userId param:', req.params.userId);
+        const driver = await User.findById(req.params.userId)
+            .select('fullname userId email phoneNumber profileImage status')
+            .lean();
+        console.log('[getDriverInfo] User found:', driver ? { _id: driver._id, fullname: driver.fullname, status: driver.status } : 'null');
+
+        if (!driver) {
+            console.log('[getDriverInfo] User not found with that ID');
+            return res.status(404).json({ error: 'Driver user not found.' });
+        }
+
+        if (!['approved', 'suspended'].includes(driver.status || '')) {
+            console.log('[getDriverInfo] Driver status not approved/suspended:', driver.status);
+            return res.status(403).json({
+                error: 'Driver info is only available for approved drivers (current: ' + driver.status + ').'
+            });
+        }
+
+        const driverInfo = await Driver.findOne({ user: req.params.userId }).lean();
+
+        res.json({
+            driverInfo : driverInfo || null,
+            driver     : driver
+        });
+
+    } catch (err) {
+        console.error('getDriverInfo Error:', err);
+        res.status(500).json({ error: 'Server Error' });
+    }
+};
+
+
+// ============================================================
+// DRIVER INFO — SAVE (upsert)
+// POST /admin/drivers/:userId/info
+// ============================================================
+exports.saveDriverInfo = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin')
+            return res.status(403).send('Access Denied');
+
+        const driverUser = await User.findById(req.params.userId).lean();
+        if (!driverUser || !['approved', 'suspended'].includes(driverUser.status || '')) {
+            return res.redirect(
+                '/admin/users?error=Cannot+edit+info+for+a+pending+or+rejected+driver.&page=drivers'
+            );
+        }
+
+        const {
+            cnic,
+            licenseNumber,
+            licenseExpiry,
+            vehicleType,
+            vehicleRegistration,
+            vehicleModel,
+            serviceArea,
+            experienceYears
+        } = req.body;
+
+        const updateFields = {};
+        if (cnic                !== undefined) updateFields.cnic                = cnic                || null;
+        if (licenseNumber       !== undefined) updateFields.licenseNumber       = licenseNumber       || null;
+        if (licenseExpiry       !== undefined) updateFields.licenseExpiry       = licenseExpiry       || null;
+        if (vehicleType         !== undefined) updateFields.vehicleType         = vehicleType         || null;
+        if (vehicleRegistration !== undefined) updateFields.vehicleRegistration = vehicleRegistration || null;
+        if (vehicleModel        !== undefined) updateFields.vehicleModel        = vehicleModel        || null;
+        if (serviceArea         !== undefined) updateFields.serviceArea         = serviceArea         || null;
+        if (experienceYears     !== undefined) updateFields.experienceYears     = experienceYears     ? parseInt(experienceYears) : null;
+
+        await Driver.findOneAndUpdate(
+            { user: req.params.userId },
+            { $set: updateFields },
+            { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
+        );
+
+        res.redirect('/admin/users?success=Driver+information+saved+successfully.&page=drivers');
+
+    } catch (err) {
+        console.error('saveDriverInfo Error:', err);
+        res.redirect('/admin/users?error=Failed+to+save+driver+information.&page=drivers');
+    }
+};
+
+
+// ============================================================
 // WARDEN ACTIVITY LOG
 // GET /admin/operations/activity
 // ============================================================
@@ -1191,8 +1293,9 @@ exports.getWardenActivityLog = async (req, res) => {
 
         const totalPages = Math.ceil(total / limit);
 
-        // Get distinct action types for the filter dropdown
-        const distinctActions = await WardenActivityLog.distinct('action');
+        // Get all available action types from the schema enum for the filter dropdown
+        const actionPath = WardenActivityLog.schema.path('action');
+        const distinctActions = actionPath ? actionPath.enumValues || [] : [];
 
         // Format timestamps
         logs.forEach(log => {

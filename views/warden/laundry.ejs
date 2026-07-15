@@ -10,225 +10,368 @@
   <div style="font-size:.75rem;font-weight:600;color:var(--text-secondary)">
     <i class="ti ti-calendar-week"></i> Week:
   </div>
-  <select class="filter-sel" onchange="location.href='/warden/laundry?week='+this.value">
+  <select class="filter-sel" onchange="location.href='/warden/laundry?week='+this.value+'&tab=<%= activeTab %>'">
     <% weekOptions.forEach(function(wk) { %>
       <option value="<%= wk %>" <%= weekKey === wk ? 'selected' : '' %>><%= wk %></option>
     <% }); %>
   </select>
-  <span class="count-pill">
+  <span class="count-pill" style="margin-left:auto">
     <%= freeRequests.length + paidRequests.length %> request<%= (freeRequests.length + paidRequests.length) !== 1 ? 's' : '' %> this week
   </span>
 </div>
 
+<!-- ── Search ── -->
+<div style="display:flex;justify-content:flex-end;margin-bottom:1.2rem">
+  <div class="search-bar" style="max-width:320px;width:100%">
+    <i class="ti ti-search"></i>
+    <input type="text" placeholder="Search by student name or ID..." id="globalSearch" oninput="globalSearchHandler()">
+  </div>
+</div>
+
+<!-- ── Tab Navigation (Desktop: Free/Paid) ── -->
+<div class="page-tabs laundry-tabs-desktop">
+  <button class="act-btn <%= activeTab === 'free' ? 'active' : '' %>" id="nav-free" style="background:#EEF5F0;color:#2D5A3D" onclick="switchTypeTab('free')">
+    <i class="ti ti-wash"></i> Free Weekly
+    <span class="badge badge-success" style="margin-left:.3rem"><%= freeRequests.length %></span>
+  </button>
+  <button class="act-btn <%= activeTab === 'paid' ? 'active' : '' %>" id="nav-paid" style="background:#FFF3E0;color:#E65100" onclick="switchTypeTab('paid')">
+    <i class="ti ti-coin"></i> Paid
+    <span class="badge badge-warning" style="margin-left:.3rem"><%= paidRequests.length %></span>
+  </button>
+</div>
+
+<!-- ── Tab Navigation (Mobile: New/History) ── -->
+<div class="page-tabs laundry-tabs-mobile">
+  <button class="act-btn active" id="nav-new" style="background:#E8F5E9;color:#2E7D32" onclick="switchStatusTab('new')">
+    <i class="ti ti-sparkles"></i> New Requests
+    <span class="badge badge-success" style="margin-left:.3rem" id="badge-new">0</span>
+  </button>
+  <button class="act-btn" id="nav-history" style="background:#F5F5F5;color:#666" onclick="switchStatusTab('history')">
+    <i class="ti ti-history"></i> History
+    <span class="badge badge-neutral" style="margin-left:.3rem" id="badge-history">0</span>
+  </button>
+</div>
+
+<style>
+/* ── Responsive tab visibility ── */
+.laundry-tabs-desktop { display: flex; }
+.laundry-tabs-mobile  { display: none; }
+
+@media (max-width: 768px) {
+  .laundry-tabs-desktop { display: none; }
+  .laundry-tabs-mobile  { display: flex; }
+}
+</style>
+
 <!-- ══════════════════════════════════════
      FREE REQUESTS (Weekly auto-enrolled)
 ══════════════════════════════════════ -->
-<div class="card">
-  <div class="card-head">
-    <h3><i class="ti ti-wash"></i> Free Weekly Requests</h3>
-    <div style="display:flex;align-items:center;gap:.5rem">
-      <span class="badge badge-success">Free</span>
-      <span class="count-pill"><%= freeRequests.length %></span>
+<div class="page <%= activeTab === 'free' ? 'active' : '' %>" id="page-free">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-wash"></i> Free Weekly Requests</h3>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <span class="badge badge-success">Free</span>
+        <span class="count-pill"><%= freeRequests.length %></span>
+      </div>
     </div>
-  </div>
 
-  <% if (freeRequests.length === 0) { %>
-  <div class="empty-state" style="padding:2rem">
-    <i class="ti ti-wash"></i>
-    <h4>No free requests this week</h4>
-    <p>Auto-enrollment runs every Monday.</p>
-  </div>
-  <% } else { %>
-  <div class="tbl-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Student</th>
-          <th>Pickup Date</th>
-          <th>Delivery Date</th>
-          <th>Items</th>
-          <th>Status</th>
-          <th>Opted Out</th>
-          <th class="actions-th">Update</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% freeRequests.forEach(function(lr, i) {
-             const statusMap = {
-               'Pending Pickup': { cls: 'badge-warning', label: 'Pending Pickup' },
-               'Picked Up'     : { cls: 'badge-info',    label: 'Picked Up'     },
-               'Processing'    : { cls: 'badge-purple',  label: 'Processing'    },
-               'Delivered'     : { cls: 'badge-success', label: 'Delivered'     },
-               'Cancelled'     : { cls: 'badge-neutral', label: 'Opted Out'     }
-             };
-             const s          = statusMap[lr.status] || { cls: 'badge-neutral', label: lr.status };
-             const isOptedOut = lr.status === 'Cancelled' || !lr.requested;
-             const isDone     = lr.status === 'Delivered';
-        %>
-        <tr style="opacity:<%= isOptedOut ? '.55' : '1' %>">
-          <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
-          <td>
-            <div class="user-cell">
-              <div class="u-av s"><%= lr.student?.user?.fullname?.charAt(0) || '?' %></div>
-              <div>
-                <div class="u-name"><%= lr.student?.user?.fullname || '—' %></div>
-                <div class="u-sub"><%= lr.student?.user?.userId || '—' %></div>
+    <% if (freeRequests.length === 0) { %>
+    <div class="empty-state" style="padding:2rem">
+      <i class="ti ti-wash"></i>
+      <h4>No free requests this week</h4>
+      <p>Auto-enrollment runs every Monday.</p>
+    </div>
+    <% } else { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Student</th>
+            <th>Pickup Date</th>
+            <th>Delivery Date</th>
+            <th>Items</th>
+            <th>Status</th>
+            <th>Opted Out</th>
+            <th class="actions-th">Update</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% freeRequests.forEach(function(lr, i) {
+               const statusMap = {
+                 'Pending Pickup': { cls: 'badge-warning', label: 'Pending Pickup' },
+                 'Picked Up'     : { cls: 'badge-info',    label: 'Picked Up'     },
+                 'Processing'    : { cls: 'badge-purple',  label: 'Processing'    },
+                 'Delivered'     : { cls: 'badge-success', label: 'Delivered'     },
+                 'Cancelled'     : { cls: 'badge-neutral', label: 'Opted Out'     }
+               };
+               const s          = statusMap[lr.status] || { cls: 'badge-neutral', label: lr.status };
+               const isOptedOut = lr.status === 'Cancelled' || !lr.requested;
+               const isDone     = lr.status === 'Delivered';
+          %>
+          <tr class="laundry-row" data-search="<%= (lr.student?.user?.fullname || '') + ' ' + (lr.student?.user?.userId || '') %>" data-status-cat="<%= lr.status === 'Pending Pickup' ? 'new' : 'history' %>" style="opacity:<%= isOptedOut ? '.55' : '1' %>">
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= lr.student?.user?.fullname?.charAt(0) || '?' %></div>
+                <div>
+                  <div class="u-name"><%= lr.student?.user?.fullname || '—' %></div>
+                  <div class="u-sub"><%= lr.student?.user?.userId || '—' %></div>
+                </div>
               </div>
-            </div>
-          </td>
-          <td style="font-size:.75rem"><%= new Date(lr.pickupDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
-          <td style="font-size:.75rem"><%= new Date(lr.deliveryDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
-          <td style="font-size:.78rem"><%= lr.itemCount > 0 ? lr.itemCount + ' item(s)' : '—' %></td>
-          <td><span class="badge <%= s.cls %>"><%= s.label %></span></td>
-          <td style="text-align:center">
-            <% if (isOptedOut) { %>
-              <span class="badge badge-neutral"><i class="ti ti-x"></i> Yes</span>
-            <% } else { %>
-              <span style="color:#ccc;font-size:.7rem">—</span>
-            <% } %>
-          </td>
-          <td>
-            <% if (!isOptedOut && !isDone) { %>
-            <form method="POST" action="/warden/laundry/update-status/<%= lr._id %>?week=<%= weekKey %>" style="display:inline-flex;gap:.3rem;align-items:center">
-              <select name="newStatus" class="filter-sel" style="font-size:.65rem;padding:.18rem .4rem">
-                <% ['Picked Up','Processing','Delivered'].forEach(function(st) { %>
-                  <option value="<%= st %>" <%= lr.status === st ? 'selected' : '' %>><%= st %></option>
-                <% }); %>
-              </select>
-              <button type="submit" class="act-btn btn-fulfill" style="padding:.22rem .5rem;font-size:.65rem">
-                <i class="ti ti-check"></i>
-              </button>
-            </form>
-            <% } else if (isDone) { %>
-              <span style="font-size:.7rem;color:var(--green)"><i class="ti ti-circle-check"></i> Done</span>
-            <% } else { %>
-              <span style="font-size:.7rem;color:#bbb">N/A</span>
-            <% } %>
-          </td>
-        </tr>
-        <% }); %>
-      </tbody>
-    </table>
+            </td>
+            <td style="font-size:.75rem"><%= new Date(lr.pickupDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
+            <td style="font-size:.75rem"><%= new Date(lr.deliveryDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
+            <td style="font-size:.78rem"><%= lr.itemCount > 0 ? lr.itemCount + ' item(s)' : '—' %></td>
+            <td><span class="badge <%= s.cls %>"><%= s.label %></span></td>
+            <td style="text-align:center">
+              <% if (isOptedOut) { %>
+                <span class="badge badge-neutral"><i class="ti ti-x"></i> Yes</span>
+              <% } else { %>
+                <span style="color:#ccc;font-size:.7rem">—</span>
+              <% } %>
+            </td>
+            <td>
+              <% if (!isOptedOut && !isDone) { %>
+              <form method="POST" action="/warden/laundry/update-status/<%= lr._id %>?week=<%= weekKey %>" style="display:inline-flex;gap:.3rem;align-items:center">
+                <select name="newStatus" class="filter-sel" style="font-size:.65rem;padding:.18rem .4rem">
+                  <% ['Picked Up','Processing','Delivered'].forEach(function(st) { %>
+                    <option value="<%= st %>" <%= lr.status === st ? 'selected' : '' %>><%= st %></option>
+                  <% }); %>
+                </select>
+                <button type="submit" class="act-btn btn-fulfill" style="padding:.22rem .5rem;font-size:.65rem">
+                  <i class="ti ti-check"></i>
+                </button>
+              </form>
+              <% } else if (isDone) { %>
+                <span style="font-size:.7rem;color:var(--green)"><i class="ti ti-circle-check"></i> Done</span>
+              <% } else { %>
+                <span style="font-size:.7rem;color:#bbb">N/A</span>
+              <% } %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
   </div>
-  <% } %>
 </div>
 
 <!-- ══════════════════════════════════════
      PAID REQUESTS (Second pickup)
 ══════════════════════════════════════ -->
-<div class="card">
-  <div class="card-head">
-    <h3><i class="ti ti-wash"></i> Paid Requests (2nd Pickup)</h3>
-    <div style="display:flex;align-items:center;gap:.5rem">
-      <span class="badge badge-warning">Paid</span>
-      <span class="count-pill"><%= paidRequests.length %></span>
+<div class="page <%= activeTab === 'paid' ? 'active' : '' %>" id="page-paid">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="ti ti-wash"></i> Paid Requests (2nd Pickup)</h3>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <span class="badge badge-warning">Paid</span>
+        <span class="count-pill"><%= paidRequests.length %></span>
+      </div>
     </div>
-  </div>
 
-  <% if (paidRequests.length === 0) { %>
-  <div class="empty-state" style="padding:2rem">
-    <i class="ti ti-wash"></i>
-    <h4>No paid requests this week</h4>
-    <p>Students who request a second pickup will appear here.</p>
-  </div>
-  <% } else { %>
-  <div class="tbl-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Student</th>
-          <th>Pickup Date</th>
-          <th>Items</th>
-          <th>Payment</th>
-          <th>Status</th>
-          <th class="actions-th">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% paidRequests.forEach(function(lr, i) {
-             const statusMap = {
-               'Pending Pickup': { cls: 'badge-warning', label: 'Pending Pickup' },
-               'Picked Up'     : { cls: 'badge-info',    label: 'Picked Up'     },
-               'Processing'    : { cls: 'badge-purple',  label: 'Processing'    },
-               'Delivered'     : { cls: 'badge-success', label: 'Delivered'     },
-               'Cancelled'     : { cls: 'badge-neutral', label: 'Cancelled'     }
-             };
-             const s        = statusMap[lr.status] || { cls: 'badge-neutral', label: lr.status };
-             const dueStatus = lr.due ? lr.due.status : 'Pending';
-             const isPaid   = dueStatus === 'Paid';
-             const isDone   = lr.status === 'Delivered' || lr.status === 'Cancelled';
-             const dueStatusMap = {
-               'Pending'       : 'badge-danger',
-               'Partially Paid': 'badge-warning',
-               'Paid'          : 'badge-success',
-               'Overdue'       : 'badge-danger'
-             };
-        %>
-        <tr>
-          <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
-          <td>
-            <div class="user-cell">
-              <div class="u-av s"><%= lr.student?.user?.fullname?.charAt(0) || '?' %></div>
-              <div>
-                <div class="u-name"><%= lr.student?.user?.fullname || '—' %></div>
-                <div class="u-sub"><%= lr.student?.user?.userId || '—' %></div>
+    <% if (paidRequests.length === 0) { %>
+    <div class="empty-state" style="padding:2rem">
+      <i class="ti ti-wash"></i>
+      <h4>No paid requests this week</h4>
+      <p>Students who request a second pickup will appear here.</p>
+    </div>
+    <% } else { %>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Student</th>
+            <th>Pickup Date</th>
+            <th>Items</th>
+            <th>Payment</th>
+            <th>Status</th>
+            <th class="actions-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% paidRequests.forEach(function(lr, i) {
+               const statusMap = {
+                 'Pending Pickup': { cls: 'badge-warning', label: 'Pending Pickup' },
+                 'Picked Up'     : { cls: 'badge-info',    label: 'Picked Up'     },
+                 'Processing'    : { cls: 'badge-purple',  label: 'Processing'    },
+                 'Delivered'     : { cls: 'badge-success', label: 'Delivered'     },
+                 'Cancelled'     : { cls: 'badge-neutral', label: 'Cancelled'     }
+               };
+               const s        = statusMap[lr.status] || { cls: 'badge-neutral', label: lr.status };
+               const dueStatus = lr.due ? lr.due.status : 'Pending';
+               const isPaid   = dueStatus === 'Paid';
+               const isDone   = lr.status === 'Delivered' || lr.status === 'Cancelled';
+               const dueStatusMap = {
+                 'Pending'       : 'badge-danger',
+                 'Partially Paid': 'badge-warning',
+                 'Paid'          : 'badge-success',
+                 'Overdue'       : 'badge-danger'
+               };
+          %>
+          <tr class="laundry-row" data-search="<%= (lr.student?.user?.fullname || '') + ' ' + (lr.student?.user?.userId || '') %>" data-status-cat="<%= lr.status === 'Pending Pickup' ? 'new' : 'history' %>">
+            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+            <td>
+              <div class="user-cell">
+                <div class="u-av s"><%= lr.student?.user?.fullname?.charAt(0) || '?' %></div>
+                <div>
+                  <div class="u-name"><%= lr.student?.user?.fullname || '—' %></div>
+                  <div class="u-sub"><%= lr.student?.user?.userId || '—' %></div>
+                </div>
               </div>
-            </div>
-          </td>
-          <td style="font-size:.75rem"><%= new Date(lr.pickupDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
-          <td style="font-size:.78rem"><%= lr.itemCount > 0 ? lr.itemCount + ' item(s)' : '—' %></td>
-          <td>
-            <span class="badge <%= dueStatusMap[dueStatus] || 'badge-neutral' %>" style="font-size:.62rem"><%= dueStatus %></span>
-            <% if (lr.due && lr.due.amount) { %>
-              <div style="font-size:.65rem;color:var(--text-muted);margin-top:.15rem">Rs. <%= lr.due.amount %></div>
-            <% } %>
-          </td>
-          <td>
-            <span class="badge <%= s.cls %>"><%= s.label %></span>
-            <% if (!isPaid) { %>
-              <div style="font-size:.6rem;color:#C62828;margin-top:.15rem">
-                <i class="ti ti-lock"></i> Payment required
-              </div>
-            <% } %>
-          </td>
-          <td>
-            <div class="action-cell">
-              <% if (!isDone) { %>
-                <!-- Cash received (if not paid) -->
-                <% if (!isPaid) { %>
-                <form method="POST" action="/warden/laundry/cash-received/<%= lr._id %>?week=<%= weekKey %>" style="display:inline">
-                  <button type="submit" class="act-btn btn-pay" title="Mark cash received">
-                    <i class="ti ti-cash"></i> Cash
-                  </button>
-                </form>
-                <% } %>
-
-                <!-- Status progression (only when paid) -->
-                <% if (isPaid) { %>
-                <form method="POST" action="/warden/laundry/update-status/<%= lr._id %>?week=<%= weekKey %>" style="display:inline-flex;gap:.3rem;align-items:center">
-                  <select name="newStatus" class="filter-sel" style="font-size:.65rem;padding:.18rem .4rem">
-                    <% ['Picked Up','Processing','Delivered'].forEach(function(st) { %>
-                      <option value="<%= st %>" <%= lr.status === st ? 'selected' : '' %>><%= st %></option>
-                    <% }); %>
-                  </select>
-                  <button type="submit" class="act-btn btn-fulfill" style="padding:.22rem .5rem;font-size:.65rem">
-                    <i class="ti ti-check"></i>
-                  </button>
-                </form>
-                <% } %>
-              <% } else { %>
-                <span style="font-size:.7rem;color:var(--green)"><i class="ti ti-circle-check"></i> Done</span>
+            </td>
+            <td style="font-size:.75rem"><%= new Date(lr.pickupDate).toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) %></td>
+            <td style="font-size:.78rem"><%= lr.itemCount > 0 ? lr.itemCount + ' item(s)' : '—' %></td>
+            <td>
+              <span class="badge <%= dueStatusMap[dueStatus] || 'badge-neutral' %>" style="font-size:.62rem"><%= dueStatus %></span>
+              <% if (lr.due && lr.due.amount) { %>
+                <div style="font-size:.65rem;color:var(--text-muted);margin-top:.15rem">Rs. <%= lr.due.amount %></div>
               <% } %>
-            </div>
-          </td>
-        </tr>
-        <% }); %>
-      </tbody>
-    </table>
+            </td>
+            <td>
+              <span class="badge <%= s.cls %>"><%= s.label %></span>
+              <% if (!isPaid) { %>
+                <div style="font-size:.6rem;color:#C62828;margin-top:.15rem">
+                  <i class="ti ti-lock"></i> Payment required
+                </div>
+              <% } %>
+            </td>
+            <td>
+              <div class="action-cell">
+                <% if (!isDone) { %>
+                  <!-- Cash received (if not paid) -->
+                  <% if (!isPaid) { %>
+                  <form method="POST" action="/warden/laundry/cash-received/<%= lr._id %>?week=<%= weekKey %>" style="display:inline">
+                    <button type="submit" class="act-btn btn-pay" title="Mark cash received">
+                      <i class="ti ti-cash"></i> Cash
+                    </button>
+                  </form>
+                  <% } %>
+
+                  <!-- Status progression (only when paid) -->
+                  <% if (isPaid) { %>
+                  <form method="POST" action="/warden/laundry/update-status/<%= lr._id %>?week=<%= weekKey %>" style="display:inline-flex;gap:.3rem;align-items:center">
+                    <select name="newStatus" class="filter-sel" style="font-size:.65rem;padding:.18rem .4rem">
+                      <% ['Picked Up','Processing','Delivered'].forEach(function(st) { %>
+                        <option value="<%= st %>" <%= lr.status === st ? 'selected' : '' %>><%= st %></option>
+                      <% }); %>
+                    </select>
+                    <button type="submit" class="act-btn btn-fulfill" style="padding:.22rem .5rem;font-size:.65rem">
+                      <i class="ti ti-check"></i>
+                    </button>
+                  </form>
+                  <% } %>
+                <% } else { %>
+                  <span style="font-size:.7rem;color:var(--green)"><i class="ti ti-circle-check"></i> Done</span>
+                <% } %>
+              </div>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
   </div>
-  <% } %>
 </div>
+
+<!-- ── Tab switching script ── -->
+<script>
+window.PAGE_TITLES = {
+  'free': 'Free Weekly',
+  'paid': 'Paid'
+};
+
+/* ── Count rows by status category for mobile badges ── */
+function countStatusCats() {
+  var newCount = 0, historyCount = 0;
+  document.querySelectorAll('.laundry-row').forEach(function(row) {
+    var cat = row.getAttribute('data-status-cat');
+    if (cat === 'new') newCount++;
+    else historyCount++;
+  });
+  var badgeNew = document.getElementById('badge-new');
+  var badgeHistory = document.getElementById('badge-history');
+  if (badgeNew) badgeNew.textContent = newCount;
+  if (badgeHistory) badgeHistory.textContent = historyCount;
+}
+
+/* ── Desktop tab: switch by type (free/paid) ── */
+function switchTypeTab(tab) {
+  // Switch page visibility
+  document.querySelectorAll('#page-free, #page-paid').forEach(function(p) { p.classList.remove('active'); });
+  document.getElementById('page-' + tab).classList.add('active');
+
+  // Update button active state
+  document.querySelectorAll('#nav-free, #nav-paid').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('nav-' + tab).classList.add('active');
+
+  // Desktop: show all rows of this type (no status filter)
+  document.querySelectorAll('.laundry-row').forEach(function(row) { row.style.display = ''; });
+
+  // Re-apply search if active
+  globalSearchHandler();
+
+  // Update URL without reload
+  var url = new URL(window.location.href);
+  url.searchParams.set('tab', tab);
+  window.history.replaceState({ tab: tab }, '', url);
+}
+
+/* ── Mobile tab: filter by status category (new/history) across ALL rows ── */
+var _activeStatusTab = 'new';
+
+function switchStatusTab(cat) {
+  // Only applies on mobile — desktop uses type-based tabs (hidden via CSS)
+  if (window.innerWidth > 768) return;
+
+  _activeStatusTab = cat;
+
+  // Update button active state
+  document.querySelectorAll('#nav-new, #nav-history').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('nav-' + cat).classList.add('active');
+
+  // Show both type pages so all rows are accessible
+  document.querySelectorAll('#page-free, #page-paid').forEach(function(p) { p.classList.add('active'); });
+
+  // Filter ALL rows by status category
+  document.querySelectorAll('.laundry-row').forEach(function(row) {
+    var rowCat = row.getAttribute('data-status-cat');
+    row.style.display = rowCat === cat ? '' : 'none';
+  });
+
+  // Re-apply search if active
+  globalSearchHandler();
+}
+
+/* ═══════════════════════════════════════════════
+   GLOBAL SEARCH — filter by student name or ID
+═══════════════════════════════════════════════ */
+function globalSearchHandler() {
+  var term = document.getElementById('globalSearch').value.trim().toLowerCase();
+  var activePage = document.querySelector('.page.active');
+  if (!activePage) return;
+  activePage.querySelectorAll('.laundry-row').forEach(function(row) {
+    var hay = (row.dataset.search || '').toLowerCase();
+    // Don't override display:none from status filter — only hide non-matching
+    if (row.style.display === 'none') return;
+    row.style.display = !term || hay.includes(term) ? '' : 'none';
+  });
+}
+
+// Initialize active tab from URL on page load
+window.addEventListener('DOMContentLoaded', function() {
+  countStatusCats();
+
+  var params = new URLSearchParams(window.location.search);
+  var tab = params.get('tab') || 'free';
+  if (tab !== 'free' && tab !== 'paid') tab = 'free';
+  switchTypeTab(tab);
+  switchStatusTab('new');
+});
+</script>
 
 <%- include('warden-footer') %>

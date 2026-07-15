@@ -1,0 +1,347 @@
+<%- include('admin-header') %>
+<%
+  const statusCls = typeof statusClass !== 'undefined' ? statusClass : {};
+  const badgeCls = (s) => statusCls[s] || 'badge-neutral';
+%>
+
+<!-- ── Filters ── -->
+<div style="display:flex;gap:.8rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
+  <div class="search-bar" style="max-width:280px;width:100%;flex:1">
+    <i class="ti ti-search"></i>
+    <form method="GET" action="/admin/operations/cab-bookings" id="filterForm" style="display:contents">
+      <input type="text" name="search" placeholder="Search by student, driver, or location..."
+        value="<%= search %>" onchange="this.form.submit()"
+        style="border:none;background:transparent;flex:1;font-family:inherit;font-size:.82rem;padding:.6rem 0;outline:none">
+      <input type="hidden" name="status" value="<%= statusF %>">
+      <input type="hidden" name="driver" value="<%= driverF %>">
+      <input type="hidden" name="page" value="1">
+    </form>
+  </div>
+
+  <select class="filter-sel" name="status" form="filterForm" onchange="document.getElementById('filterForm').submit()">
+    <option value="all"          <%= statusF === 'all'          ? 'selected' : '' %>>All Statuses</option>
+    <option value="Pending"      <%= statusF === 'Pending'      ? 'selected' : '' %>>Pending</option>
+    <option value="Confirmed"    <%= statusF === 'Confirmed'    ? 'selected' : '' %>>Confirmed</option>
+    <option value="In Progress"  <%= statusF === 'In Progress'  ? 'selected' : '' %>>In Progress</option>
+    <option value="Completed"    <%= statusF === 'Completed'    ? 'selected' : '' %>>Completed</option>
+    <option value="Cancelled"    <%= statusF === 'Cancelled'    ? 'selected' : '' %>>Cancelled</option>
+  </select>
+
+  <select class="filter-sel" name="driver" form="filterForm" onchange="document.getElementById('filterForm').submit()">
+    <option value="all" <%= driverF === 'all' ? 'selected' : '' %>>All Drivers</option>
+    <% (uniqueDrivers || []).forEach(function(d) { %>
+      <option value="<%= d.id %>" <%= driverF === d.id ? 'selected' : '' %>><%= d.name %></option>
+    <% }); %>
+  </select>
+</div>
+
+<!-- ── Status Count Pills ── -->
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
+  <% const pills = [
+    { key:'all', label:'All', count: counts.all, cls:'badge-neutral' },
+    { key:'pending', label:'Pending', count: counts.pending, cls:'badge-warning' },
+    { key:'confirmed', label:'Confirmed', count: counts.confirmed, cls:'badge-info' },
+    { key:'inProgress', label:'In Progress', count: counts.inProgress, cls:'badge-primary' },
+    { key:'completed', label:'Completed', count: counts.completed, cls:'badge-success' },
+    { key:'cancelled', label:'Cancelled', count: counts.cancelled, cls:'badge-danger' }
+  ]; %>
+  <% pills.forEach(function(p) { %>
+    <a href="/admin/operations/cab-bookings?status=<%= p.key === 'all' ? 'all' : p.label %>&search=<%= search %>&driver=<%= driverF %>"
+       class="badge <%= p.cls %>"
+       style="text-decoration:none;cursor:pointer;padding:.3rem .7rem;font-size:.72rem;font-weight:600;
+              <%= statusF === (p.key === 'all' ? 'all' : p.label) ? 'box-shadow:0 0 0 2px rgba(0,0,0,0.08);' : '' %>">
+      <%= p.label %> <span style="font-weight:400;opacity:.8"><%= p.count %></span>
+    </a>
+  <% }); %>
+</div>
+
+<!-- ── Bookings Table ── -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="ti ti-car"></i> Transport Bookings</h3>
+    <span class="count-pill"><%= total %> total</span>
+  </div>
+
+  <% if (bookings.length > 0) { %>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Driver</th>
+          <th>Vehicle</th>
+          <th>Pickup</th>
+          <th>Destination</th>
+          <th>Date / Time</th>
+          <th>Status</th>
+          <th class="actions-th">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% bookings.forEach(function(b) {
+          const studentUser = b.student?.user;
+          const studentName = studentUser ? studentUser.fullname : 'Unknown';
+          const studentId   = studentUser ? studentUser.userId : '—';
+          const initial     = studentName.charAt(0).toUpperCase();
+          const pickupDate  = new Date(b.pickupDate);
+          const dateStr     = pickupDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' });
+          const timeStr     = b.pickupTime || '—';
+          const canConfirm  = b.status === 'Pending';
+        %>
+        <tr>
+          <td>
+            <div class="user-cell">
+              <div class="u-av s"><%= initial %></div>
+              <div>
+                <div class="u-name"><%= studentName %></div>
+                <div class="u-email"><%= studentId %></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <div class="u-av d" style="width:28px;height:28px;font-size:.7rem;flex-shrink:0">
+                <%= (b.driverName || '?').charAt(0).toUpperCase() %>
+              </div>
+              <div>
+                <div style="font-size:.78rem;font-weight:500;color:var(--text-primary)"><%= b.driverName || '—' %></div>
+                <div style="font-size:.65rem;color:var(--text-muted)"><%= b.driverPhone || '' %></div>
+              </div>
+            </div>
+          </td>
+          <td style="font-size:.75rem">
+            <% if (b.vehicleType) { %>
+              <div style="text-transform:capitalize"><%= b.vehicleType %></div>
+              <% if (b.vehicleRegistration) { %>
+                <div style="font-size:.65rem;color:var(--text-muted)"><%= b.vehicleRegistration %></div>
+              <% } %>
+            <% } else { %>
+              <span style="color:var(--text-muted)">—</span>
+            <% } %>
+          </td>
+          <td style="font-size:.75rem;max-width:160px"><%= b.pickupLocation %></td>
+          <td style="font-size:.75rem;max-width:160px"><%= b.dropoffLocation %></td>
+          <td style="font-size:.72rem;white-space:nowrap">
+            <div><%= dateStr %></div>
+            <div style="color:var(--text-muted)"><%= timeStr %></div>
+          </td>
+          <td>
+            <span class="badge <%= badgeCls(b.status) %>"><%= b.status %></span>
+          </td>
+          <td class="actions-cell">
+            <div class="action-cell">
+              <button class="act-btn btn-view" onclick="openBookingModal('<%= b._id %>')"
+                data-id="<%= b._id %>"><i class="ti ti-eye"></i> View</button>
+              <% if (canConfirm) { %>
+                <form action="/admin/operations/cab-bookings/confirm/<%= b._id %>" method="POST" style="display:inline"
+                  onsubmit="return confirm('Confirm this booking? The guardian will be notified via email.')">
+                  <button type="submit" class="act-btn btn-approve"><i class="ti ti-check"></i> Confirm</button>
+                </form>
+              <% } %>
+            </div>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Pagination ── -->
+  <% if (totalPages > 1) { %>
+  <div class="pagination">
+    <span style="font-size:.75rem;color:var(--text-secondary)">
+      Page <%= page %> of <%= totalPages %> (<%= total %> bookings)
+    </span>
+    <div class="page-btns">
+      <% if (page > 1) { %>
+        <a href="/admin/operations/cab-bookings?page=<%= page - 1 %>&status=<%= statusF %>&search=<%= search %>&driver=<%= driverF %>"
+           class="pg-btn">‹</a>
+      <% } %>
+      <% for (let i = 1; i <= totalPages; i++) { %>
+        <a href="/admin/operations/cab-bookings?page=<%= i %>&status=<%= statusF %>&search=<%= search %>&driver=<%= driverF %>"
+           class="pg-btn <%= i === page ? 'active' : '' %>"><%= i %></a>
+      <% } %>
+      <% if (page < totalPages) { %>
+        <a href="/admin/operations/cab-bookings?page=<%= page + 1 %>&status=<%= statusF %>&search=<%= search %>&driver=<%= driverF %>"
+           class="pg-btn">›</a>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
+  <% } else { %>
+  <div class="empty-state">
+    <i class="ti ti-car-off"></i>
+    <p>No transport bookings found.</p>
+    <% if (search || statusF !== 'all' || driverF !== 'all') { %>
+      <a href="/admin/operations/cab-bookings" class="act-btn btn-view" style="margin-top:.5rem">Clear filters</a>
+    <% } %>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══════════════════════════════════════════
+     BOOKING DETAIL MODAL
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="bookingModal" onclick="if(event.target===this) closeBookingModal()">
+  <div class="modal-box modal-box-wide">
+    <div class="modal-head">
+      <h3><i class="ti ti-car"></i> Booking Details</h3>
+      <button class="modal-close" onclick="closeBookingModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="bm-loading" style="text-align:center;padding:2rem;color:var(--text-secondary)">
+      <i class="fas fa-spinner fa-spin"></i> Loading…
+    </div>
+    <div id="bm-content" style="display:none">
+      <div class="si-user-banner" id="bm-student-banner">
+        <div class="si-avatar" id="bm-avatar">S</div>
+        <div class="si-user-info">
+          <div class="si-user-name" id="bm-student-name">—</div>
+          <div class="si-user-meta">
+            <code class="uid-code" id="bm-student-id">—</code>
+            <span class="role-badge student">student</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="si-section-title"><i class="ti ti-steering-wheel"></i> Driver & Vehicle</div>
+      <div class="si-grid">
+        <div class="si-field"><label>Driver</label><span id="bm-driver-name">—</span></div>
+        <div class="si-field"><label>Phone</label><span id="bm-driver-phone">—</span></div>
+        <div class="si-field"><label>Vehicle</label><span id="bm-vehicle-type">—</span></div>
+        <div class="si-field"><label>Registration</label><span id="bm-vehicle-reg">—</span></div>
+      </div>
+
+      <div class="si-section-title"><i class="ti ti-map-pin"></i> Trip Details</div>
+      <div class="si-grid">
+        <div class="si-field"><label>Pickup</label><span id="bm-pickup">—</span></div>
+        <div class="si-field"><label>Destination</label><span id="bm-destination">—</span></div>
+        <div class="si-field"><label>Date</label><span id="bm-date">—</span></div>
+        <div class="si-field"><label>Time</label><span id="bm-time">—</span></div>
+        <div class="si-field"><label>Passengers</label><span id="bm-passengers">—</span></div>
+        <div class="si-field"><label>Notes</label><span id="bm-notes">—</span></div>
+      </div>
+
+      <div class="si-section-title"><i class="ti ti-flag"></i> Status</div>
+      <div class="si-grid">
+        <div class="si-field"><label>Current Status</label><span id="bm-status">—</span></div>
+        <div class="si-field"><label>Booked On</label><span id="bm-booked-on">—</span></div>
+        <div class="si-field"><label>Confirmed At</label><span id="bm-confirmed-at">—</span></div>
+        <div class="si-field"><label>Completed At</label><span id="bm-completed-at">—</span></div>
+      </div>
+
+      <div id="bm-cancellation-section" style="display:none">
+        <div class="si-section-title" style="color:#C62828"><i class="ti ti-alert-triangle"></i> Cancellation</div>
+        <div class="si-grid">
+          <div class="si-field"><label>Cancelled By</label><span id="bm-cancelled-by">—</span></div>
+          <div class="si-field"><label>Reason</label><span id="bm-cancel-reason">—</span></div>
+          <div class="si-field"><label>Cancelled At</label><span id="bm-cancelled-at">—</span></div>
+        </div>
+      </div>
+
+      <div id="bm-rating-section" style="display:none">
+        <div class="si-section-title"><i class="ti ti-star"></i> Rating & Review</div>
+        <div class="si-grid">
+          <div class="si-field"><label>Rating</label><span id="bm-rating">—</span></div>
+          <div class="si-field si-field-full"><label>Review</label><span id="bm-review">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <div class="mf-left"></div>
+      <button class="btn-modal-close-si" onclick="closeBookingModal()"><i class="fas fa-times"></i> Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Booking Detail Modal ──
+const bookingData = <%- JSON.stringify(bookings.map(b => ({
+  _id: b._id,
+  student: b.student ? {
+    user: b.student.user ? { fullname: b.student.user.fullname, userId: b.student.user.userId, phoneNumber: b.student.user.phoneNumber } : null
+  } : null,
+  driverName: b.driverName,
+  driverPhone: b.driverPhone,
+  vehicleType: b.vehicleType,
+  vehicleRegistration: b.vehicleRegistration,
+  pickupLocation: b.pickupLocation,
+  dropoffLocation: b.dropoffLocation,
+  pickupDate: b.pickupDate,
+  pickupTime: b.pickupTime,
+  passengerCount: b.passengerCount,
+  notes: b.notes,
+  status: b.status,
+  createdAt: b.createdAt,
+  confirmedAt: b.confirmedAt,
+  completedAt: b.completedAt,
+  cancellation: b.cancellation,
+  rating: b.rating,
+  review: b.review
+}))) %>;
+
+function openBookingModal(id) {
+  var b = bookingData.find(function(x) { return x._id === id; });
+  if (!b) return;
+
+  var su = b.student && b.student.user;
+  document.getElementById('bm-student-name').textContent = su ? su.fullname : 'Unknown';
+  document.getElementById('bm-student-id').textContent  = su ? su.userId : '—';
+  document.getElementById('bm-avatar').textContent      = su ? su.fullname.charAt(0).toUpperCase() : '?';
+
+  document.getElementById('bm-driver-name').textContent  = b.driverName || '—';
+  document.getElementById('bm-driver-phone').textContent = b.driverPhone || '—';
+  document.getElementById('bm-vehicle-type').textContent = b.vehicleType ? b.vehicleType.charAt(0).toUpperCase() + b.vehicleType.slice(1) : '—';
+  document.getElementById('bm-vehicle-reg').textContent  = b.vehicleRegistration || '—';
+
+  document.getElementById('bm-pickup').textContent      = b.pickupLocation || '—';
+  document.getElementById('bm-destination').textContent  = b.dropoffLocation || '—';
+  document.getElementById('bm-passengers').textContent   = b.passengerCount || '1';
+  document.getElementById('bm-notes').textContent        = b.notes || '—';
+
+  var d = b.pickupDate ? new Date(b.pickupDate) : null;
+  document.getElementById('bm-date').textContent = d ? d.toLocaleDateString('en-PK', { day:'2-digit', month:'long', year:'numeric' }) : '—';
+  document.getElementById('bm-time').textContent = b.pickupTime || '—';
+
+  var statusMap = { 'Pending':'badge-warning', 'Confirmed':'badge-info', 'In Progress':'badge-primary', 'Completed':'badge-success', 'Cancelled':'badge-danger' };
+  var sc = statusMap[b.status] || 'badge-neutral';
+  document.getElementById('bm-status').innerHTML = '<span class="badge ' + sc + '">' + b.status + '</span>';
+
+  document.getElementById('bm-booked-on').textContent = b.createdAt ? new Date(b.createdAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+  document.getElementById('bm-confirmed-at').textContent = b.confirmedAt ? new Date(b.confirmedAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+  document.getElementById('bm-completed-at').textContent = b.completedAt ? new Date(b.completedAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+
+  // Cancellation
+  var cancelSec = document.getElementById('bm-cancellation-section');
+  if (b.cancellation && b.cancellation.by) {
+    cancelSec.style.display = '';
+    document.getElementById('bm-cancelled-by').textContent = b.cancellation.by.charAt(0).toUpperCase() + b.cancellation.by.slice(1);
+    document.getElementById('bm-cancel-reason').textContent = b.cancellation.reason || '—';
+    document.getElementById('bm-cancelled-at').textContent = b.cancellation.at ? new Date(b.cancellation.at).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+  } else {
+    cancelSec.style.display = 'none';
+  }
+
+  // Rating
+  var ratingSec = document.getElementById('bm-rating-section');
+  if (b.rating) {
+    ratingSec.style.display = '';
+    document.getElementById('bm-rating').textContent = '★'.repeat(b.rating) + '☆'.repeat(5 - b.rating) + ' (' + b.rating + '/5)';
+    document.getElementById('bm-review').textContent = b.review || '—';
+  } else {
+    ratingSec.style.display = 'none';
+  }
+
+  document.getElementById('bm-loading').style.display = 'none';
+  document.getElementById('bm-content').style.display = '';
+  document.getElementById('bookingModal').classList.add('open');
+}
+
+function closeBookingModal() {
+  document.getElementById('bookingModal').classList.remove('open');
+  document.getElementById('bm-content').style.display = 'none';
+  document.getElementById('bm-loading').style.display = '';
+}
+</script>
+
+<%- include('admin-footer') %>

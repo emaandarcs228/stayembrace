@@ -40,6 +40,11 @@ router.post('/room-requests/recommend/:id',   wardenMiddleware, wardenController
 router.post('/room-requests/reject/:id',      wardenMiddleware, wardenController.rejectRoomRequest);
 
 // ══════════════════════════════════════
+// TRANSPORT BOOKINGS
+// ══════════════════════════════════════
+router.get('/cab-bookings', wardenMiddleware, wardenController.getCabBookings);
+
+// ══════════════════════════════════════
 // MESS ORDERS
 // ══════════════════════════════════════
 // ══════════════════════════════════════

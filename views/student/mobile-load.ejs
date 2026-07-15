@@ -94,6 +94,19 @@
 
 <!-- ══ MY REQUESTS PAGE ══ -->
 <div class="page" id="page-list">
+
+  <!-- ── Tab Navigation: Active / History ── -->
+  <div class="page-tabs" style="margin-bottom:.7rem">
+    <button class="act-btn active" id="sml-nav-active" style="background:#E8F5E9;color:#2E7D32" onclick="switchSMLTab('active')">
+      <i class="ti ti-sparkles"></i> Active
+      <span class="badge badge-success" style="margin-left:.3rem" id="sml-badge-active">0</span>
+    </button>
+    <button class="act-btn" id="sml-nav-history" style="background:#E3F2FD;color:#1565C0" onclick="switchSMLTab('history')">
+      <i class="ti ti-history"></i> History
+      <span class="badge badge-neutral" style="margin-left:.3rem" id="sml-badge-history">0</span>
+    </button>
+  </div>
+
   <div class="card">
     <div class="card-head">
       <h3><i class="ti ti-list"></i> My Requests</h3>
@@ -115,6 +128,9 @@
         </thead>
         <tbody>
           <% requests.forEach(function(r, i) {
+               const isActiveML = ['Pending','Payment Done'].includes(r.requestStatus);
+          %>
+          <tr class="sml-row" data-status-cat="<%= isActiveML ? 'active' : 'history' %>">
                const statusMap = {
                  'Pending'      : 'badge-warning',
                  'Payment Done' : 'badge-info',
@@ -157,6 +173,37 @@
 </div><!-- /page-list -->
 
 <script>
+/* ── Student Mobile Load: Active/History tab ── */
+function countSMLCats() {
+  var activeCount = 0, historyCount = 0;
+  document.querySelectorAll('.sml-row').forEach(function(row) {
+    var cat = row.getAttribute('data-status-cat');
+    if (cat === 'active') activeCount++;
+    else historyCount++;
+  });
+  var badgeActive = document.getElementById('sml-badge-active');
+  var badgeHistory = document.getElementById('sml-badge-history');
+  if (badgeActive) badgeActive.textContent = activeCount;
+  if (badgeHistory) badgeHistory.textContent = historyCount;
+}
+
+function switchSMLTab(cat) {
+  document.querySelectorAll('#sml-nav-active, #sml-nav-history').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('sml-nav-' + cat).classList.add('active');
+
+  var hasVisible = false;
+  document.querySelectorAll('.sml-row').forEach(function(row) {
+    var rowCat = row.getAttribute('data-status-cat');
+    row.style.display = rowCat === cat ? '' : 'none';
+    if (row.style.display !== 'none') hasVisible = true;
+  });
+
+  var emptyState = document.querySelector('#page-list .empty-state');
+  if (emptyState) {
+    emptyState.style.display = hasVisible ? 'none' : '';
+  }
+}
+
 document.getElementById('btn-request').classList.add('active');
 
 (function() {
@@ -166,6 +213,8 @@ document.getElementById('btn-request').classList.add('active');
     document.getElementById('btn-list').classList.add('active');
     document.getElementById('btn-request').classList.remove('active');
   }
+  countSMLCats();
+  switchSMLTab('active');
 })();
 
 function selectNetwork(input) {

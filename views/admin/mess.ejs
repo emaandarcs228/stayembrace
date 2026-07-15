@@ -5,21 +5,33 @@
 %>
 <%- include('admin-header') %>
 
-<!-- ── Sub-nav ── -->
+<!-- ── Sub-nav (standard page tabs) ── -->
 <div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
   <button class="act-btn btn-view" id="btn-orders" onclick="showTab('orders', this)">
     <i class="ti ti-receipt"></i> Orders
   </button>
-  <button class="act-btn" style="background:#F3E5F5;color:#7B1FA2" id="btn-menu" onclick="showTab('menu', this)">
+  <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-menu" onclick="showTab('menu', this)">
     <i class="ti ti-tools-kitchen-2"></i> Menu
   </button>
-  <button class="act-btn" style="background:#E8F5E9;color:#2E7D32" id="btn-addmenu" onclick="showTab('addmenu', this)">
+  <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-addmenu" onclick="showTab('addmenu', this)">
     <i class="ti ti-plus"></i> Add Menu
   </button>
 </div>
 
 <!-- ══════════════════ ORDERS TAB ══════════════════ -->
 <div class="tab active" id="tab-orders">
+
+  <!-- ── Tab Navigation: Active / History ── -->
+  <div class="page-tabs" style="margin-bottom:.7rem">
+    <button class="act-btn active" id="am-nav-active" style="background:#E8F5E9;color:#2E7D32" onclick="switchAMTab('active')">
+      <i class="ti ti-sparkles"></i> Active
+      <span class="badge badge-success" style="margin-left:.3rem" id="am-badge-active">0</span>
+    </button>
+    <button class="act-btn" id="am-nav-history" style="background:#F5F5F5;color:#666" onclick="switchAMTab('history')">
+      <i class="ti ti-history"></i> History
+      <span class="badge badge-neutral" style="margin-left:.3rem" id="am-badge-history">0</span>
+    </button>
+  </div>
 
   <div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
     <select class="filter-sel" onchange="applyFilter('status', this.value)">
@@ -72,6 +84,7 @@
                const isPaid     = dueStatus === 'Paid';
                const isCancelled = order.orderStatus === 'Cancelled';
                const isDelivered = order.orderStatus === 'Delivered';
+               const isActive = ['Pending','Accepted','Preparing'].includes(order.orderStatus);
                const dueStatusMap = {
                  'Pending'       : 'badge-danger',
                  'Partially Paid': 'badge-warning',
@@ -79,7 +92,7 @@
                  'Overdue'       : 'badge-danger'
                };
           %>
-          <tr>
+          <tr class="am-row" data-status-cat="<%= isActive ? 'active' : 'history' %>">
             <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
             <td>
               <div class="user-cell">
@@ -286,31 +299,66 @@
 </div><!-- /tab-addmenu -->
 
 <script>
+/* ── Orders: Active/History tab ── */
+function countAMCats() {
+  var activeCount = 0, historyCount = 0;
+  document.querySelectorAll('.am-row').forEach(function(row) {
+    var cat = row.getAttribute('data-status-cat');
+    if (cat === 'active') activeCount++;
+    else historyCount++;
+  });
+  var badgeActive = document.getElementById('am-badge-active');
+  var badgeHistory = document.getElementById('am-badge-history');
+  if (badgeActive) badgeActive.textContent = activeCount;
+  if (badgeHistory) badgeHistory.textContent = historyCount;
+}
+
+function switchAMTab(cat) {
+  document.querySelectorAll('#am-nav-active, #am-nav-history').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('am-nav-' + cat).classList.add('active');
+
+  document.querySelectorAll('.card').forEach(function(c) { c.style.display = ''; });
+
+  document.querySelectorAll('.am-row').forEach(function(row) {
+    var rowCat = row.getAttribute('data-status-cat');
+    row.style.display = rowCat === cat ? '' : 'none';
+  });
+
+  // Count visible rows per card; hide empty states for cards that have visible rows
+  document.querySelectorAll('.card').forEach(function(c) {
+    var hasVisible = false;
+    c.querySelectorAll('.am-row').forEach(function(r) {
+      if (r.style.display !== 'none') hasVisible = true;
+    });
+    var emptyState = c.querySelector('.empty-state');
+    if (emptyState && c.querySelectorAll('.am-row').length > 0) {
+      emptyState.style.display = hasVisible ? 'none' : '';
+    }
+  });
+}
+
 function applyFilter(key, val) {
   window.location.href = '/admin/operations/mess?tab=orders&' + key + '=' + encodeURIComponent(val);
 }
-
-const TAB_COLORS = {
-  orders : { bg: '#E3F2FD', color: '#1565C0' },
-  menu   : { bg: '#F3E5F5', color: '#7B1FA2' },
-  addmenu: { bg: '#E8F5E9', color: '#2E7D32' }
-};
 
 function showTab(name, btnEl) {
   document.querySelectorAll('.tab').forEach(el => el.style.display = 'none');
   document.getElementById('tab-' + name).style.display = 'block';
 
   document.querySelectorAll('#btn-orders, #btn-menu, #btn-addmenu').forEach(b => {
-    const key = b.id.replace('btn-', '');
-    const c = TAB_COLORS[key];
-    b.style.background = c.bg;
-    b.style.color = c.color;
-    b.style.boxShadow = 'none';
-    b.style.transform = 'none';
+    b.classList.remove('btn-view');
+    b.style.background = '#f5f5f5';
+    b.style.color = 'var(--text-secondary)';
   });
+  btnEl.classList.add('btn-view');
+  btnEl.style.background = '';
+  btnEl.style.color = '';
 
-  btnEl.style.boxShadow = '0 2px 6px rgba(0,0,0,.15)';
-  btnEl.style.transform = 'translateY(-1px)';
+  // Initialize tab counts when switching to orders
+  if (name === 'orders') {
+    countAMCats();
+    switchAMTab('active');
+  }
 }
 
 (function() {
@@ -318,6 +366,8 @@ function showTab(name, btnEl) {
   const tab = params.get('tab') || 'orders';
   const btn = document.getElementById('btn-' + tab);
   if (btn) showTab(tab, btn);
+  countAMCats();
+  switchAMTab('active');
 })();
 </script>
 

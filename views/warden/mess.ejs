@@ -21,6 +21,18 @@
 <!-- ══════════════════ ORDERS TAB ══════════════════ -->
 <div class="tab active" id="tab-orders">
 
+  <!-- ── Tab Navigation: Active / History ── -->
+  <div class="page-tabs" style="margin-bottom:.7rem">
+    <button class="act-btn active" id="m-nav-active" style="background:#E8F5E9;color:#2E7D32" onclick="switchMTab('active')">
+      <i class="ti ti-sparkles"></i> Active
+      <span class="badge badge-success" style="margin-left:.3rem" id="m-badge-active">0</span>
+    </button>
+    <button class="act-btn" id="m-nav-history" style="background:#F5F5F5;color:#666" onclick="switchMTab('history')">
+      <i class="ti ti-history"></i> History
+      <span class="badge badge-neutral" style="margin-left:.3rem" id="m-badge-history">0</span>
+    </button>
+  </div>
+
   <div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
     <select class="filter-sel" onchange="applyFilter('status', this.value)">
       <option value="active"    <%= statusFilter === 'active'    ? 'selected' : '' %>>Active Orders</option>
@@ -73,6 +85,7 @@
                const isCancelled = order.orderStatus === 'Cancelled';
                const isDelivered = order.orderStatus === 'Delivered';
                const canProgress = isPaid && !isCancelled && !isDelivered;
+               const isActive = ['Pending','Accepted','Preparing'].includes(order.orderStatus);
                const dueStatusMap = {
                  'Pending'       : 'badge-danger',
                  'Partially Paid': 'badge-warning',
@@ -80,7 +93,7 @@
                  'Overdue'       : 'badge-danger'
                };
           %>
-          <tr>
+          <tr class="mess-row" data-status-cat="<%= isActive ? 'active' : 'history' %>">
             <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
             <td>
               <div class="user-cell">
@@ -279,6 +292,43 @@
 </div><!-- /tab-addmenu -->
 
 <script>
+function countMCats() {
+  var activeCount = 0, historyCount = 0;
+  document.querySelectorAll('.mess-row').forEach(function(row) {
+    var cat = row.getAttribute('data-status-cat');
+    if (cat === 'active') activeCount++;
+    else historyCount++;
+  });
+  var badgeActive = document.getElementById('m-badge-active');
+  var badgeHistory = document.getElementById('m-badge-history');
+  if (badgeActive) badgeActive.textContent = activeCount;
+  if (badgeHistory) badgeHistory.textContent = historyCount;
+}
+
+function switchMTab(cat) {
+  document.querySelectorAll('#m-nav-active, #m-nav-history').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('m-nav-' + cat).classList.add('active');
+
+  document.querySelectorAll('.card').forEach(function(c) { c.style.display = ''; });
+
+  document.querySelectorAll('.mess-row').forEach(function(row) {
+    var rowCat = row.getAttribute('data-status-cat');
+    row.style.display = rowCat === cat ? '' : 'none';
+  });
+
+  // Count visible rows per card; hide empty states for cards that have visible rows
+  document.querySelectorAll('.card').forEach(function(c) {
+    var hasVisible = false;
+    c.querySelectorAll('.mess-row').forEach(function(r) {
+      if (r.style.display !== 'none') hasVisible = true;
+    });
+    var emptyState = c.querySelector('.empty-state');
+    if (emptyState && c.querySelectorAll('.mess-row').length > 0) {
+      emptyState.style.display = hasVisible ? 'none' : '';
+    }
+  });
+}
+
 function applyFilter(key, val) {
   window.location.href = '/warden/mess?tab=orders&' + key + '=' + encodeURIComponent(val);
 }
@@ -302,6 +352,8 @@ function showTab(name, btnEl) {
   const tab = params.get('tab') || 'orders';
   const btn = document.getElementById('btn-' + tab);
   if (btn) showTab(tab, btn);
+  countMCats();
+  switchMTab('active');
 })();
 </script>
 

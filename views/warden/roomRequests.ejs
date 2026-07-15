@@ -16,6 +16,18 @@
 <%- include('warden-footer') %>
 <% } else { %>
 
+<!-- ── Tab Navigation: Active / History ── -->
+<div class="page-tabs" style="margin-bottom:.7rem">
+  <button class="act-btn active" id="rr-nav-active" style="background:#E8F5E9;color:#2E7D32" onclick="switchRRTab('active')">
+    <i class="ti ti-sparkles"></i> Active
+    <span class="badge badge-success" style="margin-left:.3rem" id="rr-badge-active">0</span>
+  </button>
+  <button class="act-btn" id="rr-nav-history" style="background:#F5F5F5;color:#666" onclick="switchRRTab('history')">
+    <i class="ti ti-history"></i> History
+    <span class="badge badge-neutral" style="margin-left:.3rem" id="rr-badge-history">0</span>
+  </button>
+</div>
+
 <!-- ── Row 1: Status filter tabs (top) ── -->
 <div class="filter-tabs" style="margin-bottom:.9rem">
   <a class="filter-tab filter-tab-neutral <%= statusFilter === 'all' ? 'is-active' : '' %>"
@@ -49,7 +61,7 @@
 
 <% if (requests.length === 0) { %>
 <div class="card">
-  <div class="empty-state">
+  <div class="empty-state" id="rr-empty-state">
     <i class="ti ti-door"></i>
     <h4>No room requests</h4>
     <p>No requests match the selected filters.</p>
@@ -57,14 +69,14 @@
 </div>
 <% } else { %>
 
-<div style="display:flex;flex-direction:column;gap:1rem">
+<div class="card" id="rr-list-card">
   <% requests.forEach(function(rr) {
        const isPending    = rr.wardenApproval && rr.wardenApproval.status === 'Pending';
        const isRecommend  = rr.wardenApproval && rr.wardenApproval.status === 'Recommended';
        const isRejected   = rr.wardenApproval && rr.wardenApproval.status === 'Rejected';
        const overallStatus = rr.status || 'Pending';
   %>
-  <div class="card" style="margin-bottom:0">
+  <div class="rr-card" data-status-cat="<%= isPending ? 'active' : 'history' %>" style="border-bottom:1px solid var(--border)">
 
     <!-- Header -->
     <div class="card-head">
@@ -200,11 +212,50 @@
 <% } %>
 
 <script>
+function countRRCats() {
+  var activeCount = 0, historyCount = 0;
+  document.querySelectorAll('.rr-card').forEach(function(card) {
+    var cat = card.getAttribute('data-status-cat');
+    if (cat === 'active') activeCount++;
+    else historyCount++;
+  });
+  var badgeActive = document.getElementById('rr-badge-active');
+  var badgeHistory = document.getElementById('rr-badge-history');
+  if (badgeActive) badgeActive.textContent = activeCount;
+  if (badgeHistory) badgeHistory.textContent = historyCount;
+}
+
+function switchRRTab(cat) {
+  document.querySelectorAll('#rr-nav-active, #rr-nav-history').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('rr-nav-' + cat).classList.add('active');
+
+  var hasVisible = false;
+  document.querySelectorAll('.rr-card').forEach(function(card) {
+    var rowCat = card.getAttribute('data-status-cat');
+    card.style.display = rowCat === cat ? '' : 'none';
+    if (card.style.display !== 'none') hasVisible = true;
+  });
+
+  var emptyState = document.getElementById('rr-empty-state');
+  if (emptyState) {
+    emptyState.style.display = hasVisible ? 'none' : '';
+  }
+  var listCard = document.getElementById('rr-list-card');
+  if (listCard) {
+    listCard.style.display = hasVisible ? '' : 'none';
+  }
+}
+
 function applyFilter(key, val) {
   var params = new URLSearchParams(window.location.search);
   params.set(key, val);
   window.location.href = '/warden/room-requests?' + params.toString();
 }
+
+window.addEventListener('DOMContentLoaded', function() {
+  countRRCats();
+  switchRRTab('active');
+});
 </script>
 
 <%- include('warden-footer') %>

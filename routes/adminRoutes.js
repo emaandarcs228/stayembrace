@@ -45,6 +45,16 @@ router.get('/students/:userId/info', adminMiddleware, adminController.getStudent
 router.post('/students/:userId/info', adminMiddleware, adminController.saveStudentInfo);
 
 // ======================
+// DRIVER ADDITIONAL INFO
+// ======================
+// TEST route to verify routing works
+router.get('/drivers/test', adminMiddleware, (req, res) => {
+    res.json({ ok: true, message: 'Driver test route works', userId: req.user?.userId });
+});
+router.get('/drivers/:userId/info', adminMiddleware, adminController.getDriverInfo);
+router.post('/drivers/:userId/info', adminMiddleware, adminController.saveDriverInfo);
+
+// ======================
 // ROOM MANAGEMENT
 // ======================
 router.get('/rooms', adminMiddleware, roomController.getRoomManagement);
@@ -157,9 +167,10 @@ router.post('/operations/mobile-load/reject/:id',        adminMiddleware, operat
 router.post('/operations/mobile-load/override/:id',      adminMiddleware, operationController.overrideMobileLoad);
 
 // ======================
-// CAB BOOKING CONFIRMATION
+// TRANSPORT MANAGEMENT
 // ======================
-router.post('/operations/cab-bookings/confirm/:id', adminMiddleware, operationController.confirmCabBooking);
+router.get('/operations/cab-bookings',              adminMiddleware, operationController.getCabBookings);
+router.post('/operations/cab-bookings/confirm/:id',  adminMiddleware, operationController.confirmCabBooking);
 
 // ======================
 // WARDEN ACTIVITY LOG

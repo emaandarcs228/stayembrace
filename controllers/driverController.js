@@ -1,5 +1,6 @@
 const User = require('../models/user');
 const Driver = require('../models/driver');
+const CabBooking = require('../models/cabBooking');
 const Notification = require('../models/notification');
 const { getSidebarBadges } = require('../utils/sidebarBadges');
 
@@ -166,6 +167,74 @@ exports.getVehicle = async (req, res) => {
 
     } catch (err) {
         console.error('Driver Vehicle Page Error:', err);
+        res.status(500).send('Server Error');
+    }
+};
+
+
+// ======================
+// CAB BOOKINGS — GET
+// ======================
+exports.getBookings = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'driver') return res.status(403).send('Access Denied');
+
+        const driver = await Driver.findOne({ user: req.user._id }).lean();
+
+        // Fetch cab bookings assigned to this driver
+        const bookings = await CabBooking.find({ driver: req.user._id })
+            .populate({
+                path: 'student',
+                populate: { path: 'user', select: 'fullname userId phoneNumber' }
+            })
+            .sort({ createdAt: -1 })
+            .lean();
+
+        // Split into active (Pending, Confirmed, In Progress) and history
+        const activeBookings = bookings.filter(b =>
+            ['Pending', 'Confirmed', 'In Progress'].includes(b.status)
+        );
+        const pastBookings = bookings.filter(b =>
+            ['Completed', 'Cancelled'].includes(b.status)
+        );
+
+        // ── Notifications for topbar bell ──
+        const unreadCount = await Notification.countDocuments({
+            isActive: true,
+            $or: [
+                { target: { $in: ['All', 'Students'] }, readBy: { $nin: [req.user._id] } },
+                { recipient: req.user._id, readBy: { $nin: [req.user._id] } }
+            ]
+        });
+        const recentNotifs = await Notification.find({
+            isActive: true,
+            $or: [
+                { target: { $in: ['All', 'Students'] } },
+                { recipient: req.user._id }
+            ]
+        }).sort({ createdAt: -1 }).limit(5).lean();
+        recentNotifs.forEach(n => { n._timeAgo = timeAgo(n.createdAt); });
+
+        const badges = {};
+
+        res.render('driver/bookings', {
+            user: req.user,
+            driver: driver || {},
+            pageTitle: 'Cab Bookings',
+            pageSubtitle: 'View and manage ride requests',
+            activePage: 'bookings',
+            bookings,
+            activeBookings,
+            pastBookings,
+            unreadCount,
+            recentNotifs,
+            ...badges,
+            successMessage: req.query.success || null,
+            errorMessage: req.query.error || null
+        });
+
+    } catch (err) {
+        console.error('Driver Bookings Error:', err);
         res.status(500).send('Server Error');
     }
 };
