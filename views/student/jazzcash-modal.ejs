@@ -178,17 +178,19 @@
   let _jcAmount      = 0;
   let _jcDesc        = '';
   let _jcPayType     = 'Hostel Fee';
+  let _jcCabBookingId = null;
   let _jcTxnRef      = null;
   let _jcPollTimer   = null;
   let _jcCountTimer  = null;
   let _jcSecondsLeft = 300; // 5 min expiry
 
   // ── Open modal ──────────────────────────────────────────────────
-  window.openJazzCashModal = function({ dueIds, amount, paymentType, description }) {
+  window.openJazzCashModal = function({ dueIds, amount, paymentType, description, cabBookingId }) {
     _jcDueIds  = dueIds  || [];
     _jcAmount  = amount  || 0;
     _jcDesc    = description || 'Hostel Payment';
     _jcPayType = paymentType || 'Hostel Fee';
+    _jcCabBookingId = cabBookingId || null;
 
     document.getElementById('jc-display-amount').textContent = 'Rs ' + Number(_jcAmount).toLocaleString();
     document.getElementById('jc-display-desc').textContent   = _jcDesc;
@@ -251,6 +253,7 @@
         description : _jcDesc
       };
       if (_jcDueIds.length > 0) body.dueIds = _jcDueIds;
+      if (_jcCabBookingId) body.cabBookingId = _jcCabBookingId;
 
       var res  = await fetch('/student/payments/jazzcash/initiate', {
         method : 'POST',

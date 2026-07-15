@@ -5,6 +5,18 @@
 %>
 <%- include('warden-header') %>
 
+<!-- ── Search ── -->
+<div style="display:flex;justify-content:flex-end;margin-bottom:1.2rem">
+  <div class="search-bar" style="max-width:320px;width:100%">
+    <i class="ti ti-search"></i>
+    <form method="GET" action="/warden/cab-bookings" id="filterForm" style="display:contents">
+      <input type="text" name="search" placeholder="Search student, driver, or location..."
+        value="<%= search %>" onchange="this.form.submit()"
+        style="border:none;background:transparent;flex:1;font-family:inherit;font-size:.82rem;padding:.6rem 0;outline:none">
+    </form>
+  </div>
+</div>
+
 <!-- ── Tab Navigation: Active / History ── -->
 <div class="page-tabs" style="margin-bottom:.7rem">
   <button class="act-btn active" id="t-nav-active" style="background:#E8F5E9;color:#2E7D32" onclick="switchTTab('active')">
@@ -19,15 +31,6 @@
 
 <!-- ── Filters ── -->
 <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
-  <div class="search-bar" style="max-width:260px;width:100%;flex:1">
-    <i class="ti ti-search"></i>
-    <form method="GET" action="/warden/cab-bookings" id="filterForm" style="display:contents">
-      <input type="text" name="search" placeholder="Search student, driver, or location..."
-        value="<%= search %>" onchange="this.form.submit()"
-        style="border:none;background:transparent;flex:1;font-family:inherit;font-size:.82rem;padding:.6rem 0;outline:none">
-    </form>
-  </div>
-
   <div class="filter-tabs">
     <% ['all','Pending','Confirmed','In Progress','Completed','Cancelled'].forEach(function(s) {
          const isActive = statusF === s;
@@ -46,26 +49,6 @@
     </a>
     <% }); %>
   </div>
-</div>
-
-<!-- ── Status Count Pills ── -->
-<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem">
-  <% const pills = [
-    { key:'all', label:'All', count: counts.all, cls:'badge-neutral' },
-    { key:'pending', label:'Pending', count: counts.pending, cls:'badge-warning' },
-    { key:'confirmed', label:'Confirmed', count: counts.confirmed, cls:'badge-info' },
-    { key:'inProgress', label:'In Progress', count: counts.inProgress, cls:'badge-primary' },
-    { key:'completed', label:'Completed', count: counts.completed, cls:'badge-success' },
-    { key:'cancelled', label:'Cancelled', count: counts.cancelled, cls:'badge-danger' }
-  ]; %>
-  <% pills.forEach(function(p) { %>
-    <a href="/warden/cab-bookings?status=<%= p.key === 'all' ? 'all' : p.label %>&search=<%= search %>"
-       class="badge <%= p.cls %>"
-       style="text-decoration:none;cursor:pointer;padding:.25rem .6rem;font-size:.68rem;font-weight:600;
-              <%= statusF === (p.key === 'all' ? 'all' : p.label) ? 'box-shadow:0 0 0 2px rgba(0,0,0,0.08);' : '' %>">
-      <%= p.label %> <span style="font-weight:400;opacity:.7"><%= p.count %></span>
-    </a>
-  <% }); %>
 </div>
 
 <% if (bookings.length === 0) { %>
@@ -99,6 +82,8 @@
           <th>Date / Time</th>
           <th>Booked On</th>
           <th>Status</th>
+          <th>Fare</th>
+          <th>Payment</th>
           <th class="actions-th">Actions</th>
         </tr>
       </thead>
@@ -157,6 +142,16 @@
           <td>
             <span class="badge <%= badgeCls(b.status) %>"><%= b.status %></span>
           </td>
+          <td style="font-size:.75rem;font-weight:600">
+            <%= b.fare ? 'Rs ' + b.fare.toLocaleString() : '—' %>
+          </td>
+          <td>
+            <% if (b.fare) { %>
+              <span class="badge <%= b.paymentStatus === 'Paid' ? 'badge-success' : 'badge-warning' %>"><%= b.paymentStatus %></span>
+            <% } else { %>
+              <span style="color:var(--text-muted);font-size:.7rem">—</span>
+            <% } %>
+          </td>
           <td class="actions-cell">
             <div class="action-cell">
               <button class="act-btn btn-view" onclick="openTModal('<%= b._id %>')">
@@ -205,6 +200,12 @@
         <div class="si-field"><label>Phone</label><span id="bm-driver-phone">—</span></div>
         <div class="si-field"><label>Vehicle</label><span id="bm-vehicle-type">—</span></div>
         <div class="si-field"><label>Registration</label><span id="bm-vehicle-reg">—</span></div>
+      </div>
+
+      <div class="si-section-title"><i class="ti ti-credit-card"></i> Fare & Payment</div>
+      <div class="si-grid">
+        <div class="si-field"><label>Fare</label><span id="bm-fare">—</span></div>
+        <div class="si-field"><label>Payment Status</label><span id="bm-payment-status">—</span></div>
       </div>
 
       <div class="si-section-title"><i class="ti ti-map-pin"></i> Trip Details</div>
@@ -273,7 +274,9 @@ const tBookings = <%- JSON.stringify(bookings.map(b => ({
   completedAt: b.completedAt,
   cancellation: b.cancellation,
   rating: b.rating,
-  review: b.review
+  review: b.review,
+  fare: b.fare,
+  paymentStatus: b.paymentStatus
 }))) %>;
 
 function openTModal(id) {
@@ -289,6 +292,11 @@ function openTModal(id) {
   document.getElementById('bm-driver-phone').textContent = b.driverPhone || '—';
   document.getElementById('bm-vehicle-type').textContent = b.vehicleType ? b.vehicleType.charAt(0).toUpperCase() + b.vehicleType.slice(1) : '—';
   document.getElementById('bm-vehicle-reg').textContent  = b.vehicleRegistration || '—';
+
+  document.getElementById('bm-fare').textContent = b.fare ? 'Rs ' + Number(b.fare).toLocaleString() : 'Not set yet';
+  document.getElementById('bm-payment-status').innerHTML = b.fare
+    ? '<span class="badge ' + (b.paymentStatus === 'Paid' ? 'badge-success' : 'badge-warning') + '">' + b.paymentStatus + '</span>'
+    : '—';
 
   document.getElementById('bm-pickup').textContent      = b.pickupLocation || '—';
   document.getElementById('bm-destination').textContent  = b.dropoffLocation || '—';

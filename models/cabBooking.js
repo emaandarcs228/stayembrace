@@ -109,6 +109,28 @@ const cabBookingSchema = new mongoose.Schema({
         default: null
     },
 
+    // ── Fare & Payment ──────────────────────────────────────────────
+    // Set by the driver when they accept the booking — payment only
+    // becomes possible once this is populated (i.e. status !== Pending).
+    fare: {
+        type: Number,
+        default: null,
+        min: 0
+    },
+
+    paymentStatus: {
+        type: String,
+        enum: ['Unpaid', 'Paid'],
+        default: 'Unpaid'
+    },
+
+    // Gateway Payment record that settled this booking's fare
+    payment: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Payment',
+        default: null
+    },
+
     // ── Rating & Review (student → driver, only for Completed rides) ──
     rating: {
         type: Number,

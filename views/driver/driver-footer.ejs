@@ -5,6 +5,10 @@
 <!-- Preloader & notification toggle scripts -->
 <script src="/js/preloader.js"></script>
 <script>
+// ── Generic modal open/close (mirrors student portal) ──
+window.openModal  = function (id) { var el = document.getElementById(id); if (el) el.classList.add('open'); };
+window.closeModal = function (id) { var el = document.getElementById(id); if (el) el.classList.remove('open'); };
+
 // ── Notification dropdown toggle ──
 (function() {
   var notifBtn = document.getElementById('notifBtn');

@@ -178,17 +178,19 @@
   let _epAmount      = 0;
   let _epDesc        = '';
   let _epPayType     = 'Hostel Fee';
+  let _epCabBookingId = null;
   let _epOrderId     = null;
   let _epPollTimer   = null;
   let _epCountTimer  = null;
   let _epSecondsLeft = 300; // 5 min expiry
 
   // ── Open modal ──────────────────────────────────────────────────
-  window.openEasypaisaModal = function({ dueIds, amount, paymentType, description }) {
+  window.openEasypaisaModal = function({ dueIds, amount, paymentType, description, cabBookingId }) {
     _epDueIds  = dueIds  || [];
     _epAmount  = amount  || 0;
     _epDesc    = description || 'Hostel Payment';
     _epPayType = paymentType || 'Hostel Fee';
+    _epCabBookingId = cabBookingId || null;
 
     document.getElementById('ep-display-amount').textContent = 'Rs ' + Number(_epAmount).toLocaleString();
     document.getElementById('ep-display-desc').textContent   = _epDesc;
@@ -251,6 +253,7 @@
         description : _epDesc
       };
       if (_epDueIds.length > 0) body.dueIds = _epDueIds;
+      if (_epCabBookingId) body.cabBookingId = _epCabBookingId;
 
       var res  = await fetch('/student/payments/easypaisa/initiate', {
         method : 'POST',

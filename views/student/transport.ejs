@@ -595,11 +595,39 @@
               data-booking-id="<%= b._id %>"
               data-rating="<%= b.rating || '' %>"
               data-review="<%= b.review || '' %>"
+              data-fare="<%= b.fare || '' %>"
+              data-payment-status="<%= b.paymentStatus %>"
               onclick="openBookingDetail(this)">
             <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
             <td>
               <div style="font-weight:600;font-size:.78rem"><%= b.driverName %></div>
               <div style="font-size:.65rem;color:var(--text-muted)"><%= b.vehicleType || '—' %> · <%= b.vehicleRegistration || '—' %></div>
+              <% var isAssigned = ['Confirmed', 'In Progress'].includes(b.status); %>
+              <div class="tp-assigned-driver" style="<%= isAssigned ? '' : 'display:none;' %>margin-top:.35rem;padding:.35rem .5rem;background:#E8F5E9;border:1px solid #C8E6C9;border-radius:6px">
+                <div style="font-size:.55rem;font-weight:700;color:#2E7D32;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.15rem">
+                  <i class="ti ti-steering-wheel"></i> Assigned Driver
+                </div>
+                <div style="font-size:.66rem;color:#1b5e20"><%= b.driverName %> · <%= b.vehicleType || '—' %> · <%= (b.vehicleRegistration || '—').toUpperCase() %></div>
+                <% if (b.driverPhone && b.driverPhone !== '—') { %>
+                <a href="tel:<%= b.driverPhone %>" onclick="event.stopPropagation()" style="font-size:.64rem;font-weight:600;color:#2E7D32;text-decoration:none;display:inline-flex;align-items:center;gap:.2rem;margin-top:.15rem">
+                  <i class="ti ti-phone"></i> <%= b.driverPhone %>
+                </a>
+                <% } %>
+                <div style="margin-top:.3rem;padding-top:.3rem;border-top:1px dashed #A5D6A7;display:flex;align-items:center;justify-content:space-between;gap:.4rem">
+                  <span style="font-size:.64rem;color:#1b5e20">Fare: <strong class="tp-fare-amount"><%= b.fare ? 'Rs ' + b.fare.toLocaleString() : '—' %></strong></span>
+                  <span class="badge badge-success tp-payment-badge" style="font-size:.56rem;<%= b.paymentStatus === 'Paid' ? '' : 'display:none;' %>">
+                    <i class="ti ti-check"></i> Paid
+                  </span>
+                  <button type="button" class="act-btn btn-approve tp-pay-btn" style="font-size:.58rem;padding:.2rem .5rem;<%= (b.fare && b.paymentStatus !== 'Paid') ? '' : 'display:none;' %>"
+                    data-booking-id="<%= b._id %>"
+                    data-fare="<%= b.fare || 0 %>"
+                    data-pickup="<%= b.pickupLocation %>"
+                    data-dropoff="<%= b.dropoffLocation %>"
+                    onclick="event.stopPropagation();openCabPayModal(this)">
+                    <i class="ti ti-credit-card"></i> Pay Now
+                  </button>
+                </div>
+              </div>
             </td>
             <td style="font-size:.72rem;max-width:120px;word-break:break-word"><%= b.pickupLocation %></td>
             <td style="font-size:.72rem;max-width:120px;word-break:break-word"><%= b.dropoffLocation %></td>
@@ -608,7 +636,7 @@
               <% if (b.pickupTime) { %><div style="font-size:.62rem;color:var(--text-muted)"><%= b.pickupTime %></div><% } %>
             </td>
             <td style="text-align:center"><span class="count-pill"><%= b.passengerCount %></span></td>
-            <td><span class="badge <%= statusMap[b.status] || 'badge-neutral' %>"><%= b.status %></span></td>
+            <td><span class="badge cab-status-badge <%= statusMap[b.status] || 'badge-neutral' %>"><%= b.status %></span></td>
             <td>
               <% if (b.status === 'Completed' && b.rating) { %>
                 <span class="tp-rating-badge"><i class="fas fa-star"></i> <%= b.rating %>/5</span>
@@ -624,7 +652,7 @@
                   <i class="ti ti-eye"></i>
                 </button>
                 <% if (b.status === 'Pending') { %>
-                <form action="/student/transport/cancel/<%= b._id %>" method="POST" id="cancelCabForm-<%= b._id %>">
+                <form action="/student/transport/cancel/<%= b._id %>" method="POST" id="cancelCabForm-<%= b._id %>" class="cab-cancel-action">
                   <button type="button" class="act-btn btn-cancel" onclick="event.stopPropagation();openCancelCabModal('<%= b._id %>')">
                     <i class="ti ti-x"></i>
                   </button>
@@ -689,6 +717,14 @@
           <div class="tp-value" id="bdVehicleType">—</div>
           <div class="tp-value-sm" id="bdVehicleReg"></div>
         </div>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.65rem .85rem;display:flex;align-items:center;justify-content:space-between;gap:.6rem" id="bdPaymentWrap">
+        <div>
+          <div class="tp-label"><i class="ti ti-credit-card"></i> Fare &amp; Payment</div>
+          <div class="tp-value" id="bdFare">—</div>
+        </div>
+        <div id="bdPaymentAction"></div>
       </div>
 
       <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.65rem .85rem">
@@ -850,6 +886,46 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════
+     CAB BOOKING — PAYMENT METHOD MODAL
+     Fare is fixed per booking (set by the driver on acceptance), so
+     this just picks a gateway then hands off to the shared
+     JazzCash/Easypaisa modals used elsewhere for hostel payments.
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="cabPayMethodModal" onclick="if(event.target===this)closeModal('cabPayMethodModal')">
+  <div class="modal-box" style="max-width:420px">
+    <div class="modal-head">
+      <h3><i class="ti ti-credit-card" style="color:#2E7D32"></i> Pay for Your Ride</h3>
+      <button class="modal-close" onclick="closeModal('cabPayMethodModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--green-light);border-radius:var(--radius-md);padding:.8rem 1rem;margin-bottom:1rem">
+        <div style="font-size:.68rem;color:var(--text-muted);margin-bottom:.2rem">Paying for</div>
+        <div style="font-size:.78rem;font-weight:500;color:var(--green-dark)" id="cabPaySummary">—</div>
+        <div style="margin-top:.4rem;font-size:.95rem;font-weight:700;color:var(--green-dark)">Rs <span id="cabPayAmount">0</span></div>
+      </div>
+      <div class="form-group">
+        <label style="font-size:.72rem;font-weight:500;color:var(--text-secondary);margin-bottom:.4rem;display:block">Payment Method <span class="req">*</span></label>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem">
+          <div class="pay-method-tile" style="border:2px solid var(--border);border-radius:var(--radius-md);padding:.7rem;text-align:center;cursor:pointer" onclick="chooseCabPayMethod('JazzCash')">
+            <div style="font-size:1.3rem">📱</div>
+            <div style="font-size:.7rem;font-weight:600;color:var(--text-primary)">JazzCash</div>
+            <div style="font-size:.6rem;color:var(--text-muted)">Instant via MPIN</div>
+          </div>
+          <div class="pay-method-tile" style="border:2px solid var(--border);border-radius:var(--radius-md);padding:.7rem;text-align:center;cursor:pointer" onclick="chooseCabPayMethod('Easypaisa')">
+            <div style="font-size:1.3rem">📲</div>
+            <div style="font-size:.7rem;font-weight:600;color:var(--text-primary)">Easypaisa</div>
+            <div style="font-size:.6rem;color:var(--text-muted)">Instant via app approval</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn-modal-cancel" onclick="closeModal('cabPayMethodModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // Activate initial sub-nav tab
 document.getElementById('btn-providers').classList.add('active');
@@ -934,6 +1010,84 @@ function filterBookings() {
   if (countEl) countEl.textContent = visible + ' shown';
 }
 
+// ── Poll for accept/reject status changes so the assigned driver's
+// contact info appears automatically, without a page reload ──
+const cabStatusBadgeMap = {
+  'Pending'     : 'badge-warning',
+  'Confirmed'   : 'badge-info',
+  'In Progress' : 'badge-purple',
+  'Completed'   : 'badge-success',
+  'Cancelled'   : 'badge-neutral'
+};
+
+async function pollCabBookingStatuses() {
+  var tbody = document.getElementById('bookingTbody');
+  if (!tbody) return;
+
+  try {
+    var res = await fetch('/student/transport/status');
+    if (!res.ok) return;
+    var data = await res.json();
+    var statuses = data.statuses || {};
+    var changed = false;
+
+    tbody.querySelectorAll('.booking-row').forEach(function(row) {
+      var id = row.getAttribute('data-booking-id');
+      var info = statuses[id];
+      if (!info || info.status === row.getAttribute('data-status')) return;
+
+      changed = true;
+      row.setAttribute('data-status', info.status);
+      if (info.confirmedAt) {
+        row.setAttribute('data-confirmed-at', new Date(info.confirmedAt).toLocaleString('en-PK', {
+          day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        }));
+      }
+      if (info.fare) row.setAttribute('data-fare', info.fare);
+      if (info.paymentStatus) row.setAttribute('data-payment-status', info.paymentStatus);
+
+      var badge = row.querySelector('.cab-status-badge');
+      if (badge) {
+        badge.textContent = info.status;
+        badge.className = 'badge cab-status-badge ' + (cabStatusBadgeMap[info.status] || 'badge-neutral');
+      }
+
+      var isAssigned = info.status === 'Confirmed' || info.status === 'In Progress';
+      var assignedBox = row.querySelector('.tp-assigned-driver');
+      if (assignedBox) {
+        assignedBox.style.display = isAssigned ? '' : 'none';
+      }
+
+      // Fare is only known once the driver accepts — refresh it and reveal
+      // the Pay Now button here, since the row was originally rendered
+      // while the booking was still Pending (fare didn't exist yet).
+      if (isAssigned && info.fare) {
+        var fareEl = row.querySelector('.tp-fare-amount');
+        if (fareEl) fareEl.textContent = 'Rs ' + Number(info.fare).toLocaleString();
+
+        var payBtn = row.querySelector('.tp-pay-btn');
+        if (payBtn) {
+          payBtn.setAttribute('data-fare', info.fare);
+          payBtn.style.display = info.paymentStatus === 'Paid' ? 'none' : '';
+        }
+      }
+
+      var cancelAction = row.querySelector('.cab-cancel-action');
+      if (cancelAction) {
+        cancelAction.style.display = info.status === 'Pending' ? '' : 'none';
+      }
+    });
+
+    if (changed) filterBookings();
+  } catch (e) {
+    // Silent — background refresh shouldn't disrupt the page on a network hiccup
+  }
+}
+
+if (document.getElementById('bookingTbody')) {
+  setInterval(pollCabBookingStatuses, 15000);
+}
+
 // ── Booking Detail Modal ──
 function openBookingDetail(row) {
   var statusMap = {
@@ -957,6 +1111,29 @@ function openBookingDetail(row) {
   var vReg  = row.getAttribute('data-vehicle-reg');
   document.getElementById('bdVehicleType').textContent = vType || '—';
   document.getElementById('bdVehicleReg').textContent = vReg ? vReg.toUpperCase() : '';
+
+  var fare = Number(row.getAttribute('data-fare')) || 0;
+  var paymentStatus = row.getAttribute('data-payment-status');
+  var bdPaymentAction = document.getElementById('bdPaymentAction');
+  bdPaymentAction.innerHTML = '';
+  if (fare > 0) {
+    document.getElementById('bdFare').textContent = 'Rs ' + fare.toLocaleString();
+    if (paymentStatus === 'Paid') {
+      bdPaymentAction.innerHTML = '<span class="badge badge-success"><i class="ti ti-check"></i> Paid</span>';
+    } else {
+      var payBtn = document.createElement('button');
+      payBtn.type = 'button';
+      payBtn.className = 'act-btn btn-approve';
+      payBtn.innerHTML = '<i class="ti ti-credit-card"></i> Pay Now';
+      payBtn.addEventListener('click', function() {
+        closeModal('bookingDetailModal');
+        openCabPayModalData(row.getAttribute('data-booking-id'), fare, row.getAttribute('data-pickup'), row.getAttribute('data-dropoff'));
+      });
+      bdPaymentAction.appendChild(payBtn);
+    }
+  } else {
+    document.getElementById('bdFare').textContent = 'Not set yet';
+  }
 
   document.getElementById('bdPickup').textContent = row.getAttribute('data-pickup');
   document.getElementById('bdDropoff').textContent = row.getAttribute('data-dropoff');
@@ -1063,6 +1240,43 @@ document.getElementById('confirmCancelCabBtn').addEventListener('click', functio
     document.getElementById('cancelCabForm-' + cancelCabTargetId).submit();
   }
 });
+
+// ── Cab Booking Payment ──
+let _cabPayBookingId = null, _cabPayAmount = 0, _cabPaySummary = '';
+
+function openCabPayModal(btn) {
+  openCabPayModalData(
+    btn.getAttribute('data-booking-id'),
+    Number(btn.getAttribute('data-fare')) || 0,
+    btn.getAttribute('data-pickup') || '',
+    btn.getAttribute('data-dropoff') || ''
+  );
+}
+
+function openCabPayModalData(bookingId, fare, pickup, dropoff) {
+  _cabPayBookingId = bookingId;
+  _cabPayAmount    = fare;
+  _cabPaySummary   = pickup + ' → ' + dropoff;
+
+  document.getElementById('cabPaySummary').textContent = _cabPaySummary;
+  document.getElementById('cabPayAmount').textContent  = _cabPayAmount.toLocaleString();
+  openModal('cabPayMethodModal');
+}
+
+function chooseCabPayMethod(method) {
+  closeModal('cabPayMethodModal');
+  var opts = {
+    amount      : _cabPayAmount,
+    paymentType : 'Cab Booking',
+    description : 'Cab Booking Payment — ' + _cabPaySummary,
+    cabBookingId: _cabPayBookingId
+  };
+  if (method === 'JazzCash') openJazzCashModal(opts);
+  else openEasypaisaModal(opts);
+}
 </script>
+
+<%- include('jazzcash-modal') %>
+<%- include('easypaisa-modal') %>
 
 <%- include('./student-footer') %>

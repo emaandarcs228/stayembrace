@@ -18,6 +18,8 @@ router.get('/profile', driverMiddleware, driverController.getProfile);
 // CAB BOOKINGS
 // ══════════════════════════════════════
 router.get('/bookings', driverMiddleware, driverController.getBookings);
+router.post('/bookings/accept/:id', driverMiddleware, driverController.acceptBooking);
+router.post('/bookings/reject/:id', driverMiddleware, driverController.rejectBooking);
 
 // ══════════════════════════════════════
 // VEHICLE MANAGEMENT

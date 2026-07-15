@@ -1,5 +1,6 @@
 const User = require('../models/user');
 const Driver = require('../models/driver');
+const Student = require('../models/student');
 const CabBooking = require('../models/cabBooking');
 const Notification = require('../models/notification');
 const { getSidebarBadges } = require('../utils/sidebarBadges');
@@ -190,7 +191,8 @@ exports.getBookings = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
-        // Split into active (Pending, Confirmed, In Progress) and history
+        // Split into pending (needs driver action), active (Confirmed, In Progress) and history
+        const pendingBookings = bookings.filter(b => b.status === 'Pending');
         const activeBookings = bookings.filter(b =>
             ['Pending', 'Confirmed', 'In Progress'].includes(b.status)
         );
@@ -224,6 +226,7 @@ exports.getBookings = async (req, res) => {
             pageSubtitle: 'View and manage ride requests',
             activePage: 'bookings',
             bookings,
+            pendingBookings,
             activeBookings,
             pastBookings,
             unreadCount,
@@ -236,6 +239,192 @@ exports.getBookings = async (req, res) => {
     } catch (err) {
         console.error('Driver Bookings Error:', err);
         res.status(500).send('Server Error');
+    }
+};
+
+
+// ======================
+// CAB BOOKINGS — ACCEPT (driver accepts a pending ride request)
+// POST /driver/bookings/accept/:id
+// ======================
+exports.acceptBooking = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'driver') return res.status(403).send('Access Denied');
+
+        const fare = Number(req.body.fare);
+        if (!fare || fare <= 0) {
+            return res.redirect('/driver/bookings?error=Please+enter+a+valid+fare+amount.');
+        }
+
+        // ── Atomic accept: the Pending check and the write happen in the same
+        // database operation, so two concurrent accept/confirm/reject requests
+        // for this booking can never both succeed. ─────────────────────────
+        const booking = await CabBooking.findOneAndUpdate(
+            { _id: req.params.id, driver: req.user._id, status: 'Pending' },
+            { $set: { status: 'Confirmed', confirmedAt: new Date(), fare, paymentStatus: 'Unpaid' } },
+            { new: true }
+        );
+
+        if (!booking) {
+            const existing = await CabBooking.findOne({ _id: req.params.id, driver: req.user._id }).select('status').lean();
+            if (!existing) {
+                return res.redirect('/driver/bookings?error=Booking+not+found.');
+            }
+            return res.redirect('/driver/bookings?error=' + encodeURIComponent(
+                `This booking is already ${existing.status.toLowerCase()} and can no longer be accepted.`
+            ));
+        }
+
+        let studentRec = null;
+        try {
+            studentRec = await Student.findById(booking.student).populate('user', 'fullname').lean();
+        } catch (lookupErr) {
+            console.error('acceptBooking: Student lookup error:', lookupErr);
+        }
+
+        // ── Notify the student about the acceptance ─────────────────
+        try {
+            if (studentRec && studentRec.user) {
+                await Notification.create({
+                    title     : 'Cab Booking Accepted',
+                    message   : `${req.user.fullname} has accepted your cab booking request from "${booking.pickupLocation}" to "${booking.dropoffLocation}".`,
+                    recipient : studentRec.user._id,
+                    category  : 'Requests',
+                    relatedTo : { model: 'CabBooking', docId: booking._id },
+                    createdBy : req.user._id,
+                    priority  : 'Medium'
+                });
+            }
+        } catch (notifErr) {
+            console.error('acceptBooking: Student notification error:', notifErr);
+        }
+
+        // ── Notify admins & wardens so Transport Management stays in sync ──
+        try {
+            const studentName = studentRec?.user?.fullname || 'A student';
+            const statusMsg = `Cab booking for ${studentName} (${booking.pickupLocation} → ${booking.dropoffLocation}) was accepted by ${req.user.fullname}.`;
+
+            await Notification.create({
+                title     : 'Cab Booking Accepted',
+                message   : statusMsg,
+                target    : 'Admins',
+                category  : 'Requests',
+                relatedTo : { model: 'CabBooking', docId: booking._id },
+                createdBy : req.user._id,
+                priority  : 'Low'
+            });
+            await Notification.create({
+                title     : 'Cab Booking Accepted',
+                message   : statusMsg,
+                target    : 'Wardens',
+                category  : 'Requests',
+                relatedTo : { model: 'CabBooking', docId: booking._id },
+                createdBy : req.user._id,
+                priority  : 'Low'
+            });
+        } catch (notifErr) {
+            console.error('acceptBooking: Admin/Warden notification error:', notifErr);
+        }
+
+        res.redirect('/driver/bookings?success=Booking+accepted.');
+
+    } catch (err) {
+        console.error('acceptBooking Error:', err);
+        res.redirect('/driver/bookings?error=Failed+to+accept+booking.');
+    }
+};
+
+
+// ======================
+// CAB BOOKINGS — REJECT (driver declines a pending ride request)
+// POST /driver/bookings/reject/:id
+// ======================
+exports.rejectBooking = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'driver') return res.status(403).send('Access Denied');
+
+        // ── Atomic reject: the Pending check and the write happen in the same
+        // database operation, so two concurrent accept/confirm/reject requests
+        // for this booking can never both succeed. ─────────────────────────
+        const booking = await CabBooking.findOneAndUpdate(
+            { _id: req.params.id, driver: req.user._id, status: 'Pending' },
+            { $set: {
+                status: 'Cancelled',
+                cancellation: {
+                    by    : 'driver',
+                    reason: req.body.reason || 'Rejected by driver',
+                    at    : new Date()
+                }
+            } },
+            { new: true }
+        );
+
+        if (!booking) {
+            const existing = await CabBooking.findOne({ _id: req.params.id, driver: req.user._id }).select('status').lean();
+            if (!existing) {
+                return res.redirect('/driver/bookings?error=Booking+not+found.');
+            }
+            return res.redirect('/driver/bookings?error=' + encodeURIComponent(
+                `This booking is already ${existing.status.toLowerCase()} and can no longer be rejected.`
+            ));
+        }
+
+        let studentRec = null;
+        try {
+            studentRec = await Student.findById(booking.student).populate('user', 'fullname').lean();
+        } catch (lookupErr) {
+            console.error('rejectBooking: Student lookup error:', lookupErr);
+        }
+
+        // ── Notify the student about the rejection ───────────────────
+        try {
+            if (studentRec && studentRec.user) {
+                await Notification.create({
+                    title     : 'Cab Booking Rejected',
+                    message   : `${req.user.fullname} was unable to accept your cab booking request from "${booking.pickupLocation}" to "${booking.dropoffLocation}".`,
+                    recipient : studentRec.user._id,
+                    category  : 'Requests',
+                    relatedTo : { model: 'CabBooking', docId: booking._id },
+                    createdBy : req.user._id,
+                    priority  : 'Medium'
+                });
+            }
+        } catch (notifErr) {
+            console.error('rejectBooking: Student notification error:', notifErr);
+        }
+
+        // ── Notify admins & wardens so Transport Management stays in sync ──
+        try {
+            const studentName = studentRec?.user?.fullname || 'A student';
+            const statusMsg = `Cab booking for ${studentName} (${booking.pickupLocation} → ${booking.dropoffLocation}) was rejected by ${req.user.fullname}.`;
+
+            await Notification.create({
+                title     : 'Cab Booking Rejected',
+                message   : statusMsg,
+                target    : 'Admins',
+                category  : 'Requests',
+                relatedTo : { model: 'CabBooking', docId: booking._id },
+                createdBy : req.user._id,
+                priority  : 'Low'
+            });
+            await Notification.create({
+                title     : 'Cab Booking Rejected',
+                message   : statusMsg,
+                target    : 'Wardens',
+                category  : 'Requests',
+                relatedTo : { model: 'CabBooking', docId: booking._id },
+                createdBy : req.user._id,
+                priority  : 'Low'
+            });
+        } catch (notifErr) {
+            console.error('rejectBooking: Admin/Warden notification error:', notifErr);
+        }
+
+        res.redirect('/driver/bookings?success=Booking+rejected.');
+
+    } catch (err) {
+        console.error('rejectBooking Error:', err);
+        res.redirect('/driver/bookings?error=Failed+to+reject+booking.');
     }
 };
 

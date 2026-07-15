@@ -1184,17 +1184,23 @@ exports.confirmCabBooking = async (req, res) => {
             return res.status(403).send('Access Denied');
         }
 
-        const booking = await CabBooking.findById(req.params.id);
-        if (!booking) {
-            return res.redirect('/admin/dashboard?error=Booking+not+found.');
-        }
-        if (booking.status !== 'Pending') {
-            return res.redirect('/admin/dashboard?error=Only+pending+bookings+can+be+confirmed.');
-        }
+        // ── Atomic confirm: guards against a driver accepting/rejecting (or the
+        // student cancelling) this same booking at the same moment. ────────
+        const booking = await CabBooking.findOneAndUpdate(
+            { _id: req.params.id, status: 'Pending' },
+            { $set: { status: 'Confirmed', confirmedAt: new Date() } },
+            { new: true }
+        );
 
-        booking.status = 'Confirmed';
-        booking.confirmedAt = new Date();
-        await booking.save();
+        if (!booking) {
+            const existing = await CabBooking.findById(req.params.id).select('status').lean();
+            if (!existing) {
+                return res.redirect('/admin/dashboard?error=Booking+not+found.');
+            }
+            return res.redirect('/admin/dashboard?error=' + encodeURIComponent(
+                `This booking is already ${existing.status.toLowerCase()} and can no longer be confirmed.`
+            ));
+        }
 
         // ── Fetch the student + guardian info for the email ────────
         try {

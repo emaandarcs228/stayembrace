@@ -127,5 +127,6 @@ router.get('/transport', studentMiddleware, studentController.getTransport);
 router.post('/transport/book', studentMiddleware, studentController.postCabBooking);
 router.post('/transport/cancel/:id', studentMiddleware, studentController.cancelCabBooking);
 router.post('/transport/rate/:id', studentMiddleware, studentController.rateCabBooking);
+router.get('/transport/status', studentMiddleware, studentController.getCabBookingStatuses);
 
 module.exports = router;

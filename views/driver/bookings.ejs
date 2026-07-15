@@ -8,6 +8,86 @@
      CAB BOOKINGS
 ══════════════════════════════════════ -->
 
+<!-- ══ PENDING REQUESTS ══ -->
+<div class="card" style="margin-bottom:1.2rem">
+  <div class="card-head">
+    <h3><i class="ti ti-bell" style="color:#C62828"></i> Pending Requests</h3>
+    <% if (pendingBookings.length > 0) { %>
+    <span class="badge badge-danger"><%= pendingBookings.length %> awaiting response</span>
+    <% } else { %>
+    <span class="count-pill">0 pending</span>
+    <% } %>
+  </div>
+
+  <% if (pendingBookings.length > 0) { %>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Student</th>
+          <th>Pickup</th>
+          <th>Destination</th>
+          <th>Date / Time</th>
+          <th>Pass.</th>
+          <th>Status</th>
+          <th>Requested</th>
+          <th class="actions-th">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% pendingBookings.forEach(function(b, i) {
+             const studentName = b.student?.user?.fullname || '—';
+             const studentPhone = b.student?.user?.phoneNumber || '';
+             const pickupDate = new Date(b.pickupDate);
+             const createdAt = b.createdAt ? new Date(b.createdAt) : null;
+        %>
+        <tr>
+          <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
+          <td>
+            <div style="font-weight:600;font-size:.78rem"><%= studentName %></div>
+            <div style="font-size:.65rem;color:var(--text-muted)"><%= studentPhone %></div>
+          </td>
+          <td style="font-size:.72rem;max-width:130px;word-break:break-word"><%= b.pickupLocation %></td>
+          <td style="font-size:.72rem;max-width:130px;word-break:break-word"><%= b.dropoffLocation %></td>
+          <td style="font-size:.72rem">
+            <%= pickupDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+            <% if (b.pickupTime) { %><div style="font-size:.62rem;color:var(--text-muted)"><%= b.pickupTime %></div><% } %>
+          </td>
+          <td style="text-align:center"><span class="count-pill"><%= b.passengerCount %></span></td>
+          <td><span class="badge badge-warning"><%= b.status %></span></td>
+          <td style="font-size:.68rem;color:var(--text-muted)">
+            <%= createdAt ? createdAt.toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) : '—' %>
+          </td>
+          <td class="actions-cell">
+            <div class="action-cell">
+              <button type="button" class="act-btn btn-approve"
+                data-booking-id="<%= b._id %>"
+                data-pickup="<%= b.pickupLocation %>"
+                data-dropoff="<%= b.dropoffLocation %>"
+                onclick="openAcceptModal(this)">
+                <i class="ti ti-check"></i> Accept
+              </button>
+              <form action="/driver/bookings/reject/<%= b._id %>" method="POST" style="display:inline"
+                onsubmit="return confirm('Reject this ride request?')">
+                <button type="submit" class="act-btn btn-reject"><i class="ti ti-x"></i> Reject</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } else { %>
+  <div class="empty-state">
+    <i class="ti ti-bell-off"></i>
+    <h4>No pending requests</h4>
+    <p>New ride requests awaiting your response will appear here first.</p>
+  </div>
+  <% } %>
+</div>
+
 <!-- ── Sub-nav ── -->
 <div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
   <button class="act-btn btn-view" id="btn-active" onclick="switchTab('active', this)">
@@ -44,7 +124,10 @@
             <th>Date / Time</th>
             <th>Pass.</th>
             <th>Status</th>
+            <th>Fare</th>
+            <th>Payment</th>
             <th>Booked</th>
+            <th class="actions-th">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -58,6 +141,7 @@
                const studentPhone = b.student?.user?.phoneNumber || '';
                const pickupDate = new Date(b.pickupDate);
                const createdAt = b.createdAt ? new Date(b.createdAt) : null;
+               const isPending = b.status === 'Pending';
           %>
           <tr>
             <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
@@ -73,8 +157,37 @@
             </td>
             <td style="text-align:center"><span class="count-pill"><%= b.passengerCount %></span></td>
             <td><span class="badge <%= statusMap[b.status] || 'badge-neutral' %>"><%= b.status %></span></td>
+            <td style="font-size:.75rem;font-weight:600">
+              <%= b.fare ? 'Rs ' + b.fare.toLocaleString() : '—' %>
+            </td>
+            <td>
+              <% if (b.fare) { %>
+                <span class="badge <%= b.paymentStatus === 'Paid' ? 'badge-success' : 'badge-warning' %>"><%= b.paymentStatus %></span>
+              <% } else { %>
+                <span style="color:#ccc;font-size:.7rem">—</span>
+              <% } %>
+            </td>
             <td style="font-size:.68rem;color:var(--text-muted)">
               <%= createdAt ? createdAt.toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) : '—' %>
+            </td>
+            <td class="actions-cell">
+              <% if (isPending) { %>
+              <div class="action-cell">
+                <button type="button" class="act-btn btn-approve"
+                  data-booking-id="<%= b._id %>"
+                  data-pickup="<%= b.pickupLocation %>"
+                  data-dropoff="<%= b.dropoffLocation %>"
+                  onclick="openAcceptModal(this)">
+                  <i class="ti ti-check"></i> Accept
+                </button>
+                <form action="/driver/bookings/reject/<%= b._id %>" method="POST" style="display:inline"
+                  onsubmit="return confirm('Reject this ride request?')">
+                  <button type="submit" class="act-btn btn-reject"><i class="ti ti-x"></i> Reject</button>
+                </form>
+              </div>
+              <% } else { %>
+                <span style="color:#ccc;font-size:.7rem">—</span>
+              <% } %>
             </td>
           </tr>
           <% }); %>
@@ -111,6 +224,8 @@
             <th>Date</th>
             <th>Pass.</th>
             <th>Status</th>
+            <th>Fare</th>
+            <th>Payment</th>
             <th>Rated</th>
           </tr>
         </thead>
@@ -136,6 +251,16 @@
             </td>
             <td style="text-align:center"><span class="count-pill"><%= b.passengerCount %></span></td>
             <td><span class="badge <%= statusMap[b.status] || 'badge-neutral' %>"><%= b.status %></span></td>
+            <td style="font-size:.75rem;font-weight:600">
+              <%= b.fare ? 'Rs ' + b.fare.toLocaleString() : '—' %>
+            </td>
+            <td>
+              <% if (b.fare) { %>
+                <span class="badge <%= b.paymentStatus === 'Paid' ? 'badge-success' : 'badge-warning' %>"><%= b.paymentStatus %></span>
+              <% } else { %>
+                <span style="color:#ccc;font-size:.7rem">—</span>
+              <% } %>
+            </td>
             <td>
               <% if (hasRating) { %>
                 <span class="badge badge-warning">
@@ -160,7 +285,43 @@
   </div>
 </div><!-- /page-history -->
 
+<!-- ══════════════════════════════════════════════════════════════
+     ACCEPT BOOKING MODAL — fare must be entered before accepting;
+     payment only becomes available to the student once this is set.
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="acceptBookingModal" onclick="if(event.target===this) closeModal('acceptBookingModal')">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-check" style="color:#2E7D32"></i> Accept Ride Request</h3>
+      <button class="modal-close" onclick="closeModal('acceptBookingModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="acceptBookingForm" method="POST">
+      <div class="modal-body">
+        <p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:.9rem" id="acceptBookingRoute"></p>
+        <div class="form-group">
+          <label>Fare Amount (PKR) <span class="req">*</span></label>
+          <input type="number" name="fare" id="acceptBookingFare" min="1" step="1" required placeholder="e.g. 500">
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="submit" class="btn-modal-save"><i class="ti ti-check"></i> Confirm Accept</button>
+        <button type="button" class="btn-modal-cancel" onclick="closeModal('acceptBookingModal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
+// ── Accept modal: collect fare before accepting ──
+function openAcceptModal(btn) {
+  var bookingId = btn.getAttribute('data-booking-id');
+  document.getElementById('acceptBookingForm').action = '/driver/bookings/accept/' + bookingId;
+  document.getElementById('acceptBookingRoute').textContent =
+    (btn.getAttribute('data-pickup') || '') + ' → ' + (btn.getAttribute('data-dropoff') || '');
+  document.getElementById('acceptBookingFare').value = '';
+  openModal('acceptBookingModal');
+}
+
 // ── Tab switching ──
 function switchTab(name, btnEl) {
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });

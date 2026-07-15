@@ -74,6 +74,8 @@
           <th>Destination</th>
           <th>Date / Time</th>
           <th>Status</th>
+          <th>Fare</th>
+          <th>Payment</th>
           <th class="actions-th">Actions</th>
         </tr>
       </thead>
@@ -127,6 +129,16 @@
           </td>
           <td>
             <span class="badge <%= badgeCls(b.status) %>"><%= b.status %></span>
+          </td>
+          <td style="font-size:.75rem;font-weight:600">
+            <%= b.fare ? 'Rs ' + b.fare.toLocaleString() : '—' %>
+          </td>
+          <td>
+            <% if (b.fare) { %>
+              <span class="badge <%= b.paymentStatus === 'Paid' ? 'badge-success' : 'badge-warning' %>"><%= b.paymentStatus %></span>
+            <% } else { %>
+              <span style="color:var(--text-muted);font-size:.7rem">—</span>
+            <% } %>
           </td>
           <td class="actions-cell">
             <div class="action-cell">
@@ -212,6 +224,12 @@
         <div class="si-field"><label>Registration</label><span id="bm-vehicle-reg">—</span></div>
       </div>
 
+      <div class="si-section-title"><i class="ti ti-credit-card"></i> Fare & Payment</div>
+      <div class="si-grid">
+        <div class="si-field"><label>Fare</label><span id="bm-fare">—</span></div>
+        <div class="si-field"><label>Payment Status</label><span id="bm-payment-status">—</span></div>
+      </div>
+
       <div class="si-section-title"><i class="ti ti-map-pin"></i> Trip Details</div>
       <div class="si-grid">
         <div class="si-field"><label>Pickup</label><span id="bm-pickup">—</span></div>
@@ -277,7 +295,9 @@ const bookingData = <%- JSON.stringify(bookings.map(b => ({
   completedAt: b.completedAt,
   cancellation: b.cancellation,
   rating: b.rating,
-  review: b.review
+  review: b.review,
+  fare: b.fare,
+  paymentStatus: b.paymentStatus
 }))) %>;
 
 function openBookingModal(id) {
@@ -293,6 +313,11 @@ function openBookingModal(id) {
   document.getElementById('bm-driver-phone').textContent = b.driverPhone || '—';
   document.getElementById('bm-vehicle-type').textContent = b.vehicleType ? b.vehicleType.charAt(0).toUpperCase() + b.vehicleType.slice(1) : '—';
   document.getElementById('bm-vehicle-reg').textContent  = b.vehicleRegistration || '—';
+
+  document.getElementById('bm-fare').textContent = b.fare ? 'Rs ' + Number(b.fare).toLocaleString() : 'Not set yet';
+  document.getElementById('bm-payment-status').innerHTML = b.fare
+    ? '<span class="badge ' + (b.paymentStatus === 'Paid' ? 'badge-success' : 'badge-warning') + '">' + b.paymentStatus + '</span>'
+    : '—';
 
   document.getElementById('bm-pickup').textContent      = b.pickupLocation || '—';
   document.getElementById('bm-destination').textContent  = b.dropoffLocation || '—';

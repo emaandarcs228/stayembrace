@@ -1373,14 +1373,37 @@ exports.markAllNotificationsRead = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// SHARED — resolve dueIds/amount into a payable total.
+// SHARED — resolve dueIds/amount/cabBookingId into a payable total.
 // Used by both JazzCash and Easypaisa gateway initiation.
 // ─────────────────────────────────────────────────────────────
-async function resolveDuesForPayment(student, { dueIds, amount, paymentType, description }) {
+async function resolveDuesForPayment(student, { dueIds, amount, paymentType, description, cabBookingId }) {
     let totalAmount  = 0;
     let selectedDues = [];
     let finalDesc    = description || 'Hostel Payment';
     let finalPayType = paymentType || 'Hostel Fee';
+
+    if (cabBookingId) {
+        const booking = await CabBooking.findOne({ _id: cabBookingId, student: student._id });
+        if (!booking) return { error: 'Cab booking not found.' };
+
+        if (['Pending', 'Cancelled'].includes(booking.status)) {
+            return { error: 'Payment is not available for this booking yet — it must be accepted by a driver first.' };
+        }
+        if (booking.paymentStatus === 'Paid') {
+            return { error: 'This booking has already been paid for.' };
+        }
+        if (!booking.fare || booking.fare <= 0) {
+            return { error: 'A fare has not been set for this booking yet.' };
+        }
+
+        return {
+            totalAmount : booking.fare,
+            selectedDues: [],
+            finalDesc   : `Cab Booking Payment — ${booking.pickupLocation} to ${booking.dropoffLocation}`,
+            finalPayType: 'Cab Booking',
+            cabBooking  : booking
+        };
+    }
 
     if (dueIds && dueIds.length > 0) {
         const ids = Array.isArray(dueIds) ? dueIds : [dueIds];
@@ -1452,6 +1475,62 @@ async function settleDuesAndNotifyWarden(payment) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// SHARED — settle a CabBooking's fare once its linked gateway
+// payment is verified, and alert the driver/admins/wardens so the
+// paid status is reflected everywhere. Used by both JazzCash and
+// Easypaisa callbacks.
+// ─────────────────────────────────────────────────────────────
+async function settleCabBookingAndNotify(payment) {
+    if (!payment.cabBooking) return;
+
+    // Atomic: only flips Unpaid → Paid once, so a retried gateway
+    // callback can never double-settle or double-notify.
+    const booking = await CabBooking.findOneAndUpdate(
+        { _id: payment.cabBooking, paymentStatus: 'Unpaid' },
+        { $set: { paymentStatus: 'Paid', payment: payment._id } },
+        { new: true }
+    );
+    if (!booking) return;
+
+    const routeMsg = `${booking.pickupLocation} → ${booking.dropoffLocation}`;
+    const amountMsg = `Rs ${payment.amount.toLocaleString()} via ${payment.paymentMethod}`;
+    const createdBy = payment.student && payment.student.user ? payment.student.user._id : null;
+    if (!createdBy) return;
+
+    try {
+        await Notification.create({
+            title    : 'Cab Booking Payment Received',
+            message  : `Payment of ${amountMsg} received for the cab booking (${routeMsg}).`,
+            recipient: booking.driver,
+            category : 'Payments',
+            priority : 'Medium',
+            createdBy,
+            relatedTo: { model: 'CabBooking', docId: booking._id }
+        });
+        await Notification.create({
+            title    : 'Cab Booking Payment Received',
+            message  : `Payment of ${amountMsg} received for a cab booking (${routeMsg}).`,
+            target   : 'Admins',
+            category : 'Payments',
+            priority : 'Low',
+            createdBy,
+            relatedTo: { model: 'CabBooking', docId: booking._id }
+        });
+        await Notification.create({
+            title    : 'Cab Booking Payment Received',
+            message  : `Payment of ${amountMsg} received for a cab booking (${routeMsg}).`,
+            target   : 'Wardens',
+            category : 'Payments',
+            priority : 'Low',
+            createdBy,
+            relatedTo: { model: 'CabBooking', docId: booking._id }
+        });
+    } catch (notifyErr) {
+        console.error('settleCabBookingAndNotify: notification error:', notifyErr);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
 // JAZZCASH PAYMENT (Mobile Wallet / MPIN — automated, no admin step)
 // ─────────────────────────────────────────────────────────────
 
@@ -1462,7 +1541,7 @@ exports.initiateJazzCashPayment = async (req, res) => {
         const base    = await buildBaseLocals(req);
         const student = base.student;
 
-        const { mobileNumber, dueIds, amount, paymentType, description } = req.body;
+        const { mobileNumber, dueIds, amount, paymentType, description, cabBookingId } = req.body;
 
         const normalizedMobile = jazzcash.normalizeMobile(mobileNumber);
         if (!/^03\d{9}$/.test(normalizedMobile)) {
@@ -1471,7 +1550,7 @@ exports.initiateJazzCashPayment = async (req, res) => {
             });
         }
 
-        const resolved = await resolveDuesForPayment(student, { dueIds, amount, paymentType, description });
+        const resolved = await resolveDuesForPayment(student, { dueIds, amount, paymentType, description, cabBookingId });
         if (resolved.error) return res.status(400).json({ error: resolved.error });
 
         const { totalAmount, selectedDues, finalDesc, finalPayType } = resolved;
@@ -1487,6 +1566,7 @@ exports.initiateJazzCashPayment = async (req, res) => {
             status       : 'Pending',
             transactionId: txnRef,
             dues         : selectedDues.map(d => d._id),
+            cabBooking   : resolved.cabBooking ? resolved.cabBooking._id : null,
             remarks      : finalDesc,
             source       : 'Gateway'
         });
@@ -1586,6 +1666,7 @@ async function processJazzCashCallback(payment, cb, res) {
         await payment.save();
 
         await settleDuesAndNotifyWarden(payment);
+        await settleCabBookingAndNotify(payment);
 
         if (payment.student && payment.student.user) {
             await Notification.create({
@@ -1702,7 +1783,7 @@ exports.initiateEasypaisaPayment = async (req, res) => {
         const base    = await buildBaseLocals(req);
         const student = base.student;
 
-        const { mobileNumber, dueIds, amount, paymentType, description } = req.body;
+        const { mobileNumber, dueIds, amount, paymentType, description, cabBookingId } = req.body;
 
         const normalizedMobile = easypaisa.normalizeMobile(mobileNumber);
         if (!/^03\d{9}$/.test(normalizedMobile)) {
@@ -1711,7 +1792,7 @@ exports.initiateEasypaisaPayment = async (req, res) => {
             });
         }
 
-        const resolved = await resolveDuesForPayment(student, { dueIds, amount, paymentType, description });
+        const resolved = await resolveDuesForPayment(student, { dueIds, amount, paymentType, description, cabBookingId });
         if (resolved.error) return res.status(400).json({ error: resolved.error });
 
         const { totalAmount, selectedDues, finalDesc, finalPayType } = resolved;
@@ -1727,6 +1808,7 @@ exports.initiateEasypaisaPayment = async (req, res) => {
             status       : 'Pending',
             transactionId: orderId,
             dues         : selectedDues.map(d => d._id),
+            cabBooking   : resolved.cabBooking ? resolved.cabBooking._id : null,
             remarks      : finalDesc,
             source       : 'Gateway'
         });
@@ -1814,6 +1896,7 @@ async function processEasypaisaCallback(payment, cb, res) {
         await payment.save();
 
         await settleDuesAndNotifyWarden(payment);
+        await settleCabBookingAndNotify(payment);
 
         if (payment.student && payment.student.user) {
             await Notification.create({
@@ -2056,22 +2139,31 @@ exports.postCabBooking = async (req, res) => {
 exports.cancelCabBooking = async (req, res) => {
     try {
         const base = await buildBaseLocals(req);
-        const booking = await CabBooking.findOne({ _id: req.params.id, student: base.student._id });
+
+        // ── Atomic cancel: guards against a driver accepting/rejecting (or an
+        // admin confirming) this same booking at the same moment. ─────────
+        const booking = await CabBooking.findOneAndUpdate(
+            { _id: req.params.id, student: base.student._id, status: 'Pending' },
+            { $set: {
+                status: 'Cancelled',
+                cancellation: {
+                    by    : 'student',
+                    reason: req.body.reason || 'Cancelled by student',
+                    at    : new Date()
+                }
+            } },
+            { new: true }
+        );
 
         if (!booking) {
-            return res.redirect('/student/transport?error=Booking+not+found.');
+            const existing = await CabBooking.findOne({ _id: req.params.id, student: base.student._id }).select('status').lean();
+            if (!existing) {
+                return res.redirect('/student/transport?error=Booking+not+found.');
+            }
+            return res.redirect('/student/transport?error=' + encodeURIComponent(
+                `This booking is already ${existing.status.toLowerCase()} and can no longer be cancelled.`
+            ));
         }
-        if (booking.status !== 'Pending') {
-            return res.redirect('/student/transport?error=Only+pending+bookings+can+be+cancelled.');
-        }
-
-        booking.status = 'Cancelled';
-        booking.cancellation = {
-            by    : 'student',
-            reason: req.body.reason || 'Cancelled by student',
-            at    : new Date()
-        };
-        await booking.save();
 
         // ── Notify the driver about the cancellation ───────────────
         try {
@@ -2143,6 +2235,38 @@ exports.rateCabBooking = async (req, res) => {
     } catch (err) {
         console.error('rateCabBooking:', err);
         res.redirect('/student/transport?error=Failed+to+submit+rating.');
+    }
+};
+
+// ─────────────────────────────────────────────────────────────
+// AJAX: Cab booking status poll — lets the Transport page detect a
+// driver's accept/reject and reveal the assigned driver's contact
+// info without requiring a full page reload.
+// GET /student/transport/status
+// ─────────────────────────────────────────────────────────────
+exports.getCabBookingStatuses = async (req, res) => {
+    try {
+        const student = await Student.findOne({ user: req.user._id }).lean();
+        if (!student) return res.status(404).json({ error: 'Student record not found.' });
+
+        const bookings = await CabBooking.find({ student: student._id })
+            .select('status confirmedAt fare paymentStatus')
+            .lean();
+
+        const statuses = {};
+        bookings.forEach(b => {
+            statuses[b._id] = {
+                status       : b.status,
+                confirmedAt  : b.confirmedAt,
+                fare         : b.fare,
+                paymentStatus: b.paymentStatus
+            };
+        });
+
+        res.json({ statuses });
+    } catch (err) {
+        console.error('getCabBookingStatuses:', err);
+        res.status(500).json({ error: 'Failed to fetch booking statuses.' });
     }
 };
 

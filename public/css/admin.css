@@ -873,6 +873,7 @@ td.actions-th, th.actions-th { min-width: 160px; }
 .type-mobile-load { background: #E3F2FD; color: #1565C0; }
 .type-fine        { background: #F3E5F5; color: #7B1FA2; }
 .type-laundry     { background: #E0F7FA; color: #00838F; }
+.type-cab-booking { background: #E8F5E9; color: #2E7D32; }
 .type-multiple    { background: #f5f5f5; color: #666; }
 
 /* Payment source badge — Gateway (auto-verified) vs Manual (admin/warden entered) */

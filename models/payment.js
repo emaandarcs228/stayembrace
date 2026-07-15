@@ -11,7 +11,7 @@ const paymentSchema = new mongoose.Schema({
     // 'Multiple' is used when student pays several dues in one transaction
     paymentType: {
         type     : String,
-        enum     : ['Hostel Fee', 'Mess Order', 'Mobile Load', 'Fine', 'Laundry', 'Multiple'],
+        enum     : ['Hostel Fee', 'Mess Order', 'Mobile Load', 'Fine', 'Laundry', 'Cab Booking', 'Multiple'],
         required : true
     },
 
@@ -34,6 +34,14 @@ const paymentSchema = new mongoose.Schema({
             ref  : 'Due'
         }
     ],
+
+    // Set instead of `dues` when this payment settles a CabBooking's fare
+    // (cab bookings aren't tracked via the Due model).
+    cabBooking: {
+        type    : mongoose.Schema.Types.ObjectId,
+        ref     : 'CabBooking',
+        default : null
+    },
 
     paymentDate: {
         type    : Date,
