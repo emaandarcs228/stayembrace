@@ -1399,7 +1399,7 @@ async function resolveDuesForPayment(student, { dueIds, amount, paymentType, des
         return {
             totalAmount : booking.fare,
             selectedDues: [],
-            finalDesc   : `Cab Booking Payment — ${booking.pickupLocation} to ${booking.dropoffLocation}`,
+            finalDesc   : `Cab Booking Payment - ${booking.pickupLocation} to ${booking.dropoffLocation}`,
             finalPayType: 'Cab Booking',
             cabBooking  : booking
         };
@@ -1535,29 +1535,37 @@ async function settleCabBookingAndNotify(payment) {
 // ─────────────────────────────────────────────────────────────
 
 // POST /student/payments/jazzcash/initiate
-// Student submits: mobileNumber + dueIds[] (selected dues to pay)
 exports.initiateJazzCashPayment = async (req, res) => {
     try {
         const base    = await buildBaseLocals(req);
         const student = base.student;
 
-        const { mobileNumber, dueIds, amount, paymentType, description, cabBookingId } = req.body;
+        const { mobileNumber, cnic, dueIds, amount, paymentType, description, cabBookingId } = req.body;
 
+        // Validate mobile number
         const normalizedMobile = jazzcash.normalizeMobile(mobileNumber);
         if (!/^03\d{9}$/.test(normalizedMobile)) {
             return res.status(400).json({
-                error: 'Invalid JazzCash number. Please enter a valid 11-digit Pakistani mobile number (03XXXXXXXXX).'
+                error: 'Invalid JazzCash number. Enter an 11-digit Pakistani mobile number (03XXXXXXXXX).'
             });
         }
 
+        // Validate CNIC (last 6 digits — required by DoMWalletTransaction)
+        const normalizedCnic = String(cnic || '').replace(/\D/g, '');
+        if (!/^\d{6}$/.test(normalizedCnic)) {
+            return res.status(400).json({
+                error: 'Please enter the last 6 digits of your CNIC.'
+            });
+        }
+
+        // Resolve payable amount from dues or cab booking
         const resolved = await resolveDuesForPayment(student, { dueIds, amount, paymentType, description, cabBookingId });
         if (resolved.error) return res.status(400).json({ error: resolved.error });
 
         const { totalAmount, selectedDues, finalDesc, finalPayType } = resolved;
 
-        // ── Create a Pending Payment record ─────────────────────────
+        // Create Pending payment record
         const txnRef = jazzcash.generateTxnRef();
-
         const payment = await Payment.create({
             student      : student._id,
             paymentType  : finalPayType,
@@ -1571,11 +1579,12 @@ exports.initiateJazzCashPayment = async (req, res) => {
             source       : 'Gateway'
         });
 
-        // ── Call JazzCash API ────────────────────────────────────────
+        // Call JazzCash API
         const jcResult = await jazzcash.initiateTransaction({
             mobileNumber : normalizedMobile,
+            cnic         : normalizedCnic,
             amountRs     : totalAmount,
-            billReference: payment._id.toString(),
+            billReference: txnRef,
             description  : finalDesc,
             txnRef
         });
@@ -1612,87 +1621,70 @@ exports.initiateJazzCashPayment = async (req, res) => {
 };
 
 // POST /student/payments/jazzcash/callback
-// JazzCash posts the final result here after the student approves/rejects
-// on their phone. PUBLIC — no auth middleware, JazzCash's server hits this
-// directly and has no session cookie.
+// PUBLIC — JazzCash's server posts result here after student approves/rejects.
+// No session cookie, so this route must NOT have auth middleware.
 exports.jazzCashCallback = async (req, res) => {
     try {
         const cb = jazzcash.parseCallback(req.body);
 
-        console.log('JazzCash callback received:', {
-            txnRef      : cb.txnRefNo,
-            responseCode: cb.responseCode,
-            isValid     : cb.isValid,
-            isSuccess   : cb.isSuccess
-        });
+        console.log('JazzCash callback:', { txnRef: cb.txnRefNo, code: cb.responseCode, isValid: cb.isValid, success: cb.isSuccess });
 
         if (!cb.isValid) {
-            console.warn('JazzCash callback hash verification FAILED — possible tampering');
+            console.warn('JazzCash callback hash verification FAILED');
             return res.redirect('/student/payments/jazzcash/result?status=error&reason=invalid_hash');
         }
 
-        let payment = await Payment.findOne({ transactionId: cb.txnRefNo })
+        // Lookup payment by transactionId (also fallback to billReference)
+        const lookup = cb.txnRefNo || cb.billReference;
+        const payment = await Payment.findOne({ transactionId: lookup })
             .populate({ path: 'student', populate: { path: 'user', select: '_id fullname' } });
 
         if (!payment) {
-            payment = await Payment.findById(cb.billReference)
-                .populate({ path: 'student', populate: { path: 'user', select: '_id fullname' } });
-        }
-
-        if (!payment) {
-            console.warn('JazzCash callback: payment not found for txnRef:', cb.txnRefNo);
+            console.warn('JazzCash callback: payment not found:', lookup);
             return res.redirect('/student/payments/jazzcash/result?status=error&reason=not_found');
         }
 
-        return processJazzCashCallback(payment, cb, res);
-
-    } catch (err) {
-        console.error('jazzCashCallback:', err);
-        return res.redirect('/student/payments/jazzcash/result?status=error&reason=server_error');
-    }
-};
-
-async function processJazzCashCallback(payment, cb, res) {
-    // Prevent double-processing if JazzCash retries the callback
-    if (payment.status === 'Verified') {
-        return res.redirect('/student/payments/jazzcash/result?status=success&paymentId=' + payment._id);
-    }
-
-    if (cb.isSuccess) {
-        payment.status              = 'Verified';
-        payment.verifiedAt          = new Date();
-        payment.gatewayResponseCode = cb.responseCode;
-        payment.remarks             = (payment.remarks || '') + ' | Auth: ' + (cb.authCode || 'N/A') + ' RRN: ' + (cb.rrn || 'N/A');
-        await payment.save();
-
-        await settleDuesAndNotifyWarden(payment);
-        await settleCabBookingAndNotify(payment);
-
-        if (payment.student && payment.student.user) {
-            await Notification.create({
-                title    : 'Payment Successful — JazzCash',
-                message  : `Your JazzCash payment of Rs ${payment.amount.toLocaleString()} has been verified successfully. Auth: ${cb.authCode || 'N/A'}`,
-                recipient: payment.student.user._id,
-                category : 'Payments',
-                priority : 'Low',
-                createdBy: payment.student.user._id,
-                relatedTo: { model: 'Payment', docId: payment._id }
-            });
+        // Prevent double-processing on retry
+        if (payment.status === 'Verified') {
+            return res.redirect('/student/payments/jazzcash/result?status=success&paymentId=' + payment._id);
         }
 
-        return res.redirect('/student/payments/jazzcash/result?status=success&paymentId=' + payment._id);
+        if (cb.isSuccess) {
+            payment.status              = 'Verified';
+            payment.verifiedAt          = new Date();
+            payment.gatewayResponseCode = cb.responseCode;
+            payment.remarks             = (payment.remarks || '') + ' | Auth: ' + (cb.authCode || 'N/A') + ' RRN: ' + (cb.rrn || 'N/A');
+            await payment.save();
 
-    } else {
+            await settleDuesAndNotifyWarden(payment);
+            await settleCabBookingAndNotify(payment);
+
+            if (payment.student?.user) {
+                await Notification.create({
+                    title    : 'Payment Successful — JazzCash',
+                    message  : `Your JazzCash payment of Rs ${payment.amount.toLocaleString()} has been verified. Auth: ${cb.authCode || 'N/A'}`,
+                    recipient: payment.student.user._id,
+                    category : 'Payments',
+                    priority : 'Low',
+                    createdBy: payment.student.user._id,
+                    relatedTo: { model: 'Payment', docId: payment._id }
+                });
+            }
+
+            return res.redirect('/student/payments/jazzcash/result?status=success&paymentId=' + payment._id);
+        }
+
+        // Payment failed
         payment.status              = 'Rejected';
         payment.gatewayResponseCode = cb.responseCode;
         payment.remarks             = (payment.remarks || '') + ' | Failed: ' + cb.responseMessage;
         await payment.save();
 
-        if (payment.student && payment.student.user) {
-            const friendlyMsg = jazzcash.getResponseDescription(cb.responseCode);
+        if (payment.student?.user) {
+            const msg = jazzcash.getResponseDescription(cb.responseCode) || cb.responseMessage || 'Please try again.';
             await Notification.create({
                 title    : 'JazzCash Payment Failed',
-                message  : `Your JazzCash payment of Rs ${payment.amount.toLocaleString()} failed. ${friendlyMsg}`,
+                message  : `Your JazzCash payment of Rs ${payment.amount.toLocaleString()} failed. ${msg}`,
                 recipient: payment.student.user._id,
                 category : 'Payments',
                 priority : 'Medium',
@@ -1706,11 +1698,22 @@ async function processJazzCashCallback(payment, cb, res) {
             '&code=' + (cb.responseCode || '') +
             '&paymentId=' + payment._id
         );
+
+    } catch (err) {
+        console.error('jazzCashCallback:', err);
+        return res.redirect('/student/payments/jazzcash/result?status=error&reason=server_error');
     }
+};
+
+// ── Shared: extract failure reason from remarks string ──────────────
+function extractFailureReason(remarks) {
+    if (!remarks) return null;
+    const idx = remarks.lastIndexOf('| Failed:');
+    return idx === -1 ? null : (remarks.slice(idx + '| Failed:'.length).trim() || null);
 }
 
-// GET /student/payments/jazzcash/status/:txnRef
-// Polled by the browser every 4s while the student waits for MPIN approval
+// GET /student/payments/:gateway/status/:txnRef
+// Polled by the browser every 4s while waiting for MPIN/app approval
 exports.getPaymentStatus = async (req, res) => {
     try {
         const student = await Student.findOne({ user: req.user._id });
@@ -1723,11 +1726,20 @@ exports.getPaymentStatus = async (req, res) => {
 
         if (!payment) return res.status(404).json({ error: 'Payment not found.' });
 
+        let reason = null;
+        if (payment.status === 'Rejected') {
+            const svc = payment.paymentMethod === 'Easypaisa' ? easypaisa : jazzcash;
+            reason = svc.getResponseDescription(payment.gatewayResponseCode)
+                || extractFailureReason(payment.remarks)
+                || 'Payment was rejected or cancelled. Please try again.';
+        }
+
         return res.json({
             status   : payment.status,
             paymentId: payment._id,
             amount   : payment.amount,
-            updatedAt: payment.updatedAt
+            updatedAt: payment.updatedAt,
+            reason
         });
 
     } catch (err) {
@@ -1736,9 +1748,8 @@ exports.getPaymentStatus = async (req, res) => {
     }
 };
 
-// GET /student/payments/jazzcash/result
-// GET /student/payments/easypaisa/result
-// Result page the gateway's callback redirects to
+// GET /student/payments/:gateway/result
+// Result page the gateway's callback redirects to (shared by JazzCash & Easypaisa)
 exports.showPaymentResult = async (req, res) => {
     try {
         const base = await buildBaseLocals(req);
@@ -1753,7 +1764,7 @@ exports.showPaymentResult = async (req, res) => {
 
         const gatewayName    = payment ? payment.paymentMethod : 'Gateway';
         const gatewayService = gatewayName === 'Easypaisa' ? easypaisa : jazzcash;
-        const codeMsg         = code ? gatewayService.getResponseDescription(code) : null;
+        const codeMsg        = code ? gatewayService.getResponseDescription(code) : null;
 
         res.render('student/payment-result', {
             ...base,
@@ -1919,7 +1930,7 @@ async function processEasypaisaCallback(payment, cb, res) {
         await payment.save();
 
         if (payment.student && payment.student.user) {
-            const friendlyMsg = easypaisa.getResponseDescription(cb.responseCode);
+            const friendlyMsg = easypaisa.getResponseDescription(cb.responseCode) || cb.responseMessage || 'Please try again.';
             await Notification.create({
                 title    : 'Easypaisa Payment Failed',
                 message  : `Your Easypaisa payment of Rs ${payment.amount.toLocaleString()} failed. ${friendlyMsg}`,

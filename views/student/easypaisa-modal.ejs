@@ -296,7 +296,7 @@
           showEPSuccess(data.amount, orderId);
         } else if (data.status === 'Rejected') {
           clearEPTimers();
-          showEPFailed('Payment was rejected or cancelled. Please try again.');
+          showEPFailed(data.reason || 'Payment was rejected or cancelled. Please try again.');
         }
         // still Pending — keep polling
       } catch (err) {

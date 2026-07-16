@@ -1,29 +1,27 @@
 // =====================================================================
 // services/jazzcash.js
-// JazzCash Mobile Wallet (MWALLET) Integration
+// JazzCash Mobile Wallet (DoMWalletTransaction) Integration
 //
-// ENVIRONMENT VARIABLES REQUIRED (.env):
+// ENV:
 //   JAZZCASH_MERCHANT_ID=
 //   JAZZCASH_PASSWORD=
 //   JAZZCASH_INTEGRITY_KEY=
-//   JAZZCASH_SANDBOX=true          (set to false for production)
-//   APP_URL=http://localhost:3000  (already in your .env — reused here)
+//   JAZZCASH_SANDBOX=true
+//   APP_URL=http://localhost:3000
 //
-// HOW IT WORKS:
-//   1. Student selects dues to pay, enters JazzCash mobile number
-//   2. Server builds payload, generates HMAC-SHA256 secure hash
-//   3. Server POSTs to JazzCash API → JazzCash sends MPIN prompt to student's phone
-//   4. Student approves on their phone
-//   5. JazzCash POSTs result to pp_ReturnURL (/student/payments/jazzcash/callback)
-//   6. Server verifies hash on callback, updates Payment + Due records
+// Flow:
+//   1. Server builds payload + HMAC-SHA256 hash, POSTs to JazzCash API
+//   2. JazzCash sends MPIN prompt to student's mobile
+//   3. Student approves → JazzCash POSTs result to callback URL
+//   4. Server verifies hash on callback, updates Payment + Dues
 // =====================================================================
 
 const crypto = require('crypto');
 const axios  = require('axios');
 
 // ── Endpoints ──────────────────────────────────────────────────────
-const SANDBOX_URL    = 'https://sandbox.jazzcash.com.pk/ApplicationAPI/API/2.0/Purchase/DoMWalletTransaction';
-const PRODUCTION_URL = 'https://payments.jazzcash.com.pk/ApplicationAPI/API/2.0/Purchase/DoMWalletTransaction';
+const SANDBOX_URL    = 'https://sandbox.jazzcash.com.pk/ApplicationAPI/API/Payment/DoTransaction';
+const PRODUCTION_URL = 'https://payments.jazzcash.com.pk/ApplicationAPI/API/Payment/DoTransaction';
 
 function getApiUrl() {
     return process.env.JAZZCASH_SANDBOX === 'false' ? PRODUCTION_URL : SANDBOX_URL;
@@ -36,17 +34,13 @@ function getCreds() {
     const integrityKey = process.env.JAZZCASH_INTEGRITY_KEY;
 
     if (!merchantId || !password || !integrityKey) {
-        throw new Error(
-            'JazzCash credentials missing. Set JAZZCASH_MERCHANT_ID, ' +
-            'JAZZCASH_PASSWORD, and JAZZCASH_INTEGRITY_KEY in your .env file.'
-        );
+        throw new Error('JAZZCASH_MERCHANT_ID, JAZZCASH_PASSWORD, and JAZZCASH_INTEGRITY_KEY must be set in .env');
     }
     return { merchantId, password, integrityKey };
 }
 
-// ── DateTime helpers ────────────────────────────────────────────────
+// ── Date/Time ──────────────────────────────────────────────────────
 function formatDateTime(date) {
-    // JazzCash format: yyyyMMddHHmmss
     const d = date || new Date();
     return d.getFullYear().toString() +
         String(d.getMonth() + 1).padStart(2, '0') +
@@ -57,92 +51,129 @@ function formatDateTime(date) {
 }
 
 function getExpiryDateTime(minutesFromNow = 60) {
-    const d = new Date(Date.now() + minutesFromNow * 60 * 1000);
-    return formatDateTime(d);
+    return formatDateTime(new Date(Date.now() + minutesFromNow * 60 * 1000));
 }
 
-// ── Secure Hash ─────────────────────────────────────────────────────
-// JazzCash hash: sort all pp_ keys alphabetically, join values with &,
-// prepend integrityKey&, then HMAC-SHA256.
+// ── Secure Hash (HMAC-SHA256) ──────────────────────────────────────
+// Matches JazzCash's official CalculateHash algorithm from the sandbox
+// test form EXACTLY:
+//   1. Include ALL pp_ AND ppmpf_ fields with NON-EMPTY values
+//   2. Exclude pp_SecureHash itself
+//   3. Sort alphabetically by field name
+//   4. Concatenate values with '&', prepend integrityKey + '&'
+//   5. HMAC-SHA256 hex (lowercase, as CryptoJS.HmacSHA256 produces)
+//
+// DEBUG: Set JAZZCASH_DEBUG=true in .env to log the raw hash string
+// so you can compare it with the JazzCash Sandbox Hash Calculator.
+const JAZZCASH_DEBUG = process.env.JAZZCASH_DEBUG === 'true';
+
 function generateSecureHash(params, integrityKey) {
-    const sortedKeys = Object.keys(params)
-        .filter(k => k.startsWith('pp_') && params[k] !== '' && params[k] !== undefined)
+    const paramsCopy = { ...params };
+    delete paramsCopy.pp_SecureHash;
+
+    // Include all pp_* AND ppmpf_* fields with non-empty values
+    // (matching the CalculateHash function from JazzCash's test form)
+    const sortedKeys = Object.keys(paramsCopy)
+        .filter(k => {
+            if (k === 'pp_SecureHash') return false;
+            return (k.startsWith('pp_') || k.startsWith('ppmpf_'))
+                && paramsCopy[k] !== ''
+                && paramsCopy[k] != null;
+        })
         .sort();
 
-    const hashString = integrityKey + '&' + sortedKeys.map(k => params[k]).join('&');
+    const hashString = integrityKey + '&' + sortedKeys.map(k => paramsCopy[k]).join('&');
 
-    return crypto
+    const hash = crypto
         .createHmac('sha256', integrityKey)
-        .update(hashString)
-        .digest('hex')
-        .toUpperCase();
+        .update(hashString, 'utf-8')
+        .digest('hex');
+
+    if (JAZZCASH_DEBUG) {
+        console.log('\n=== JAZZCASH HASH DEBUG ===');
+        console.log('Sorted keys:', sortedKeys.join(', '));
+        console.log('Raw hash input:');
+        console.log(hashString);
+        console.log('Computed hash (hex):', hash);
+        console.log('Integrity key (first 4+last 4 chars):', integrityKey.slice(0, 4) + '...' + integrityKey.slice(-4));
+        console.log('==========================\n');
+    }
+
+    return hash;
 }
 
-// ── Verify callback hash ─────────────────────────────────────────────
 function verifyCallbackHash(params) {
     try {
         const { integrityKey } = getCreds();
         const receivedHash = params.pp_SecureHash;
-        const paramsWithoutHash = Object.assign({}, params);
-        delete paramsWithoutHash.pp_SecureHash;
-
-        const expectedHash = generateSecureHash(paramsWithoutHash, integrityKey);
+        const expectedHash = generateSecureHash(params, integrityKey);
         return receivedHash === expectedHash;
     } catch (err) {
-        console.error('Hash verification error:', err);
+        console.error('JazzCash hash verification error:', err.message);
         return false;
     }
 }
 
-// ── Unique transaction ref ───────────────────────────────────────────
+// ── Transaction Reference ──────────────────────────────────────────
 function generateTxnRef() {
     const now  = formatDateTime(new Date());
     const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
     return 'T' + now + rand;
 }
 
-// ── Amount to paisas ────────────────────────────────────────────────
-// JazzCash treats last 2 digits as decimal places.
-// Rs 500.00 → "50000"
+// ── Amount Helpers ─────────────────────────────────────────────────
 function toPaisas(amountRs) {
     return String(Math.round(Number(amountRs) * 100));
 }
 
+function fromPaisas(paisas) {
+    return Number(paisas) / 100;
+}
+
+// ── Mobile Number Normalization ────────────────────────────────────
+function normalizeMobile(number) {
+    if (!number) return '';
+    let n = String(number).trim().replace(/[\s-]/g, '');
+    if (n.startsWith('+92')) n = '0' + n.slice(3);
+    else if (n.startsWith('92') && n.length === 12) n = '0' + n.slice(2);
+    return n;
+}
+
 // ═══════════════════════════════════════════════════════════════════
-// MAIN: Initiate Mobile Wallet Transaction
+// Initiate DoMWalletTransaction
 // ═══════════════════════════════════════════════════════════════════
 async function initiateTransaction({
-    mobileNumber,   // Student's JazzCash number e.g. "03001234567"
-    amountRs,       // Amount in rupees e.g. 500
-    billReference,  // Your internal reference e.g. payment._id
-    description,    // e.g. "Hostel Fee Payment"
-    txnRef          // Optional — pass existing or auto-generate
+    mobileNumber,
+    cnic,
+    amountRs,
+    billReference,
+    description,
+    txnRef
 }) {
     let merchantId, password, integrityKey;
     try {
         ({ merchantId, password, integrityKey } = getCreds());
     } catch (credErr) {
-        console.error('JazzCash credentials error:', credErr.message);
         return {
             success        : false,
             responseCode   : 'CFG',
-            responseMessage: 'JazzCash is not configured yet (missing credentials). Set JAZZCASH_MERCHANT_ID, JAZZCASH_PASSWORD, and JAZZCASH_INTEGRITY_KEY in .env.',
+            responseMessage: 'JazzCash credentials not configured. Set JAZZCASH_MERCHANT_ID, JAZZCASH_PASSWORD, and JAZZCASH_INTEGRITY_KEY in .env.',
             txnRefNo       : txnRef || generateTxnRef(),
             rawResponse    : null
         };
     }
 
-    const now       = new Date();
     const txnRefNo  = txnRef || generateTxnRef();
-    const txnDT     = formatDateTime(now);
+    const txnDT     = formatDateTime(new Date());
     const txnExpiry = getExpiryDateTime(60);
     const returnUrl = (process.env.APP_URL || 'http://localhost:3000') +
                       '/student/payments/jazzcash/callback';
 
-    // Normalize mobile number — JazzCash expects 03XXXXXXXXX format
-    const normalizedMobile = normalizeMobile(mobileNumber);
-    const safeDescription  = (description || 'Hostel Payment')
+    const safeDescription = (description || 'Hostel Payment')
+        .replace(/[^\x20-\x7E]/g, ' ')
         .replace(/[<>\\*=%/:'\|"{}]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
         .substring(0, 100);
 
     const params = {
@@ -152,25 +183,27 @@ async function initiateTransaction({
         pp_MerchantID       : merchantId,
         pp_SubMerchantID    : '',
         pp_Password         : password,
-        pp_BankID           : 'TBANK',
-        pp_ProductID        : 'RETL',
+        pp_BankID           : '',
+        pp_ProductID        : '',
         pp_TxnRefNo         : txnRefNo,
         pp_Amount           : toPaisas(amountRs),
         pp_TxnCurrency      : 'PKR',
         pp_TxnDateTime      : txnDT,
-        pp_BillReference    : String(billReference),
+        pp_BillReference    : String(billReference).substring(0, 20),
         pp_Description      : safeDescription,
         pp_TxnExpiryDateTime: txnExpiry,
         pp_ReturnURL        : returnUrl,
         pp_SecureHash       : '',
-        ppmpf_1             : normalizedMobile,
+        pp_MobileNumber     : normalizeMobile(mobileNumber),
+        pp_CNIC             : String(cnic || '').replace(/\D/g, ''),
+        pp_UsageMode        : 'API',
+        ppmpf_1             : normalizeMobile(mobileNumber),
         ppmpf_2             : '',
         ppmpf_3             : '',
         ppmpf_4             : '',
         ppmpf_5             : ''
     };
 
-    // Generate and attach secure hash
     params.pp_SecureHash = generateSecureHash(params, integrityKey);
 
     try {
@@ -192,13 +225,33 @@ async function initiateTransaction({
         };
 
     } catch (err) {
-        console.error('JazzCash API error:', err.message);
+        const gatewayBody = err.response && err.response.data;
+        console.error('JazzCash API error:', {
+            message: err.message,
+            status : err.response?.status,
+            body   : gatewayBody
+        });
+
+        if (gatewayBody?.pp_ResponseCode || gatewayBody?.pp_ResponseMessage) {
+            return {
+                success        : gatewayBody.pp_ResponseCode === '000',
+                responseCode   : gatewayBody.pp_ResponseCode || 'ERR',
+                responseMessage: gatewayBody.pp_ResponseMessage || 'JazzCash returned an error.',
+                txnRefNo       : gatewayBody.pp_TxnRefNo || txnRefNo,
+                rawResponse    : gatewayBody
+            };
+        }
+
         return {
             success        : false,
             responseCode   : 'ERR',
-            responseMessage: 'Could not reach JazzCash. Please try again.',
+            responseMessage: err.code === 'ECONNABORTED'
+                ? 'JazzCash did not respond in time. Please try again.'
+                : err.response
+                    ? `JazzCash returned HTTP ${err.response.status}. Please try again.`
+                    : 'Could not reach JazzCash. Check your network connection.',
             txnRefNo,
-            rawResponse    : null
+            rawResponse: gatewayBody || null
         };
     }
 }
@@ -207,40 +260,23 @@ async function initiateTransaction({
 // Parse and validate callback from JazzCash
 // ═══════════════════════════════════════════════════════════════════
 function parseCallback(body) {
-    const isValid   = verifyCallbackHash(body);
-    const isSuccess = body.pp_ResponseCode === '000';
-
     return {
-        isValid,
-        isSuccess,
-        responseCode    : body.pp_ResponseCode,
-        responseMessage : body.pp_ResponseMessage,
-        txnRefNo        : body.pp_TxnRefNo,
-        billReference   : body.pp_BillReference,
-        amount          : body.pp_Amount ? Number(body.pp_Amount) / 100 : 0, // paisas → Rs
-        authCode        : body.pp_AuthCode || null,
-        rrn             : body.pp_RetreivalReferenceNo || null,
-        mobileNumber    : body.ppmpf_1 || null,
-        settlementExpiry: body.pp_SettlementExpiry || null,
-        rawBody         : body
+        isValid        : verifyCallbackHash(body),
+        isSuccess      : body.pp_ResponseCode === '000',
+        responseCode   : body.pp_ResponseCode,
+        responseMessage: body.pp_ResponseMessage,
+        txnRefNo       : body.pp_TxnRefNo,
+        billReference  : body.pp_BillReference,
+        amount         : body.pp_Amount ? fromPaisas(body.pp_Amount) : 0,
+        authCode       : body.pp_AuthCode || null,
+        rrn            : body.pp_RetreivalReferenceNo || null,
+        mobileNumber   : body.ppmpf_1 || null,
+        rawBody        : body
     };
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Normalize mobile number
-// Accepts: 03001234567 / +923001234567 / 923001234567
-// Returns: 03001234567
-// ═══════════════════════════════════════════════════════════════════
-function normalizeMobile(number) {
-    if (!number) return '';
-    let n = String(number).trim().replace(/\s|-/g, '');
-    if (n.startsWith('+92')) n = '0' + n.slice(3);
-    if (n.startsWith('92') && n.length === 12) n = '0' + n.slice(2);
-    return n;
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// Response code descriptions (for user-friendly error messages)
+// Response Code Descriptions
 // ═══════════════════════════════════════════════════════════════════
 const RESPONSE_CODES = {
     '000': 'Transaction successful.',
@@ -256,7 +292,7 @@ const RESPONSE_CODES = {
 };
 
 function getResponseDescription(code) {
-    return RESPONSE_CODES[code] || 'Transaction failed. Please try again.';
+    return RESPONSE_CODES[code] || null;
 }
 
 module.exports = {

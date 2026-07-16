@@ -135,13 +135,39 @@ async function initiateTransaction({
         };
 
     } catch (err) {
-        console.error('Easypaisa API error:', err.message);
+        // Easypaisa sometimes responds with a non-2xx status that still
+        // carries a responseCode/responseDesc body explaining exactly what's
+        // wrong (bad store ID, bad credentials, malformed amount, etc.) —
+        // axios throws on non-2xx by default, so surface that body if
+        // present instead of masking it behind a generic network-error message.
+        const gatewayBody = err.response && err.response.data;
+        console.error('Easypaisa API error:', {
+            message : err.message,
+            status  : err.response && err.response.status,
+            body    : gatewayBody
+        });
+
+        if (gatewayBody && (gatewayBody.responseCode || gatewayBody.responseDesc)) {
+            return {
+                success        : gatewayBody.responseCode === '0000',
+                responseCode   : gatewayBody.responseCode || 'ERR',
+                responseMessage: gatewayBody.responseDesc || 'Easypaisa returned an error response.',
+                orderId        : gatewayBody.orderId || finalOrderId,
+                rawResponse    : gatewayBody
+            };
+        }
+
+        const isTimeout = err.code === 'ECONNABORTED';
         return {
             success        : false,
             responseCode   : 'ERR',
-            responseMessage: 'Could not reach Easypaisa. Please try again.',
+            responseMessage: isTimeout
+                ? 'Easypaisa did not respond in time. Please try again.'
+                : (err.response
+                    ? `Easypaisa returned an unexpected error (HTTP ${err.response.status}). Please try again or contact support.`
+                    : 'Could not reach Easypaisa — check your network connection or Easypaisa sandbox status.'),
             orderId        : finalOrderId,
-            rawResponse    : null
+            rawResponse    : gatewayBody || null
         };
     }
 }
@@ -185,8 +211,11 @@ const RESPONSE_CODES = {
     '0010': 'Invalid credentials — check your Easypaisa configuration.'
 };
 
+// Returns null for unrecognized codes (rather than a generic fallback string)
+// so callers can cascade to the gateway's own responseMessage, which is
+// usually more specific than anything we could guess here.
 function getResponseDescription(code) {
-    return RESPONSE_CODES[code] || 'Transaction failed. Please try again.';
+    return RESPONSE_CODES[code] || null;
 }
 
 module.exports = {

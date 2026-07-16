@@ -1,30 +1,25 @@
 <!-- ══════════════════════════════════════════════════════════════
      jazzcash-modal.ejs
-     Place in: views/student/jazzcash-modal.ejs
-
-     Included at the bottom of pending-payments.ejs.
-     Triggered automatically when the student picks the JazzCash
-     tile in the existing pay modal (see handleMethodChange() in
-     pending-payments.ejs) — no manual call needed elsewhere.
+     Included by pending-payments.ejs and transport.ejs.
+     Triggered via openJazzCashModal({ dueIds, amount, ... }).
 ══════════════════════════════════════════════════════════════ -->
 
-<!-- ── JazzCash Payment Modal ── -->
 <div class="modal-overlay" id="jazzCashModal">
   <div class="modal-box" style="max-width:440px">
 
-    <!-- Head -->
+    <!-- ── Header ── -->
     <div class="modal-head">
       <h3>
         <span style="display:flex;align-items:center;gap:.5rem">
           <span style="background:#C8102E;color:white;font-size:.65rem;font-weight:700;padding:.2rem .55rem;border-radius:4px;letter-spacing:.5px">JAZZ</span>
           <span style="color:#C8102E;font-weight:700;font-size:.65rem;letter-spacing:.5px">CASH</span>
-          &nbsp;Pay via JazzCash
+          Pay via JazzCash
         </span>
       </h3>
       <button class="modal-close" onclick="closeJazzCashModal()"><i class="fas fa-times"></i></button>
     </div>
 
-    <!-- Step 1: Enter details -->
+    <!-- ── Step 1: Enter Details ── -->
     <div id="jc-step-enter">
       <div style="padding:1.2rem">
 
@@ -38,29 +33,38 @@
           <i class="fas fa-wallet" style="font-size:1.8rem;color:var(--green);opacity:.4"></i>
         </div>
 
-        <!-- Mobile number input -->
+        <!-- Mobile number -->
         <div class="form-group" style="margin-bottom:.9rem">
           <label style="font-size:.75rem;font-weight:500;color:var(--text-secondary)">
             JazzCash Mobile Number <span style="color:#C62828">*</span>
           </label>
           <div style="position:relative">
             <span style="position:absolute;left:.7rem;top:50%;transform:translateY(-50%);font-size:.78rem;color:var(--text-muted);font-weight:500">+92</span>
-            <input
-              type="tel"
-              id="jc-mobile"
-              placeholder="3001234567"
-              maxlength="10"
+            <input type="tel" id="jc-mobile" placeholder="3001234567" maxlength="10"
               style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.48rem .7rem .48rem 2.8rem;font-size:.82rem;font-family:inherit;outline:none;width:100%;color:var(--text-primary);transition:border-color .2s"
-              oninput="validateJCMobile(this)"
-              onfocus="this.style.borderColor='var(--green)'"
-              onblur="this.style.borderColor='var(--border-mid)'"
-            >
+              oninput="jcValidateMobile(this)" onfocus="this.style.borderColor='var(--green)'" onblur="this.style.borderColor='var(--border-mid)'">
           </div>
           <div id="jc-mobile-error" style="font-size:.65rem;color:#C62828;margin-top:.2rem;display:none">
-            <i class="fas fa-exclamation-circle"></i> Please enter a valid JazzCash number
+            <i class="fas fa-exclamation-circle"></i> Enter a valid JazzCash number (e.g. 3001234567)
           </div>
           <div style="font-size:.65rem;color:var(--text-muted);margin-top:.2rem">
-            <i class="fas fa-info-circle"></i> Enter without leading 0 — e.g. 3001234567 for 03001234567
+            <i class="fas fa-info-circle"></i> Enter without leading 0
+          </div>
+        </div>
+
+        <!-- CNIC (last 6 digits) -->
+        <div class="form-group" style="margin-bottom:.9rem">
+          <label style="font-size:.75rem;font-weight:500;color:var(--text-secondary)">
+            CNIC (last 6 digits) <span style="color:#C62828">*</span>
+          </label>
+          <input type="tel" id="jc-cnic" placeholder="e.g. 123456" maxlength="6"
+            style="border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:.48rem .7rem;font-size:.82rem;font-family:inherit;outline:none;width:100%;color:var(--text-primary);transition:border-color .2s"
+            oninput="jcValidateCnic(this)" onfocus="this.style.borderColor='var(--green)'" onblur="this.style.borderColor='var(--border-mid)'">
+          <div id="jc-cnic-error" style="font-size:.65rem;color:#C62828;margin-top:.2rem;display:none">
+            <i class="fas fa-exclamation-circle"></i> Enter the last 6 digits of your CNIC
+          </div>
+          <div style="font-size:.65rem;color:var(--text-muted);margin-top:.2rem">
+            <i class="fas fa-info-circle"></i> Required by JazzCash to verify the transaction
           </div>
         </div>
 
@@ -74,7 +78,7 @@
             </div>
             <div style="display:flex;align-items:center;gap:.6rem;font-size:.72rem;color:var(--text-secondary)">
               <span style="width:18px;height:18px;border-radius:50%;background:var(--green);color:white;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:700;flex-shrink:0">2</span>
-              You'll receive an MPIN prompt on your phone
+              Receive MPIN prompt on your phone
             </div>
             <div style="display:flex;align-items:center;gap:.6rem;font-size:.72rem;color:var(--text-secondary)">
               <span style="width:18px;height:18px;border-radius:50%;background:var(--green);color:white;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:700;flex-shrink:0">3</span>
@@ -91,22 +95,20 @@
 
       <div class="modal-foot" style="justify-content:flex-end">
         <button class="btn-modal-cancel" onclick="closeJazzCashModal()">Cancel</button>
-        <button onclick="submitJazzCashPayment()" id="jc-pay-btn"
+        <button onclick="jcSubmit()" id="jc-pay-btn"
           style="background:#C8102E;color:white;border:none;padding:.48rem 1.3rem;border-radius:var(--radius-md);font-size:.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.4rem;font-family:inherit;transition:background .2s">
           <i class="fas fa-mobile-alt"></i> Pay Now
         </button>
       </div>
     </div>
 
-    <!-- Step 2: Waiting for MPIN -->
+    <!-- ── Step 2: Waiting for MPIN ── -->
     <div id="jc-step-waiting" style="display:none">
       <div style="padding:2rem 1.5rem;text-align:center">
-        <div style="width:64px;height:64px;border-radius:50%;background:#FFF8E1;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:1.6rem">
-          📱
-        </div>
+        <div style="width:64px;height:64px;border-radius:50%;background:#FFF8E1;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:1.6rem">📱</div>
         <h4 style="font-size:1rem;font-weight:600;color:var(--text-primary);margin-bottom:.4rem">Check your phone!</h4>
         <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:1.2rem">
-          An MPIN request has been sent to<br>
+          MPIN request sent to<br>
           <strong id="jc-sent-to" style="color:var(--text-primary)">your JazzCash number</strong>
         </p>
         <div style="display:flex;align-items:center;justify-content:center;gap:.5rem;font-size:.78rem;color:var(--text-muted);margin-bottom:1.2rem">
@@ -115,18 +117,15 @@
         </div>
         <div style="background:#f9f9f9;border-radius:8px;padding:.8rem 1rem;text-align:left;font-size:.72rem;color:var(--text-muted)">
           <strong style="color:var(--text-secondary)">Note:</strong> The request expires in 5 minutes.
-          If you don't receive the prompt, check your JazzCash app or try again.
         </div>
       </div>
       <div class="modal-foot" style="justify-content:space-between">
-        <button onclick="cancelJCWaiting()" style="background:none;border:none;font-size:.78rem;color:var(--text-muted);cursor:pointer;font-family:inherit">
-          Cancel payment
-        </button>
+        <button onclick="jcCancel()" style="background:none;border:none;font-size:.78rem;color:var(--text-muted);cursor:pointer;font-family:inherit">Cancel payment</button>
         <span id="jc-countdown" style="font-size:.72rem;color:var(--text-muted)"></span>
       </div>
     </div>
 
-    <!-- Step 3: Success -->
+    <!-- ── Step 3: Success ── -->
     <div id="jc-step-success" style="display:none">
       <div style="padding:2rem 1.5rem;text-align:center">
         <div style="width:64px;height:64px;border-radius:50%;background:#E8F5E9;color:#2E7D32;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:1.6rem">
@@ -139,182 +138,184 @@
         <div style="font-size:.72rem;color:#888" id="jc-success-ref"></div>
       </div>
       <div class="modal-foot" style="justify-content:center">
-        <button onclick="location.reload()" class="btn-modal-save">
-          <i class="fas fa-refresh"></i> Done
-        </button>
+        <button onclick="location.reload()" class="btn-modal-save"><i class="fas fa-refresh"></i> Done</button>
       </div>
     </div>
 
-    <!-- Step 4: Failed -->
+    <!-- ── Step 4: Failed ── -->
     <div id="jc-step-failed" style="display:none">
       <div style="padding:2rem 1.5rem;text-align:center">
         <div style="width:64px;height:64px;border-radius:50%;background:#FFEBEE;color:#C62828;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:1.6rem">
           <i class="fas fa-times-circle"></i>
         </div>
         <h4 style="font-size:1rem;font-weight:600;color:#C62828;margin-bottom:.4rem">Payment Failed</h4>
-        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:.8rem" id="jc-fail-msg">
-          Your payment could not be processed. Please try again.
-        </p>
+        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:.8rem" id="jc-fail-msg">Payment could not be processed.</p>
       </div>
       <div class="modal-foot" style="justify-content:space-between">
         <button class="btn-modal-cancel" onclick="closeJazzCashModal()">Close</button>
-        <button onclick="jcRetry()" class="btn-modal-save">
-          <i class="fas fa-redo"></i> Try Again
-        </button>
+        <button onclick="jcRetry()" class="btn-modal-save"><i class="fas fa-redo"></i> Try Again</button>
       </div>
     </div>
 
   </div>
 </div>
 
-
-<!-- ── JazzCash Modal Script ── -->
 <script>
 (function() {
   'use strict';
 
-  // State
-  let _jcDueIds      = [];
-  let _jcAmount      = 0;
-  let _jcDesc        = '';
-  let _jcPayType     = 'Hostel Fee';
-  let _jcCabBookingId = null;
-  let _jcTxnRef      = null;
-  let _jcPollTimer   = null;
-  let _jcCountTimer  = null;
-  let _jcSecondsLeft = 300; // 5 min expiry
+  // ── State ──
+  let state = {
+    dueIds: [],
+    amount: 0,
+    desc: '',
+    payType: 'Hostel Fee',
+    cabBookingId: null,
+    txnRef: null,
+    pollTimer: null,
+    countTimer: null,
+    secondsLeft: 300
+  };
 
-  // ── Open modal ──────────────────────────────────────────────────
-  window.openJazzCashModal = function({ dueIds, amount, paymentType, description, cabBookingId }) {
-    _jcDueIds  = dueIds  || [];
-    _jcAmount  = amount  || 0;
-    _jcDesc    = description || 'Hostel Payment';
-    _jcPayType = paymentType || 'Hostel Fee';
-    _jcCabBookingId = cabBookingId || null;
+  function set(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
 
-    document.getElementById('jc-display-amount').textContent = 'Rs ' + Number(_jcAmount).toLocaleString();
-    document.getElementById('jc-display-desc').textContent   = _jcDesc;
+  // ── Open ──
+  window.openJazzCashModal = function(opts) {
+    opts = opts || {};
+    state.dueIds = opts.dueIds || [];
+    state.amount = opts.amount || 0;
+    state.desc = opts.description || 'Hostel Payment';
+    state.payType = opts.paymentType || 'Hostel Fee';
+    state.cabBookingId = opts.cabBookingId || null;
+
+    set('jc-display-amount', 'Rs ' + Number(state.amount).toLocaleString());
+    set('jc-display-desc', state.desc);
     document.getElementById('jc-mobile').value = '';
+    document.getElementById('jc-cnic').value = '';
+    document.getElementById('jc-cnic-error').style.display = 'none';
 
-    showJCStep('enter');
+    showStep('enter');
     document.getElementById('jazzCashModal').classList.add('open');
-    setTimeout(() => document.getElementById('jc-mobile').focus(), 100);
+    setTimeout(function() { document.getElementById('jc-mobile').focus(); }, 100);
   };
 
-  // ── Close modal ─────────────────────────────────────────────────
+  // ── Close ──
   window.closeJazzCashModal = function() {
-    clearJCTimers();
+    clearTimers();
     document.getElementById('jazzCashModal').classList.remove('open');
-    _jcTxnRef = null;
+    state.txnRef = null;
   };
 
-  // ── Step switcher ───────────────────────────────────────────────
-  function showJCStep(step) {
+  // ── Step switcher ──
+  function showStep(step) {
     ['enter','waiting','success','failed'].forEach(function(s) {
       var el = document.getElementById('jc-step-' + s);
-      if (el) el.style.display = s === step ? 'block' : 'none';
+      if (el) el.style.display = (s === step ? 'block' : 'none');
     });
   }
 
-  // ── Mobile validation ───────────────────────────────────────────
-  window.validateJCMobile = function(input) {
-    var val = input.value.replace(/\D/g, '').replace(/^0/, '');
-    input.value = val;
+  // ── Validation ──
+  window.jcValidateMobile = function(input) {
+    input.value = input.value.replace(/\D/g, '').replace(/^0/, '');
     var err = document.getElementById('jc-mobile-error');
-    if (val.length > 0 && (val.length !== 10 || !/^3\d{9}$/.test(val))) {
-      err.style.display = 'block';
-    } else {
-      err.style.display = 'none';
-    }
+    var v = input.value;
+    err.style.display = (v.length > 0 && (v.length !== 10 || !/^3\d{9}$/.test(v))) ? 'block' : 'none';
   };
 
-  // ── Submit payment ──────────────────────────────────────────────
-  window.submitJazzCashPayment = async function() {
-    var mobileInput = document.getElementById('jc-mobile');
-    var rawVal      = mobileInput.value.replace(/\D/g, '').replace(/^0/, '');
+  window.jcValidateCnic = function(input) {
+    input.value = input.value.replace(/\D/g, '').slice(0, 6);
+    var err = document.getElementById('jc-cnic-error');
+    err.style.display = (input.value.length > 0 && input.value.length !== 6) ? 'block' : 'none';
+  };
 
-    if (!rawVal || !/^3\d{9}$/.test(rawVal)) {
+  // ── Submit ──
+  window.jcSubmit = async function() {
+    var mobile = document.getElementById('jc-mobile');
+    var raw = mobile.value.replace(/\D/g, '').replace(/^0/, '');
+    if (!raw || !/^3\d{9}$/.test(raw)) {
       document.getElementById('jc-mobile-error').style.display = 'block';
-      mobileInput.focus();
-      return;
+      mobile.focus(); return;
     }
 
-    var mobileNumber = '0' + rawVal; // back to 03XXXXXXXXX
+    var cnic = document.getElementById('jc-cnic');
+    var cnicVal = cnic.value.replace(/\D/g, '');
+    if (!/^\d{6}$/.test(cnicVal)) {
+      document.getElementById('jc-cnic-error').style.display = 'block';
+      cnic.focus(); return;
+    }
 
     var btn = document.getElementById('jc-pay-btn');
-    btn.disabled  = true;
+    btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing…';
 
     try {
       var body = {
-        mobileNumber: mobileNumber,
-        amount      : _jcAmount,
-        paymentType : _jcPayType,
-        description : _jcDesc
+        mobileNumber: '0' + raw,
+        cnic: cnicVal,
+        amount: state.amount,
+        paymentType: state.payType,
+        description: state.desc
       };
-      if (_jcDueIds.length > 0) body.dueIds = _jcDueIds;
-      if (_jcCabBookingId) body.cabBookingId = _jcCabBookingId;
+      if (state.dueIds.length) body.dueIds = state.dueIds;
+      if (state.cabBookingId) body.cabBookingId = state.cabBookingId;
 
-      var res  = await fetch('/student/payments/jazzcash/initiate', {
-        method : 'POST',
+      var res = await fetch('/student/payments/jazzcash/initiate', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body   : JSON.stringify(body)
+        body: JSON.stringify(body)
       });
       var data = await res.json();
 
       if (!res.ok || !data.success) {
-        showJCFailed(data.error || 'Payment initiation failed. Please try again.');
+        jcShowFail(data.error || 'Initiation failed.');
         return;
       }
 
-      _jcTxnRef = data.txnRefNo;
-
-      document.getElementById('jc-sent-to').textContent = mobileNumber;
-      showJCStep('waiting');
+      state.txnRef = data.txnRefNo;
+      set('jc-sent-to', '0' + raw);
+      showStep('waiting');
       startCountdown();
       startPolling(data.txnRefNo);
 
     } catch (err) {
-      console.error('JazzCash submit error:', err);
-      showJCFailed('Network error. Please check your connection and try again.');
+      jcShowFail('Network error. Please check your connection.');
     } finally {
-      btn.disabled  = false;
+      btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-mobile-alt"></i> Pay Now';
     }
   };
 
-  // ── Polling — check payment status every 4 seconds ──────────────
+  // ── Polling ──
   function startPolling(txnRef) {
-    clearJCTimers();
-    _jcPollTimer = setInterval(async function() {
+    clearTimers();
+    state.pollTimer = setInterval(async function() {
       try {
-        var res  = await fetch('/student/payments/jazzcash/status/' + txnRef);
+        var res = await fetch('/student/payments/jazzcash/status/' + txnRef);
         var data = await res.json();
 
         if (data.status === 'Verified') {
-          clearJCTimers();
-          showJCSuccess(data.amount, txnRef);
+          clearTimers();
+          set('jc-success-amount', 'Rs ' + Number(data.amount || state.amount).toLocaleString());
+          set('jc-success-ref', 'Ref: ' + txnRef);
+          showStep('success');
         } else if (data.status === 'Rejected') {
-          clearJCTimers();
-          showJCFailed('Payment was rejected or cancelled. Please try again.');
+          clearTimers();
+          jcShowFail(data.reason || 'Payment was rejected.');
         }
-        // still Pending — keep polling
-      } catch (err) {
-        // Network hiccup — keep polling silently
-      }
+      } catch(e) { /* keep polling silently */ }
     }, 4000);
   }
 
-  // ── Countdown timer ──────────────────────────────────────────────
+  // ── Countdown ──
   function startCountdown() {
-    _jcSecondsLeft = 300;
+    state.secondsLeft = 300;
     updateCountdown();
-    _jcCountTimer = setInterval(function() {
-      _jcSecondsLeft--;
+    state.countTimer = setInterval(function() {
+      state.secondsLeft--;
       updateCountdown();
-      if (_jcSecondsLeft <= 0) {
-        clearJCTimers();
-        showJCFailed('The payment request has expired. Please try again.');
+      if (state.secondsLeft <= 0) {
+        clearTimers();
+        jcShowFail('Payment request expired. Please try again.');
       }
     }, 1000);
   }
@@ -322,44 +323,35 @@
   function updateCountdown() {
     var el = document.getElementById('jc-countdown');
     if (!el) return;
-    var m = Math.floor(_jcSecondsLeft / 60);
-    var s = _jcSecondsLeft % 60;
+    var m = Math.floor(state.secondsLeft / 60);
+    var s = state.secondsLeft % 60;
     el.textContent = 'Expires in ' + m + ':' + String(s).padStart(2, '0');
   }
 
-  function clearJCTimers() {
-    if (_jcPollTimer)  { clearInterval(_jcPollTimer);  _jcPollTimer  = null; }
-    if (_jcCountTimer) { clearInterval(_jcCountTimer); _jcCountTimer = null; }
+  function clearTimers() {
+    if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+    if (state.countTimer) { clearInterval(state.countTimer); state.countTimer = null; }
   }
 
-  // ── Success state ────────────────────────────────────────────────
-  function showJCSuccess(amount, txnRef) {
-    document.getElementById('jc-success-amount').textContent = 'Rs ' + Number(amount || _jcAmount).toLocaleString();
-    document.getElementById('jc-success-ref').textContent    = 'Transaction Ref: ' + (txnRef || _jcTxnRef || '');
-    showJCStep('success');
+  // ── Result states ──
+  function jcShowFail(msg) {
+    set('jc-fail-msg', msg);
+    showStep('failed');
   }
 
-  // ── Failed state ─────────────────────────────────────────────────
-  function showJCFailed(message) {
-    document.getElementById('jc-fail-msg').textContent = message;
-    showJCStep('failed');
-  }
-
-  // ── Cancel while waiting ─────────────────────────────────────────
-  window.cancelJCWaiting = function() {
-    clearJCTimers();
-    showJCFailed('You cancelled the payment. The MPIN request has been abandoned.');
+  window.jcCancel = function() {
+    clearTimers();
+    jcShowFail('Payment cancelled.');
   };
 
-  // ── Retry ────────────────────────────────────────────────────────
   window.jcRetry = function() {
-    clearJCTimers();
-    _jcTxnRef = null;
+    clearTimers();
+    state.txnRef = null;
     document.getElementById('jc-mobile').value = '';
-    showJCStep('enter');
+    showStep('enter');
   };
 
-  // ── Overlay click to close ───────────────────────────────────────
+  // ── Overlay click to close ──
   document.getElementById('jazzCashModal').addEventListener('click', function(e) {
     if (e.target === this) closeJazzCashModal();
   });
