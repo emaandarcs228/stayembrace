@@ -327,6 +327,7 @@ exports.approveDriver = async (req, res) => {
         if (driver.status === 'approved') return res.redirect('/admin/users');
 
         driver.status = 'approved';
+        driver.approvedAt = new Date();
         const plainPassword = driver.tempPassword || '(contact admin)';
         driver.tempPassword = undefined;
 
@@ -348,7 +349,8 @@ exports.approveDriver = async (req, res) => {
             plainPassword
         ).catch(err => console.error('Approval email failed:', err));
 
-        res.redirect('/admin/users');
+        const redirectTo = req.query.redirect || '/admin/users';
+        res.redirect(redirectTo + '?success=Driver+approved+successfully.');
 
     } catch (err) {
         console.error('approveDriver Error:', err);
@@ -364,9 +366,11 @@ exports.rejectDriver = async (req, res) => {
     try {
         if (req.user.role !== 'admin') return res.status(403).send('Access Denied');
 
+        const reason = req.body.reason || req.query.reason || 'No reason provided';
+
         await User.findOneAndUpdate(
             { _id: req.params.id, role: 'driver' },
-            { status: 'rejected' }
+            { status: 'rejected', rejectionReason: reason }
         );
 
         // Also deactivate the Driver record
@@ -375,7 +379,8 @@ exports.rejectDriver = async (req, res) => {
             { isActive: false }
         );
 
-        res.redirect('/admin/users');
+        const redirectTo = req.query.redirect || '/admin/users';
+        res.redirect(redirectTo + '?success=Driver+rejected.');
     } catch (err) {
         console.error('rejectDriver Error:', err);
         res.status(500).send('Server Error');
@@ -1158,25 +1163,28 @@ exports.getDriverInfo = async (req, res) => {
         if (!req.user || req.user.role !== 'admin')
             return res.status(403).json({ error: 'Access Denied' });
 
-        console.log('[getDriverInfo] userId param:', req.params.userId);
         const driver = await User.findById(req.params.userId)
-            .select('fullname userId email phoneNumber profileImage status')
+            .select('fullname userId email phoneNumber profileImage status approvedAt')
             .lean();
-        console.log('[getDriverInfo] User found:', driver ? { _id: driver._id, fullname: driver.fullname, status: driver.status } : 'null');
 
         if (!driver) {
-            console.log('[getDriverInfo] User not found with that ID');
             return res.status(404).json({ error: 'Driver user not found.' });
         }
 
-        if (!['approved', 'suspended'].includes(driver.status || '')) {
-            console.log('[getDriverInfo] Driver status not approved/suspended:', driver.status);
-            return res.status(403).json({
-                error: 'Driver info is only available for approved drivers (current: ' + driver.status + ').'
-            });
-        }
-
         const driverInfo = await Driver.findOne({ user: req.params.userId }).lean();
+
+        // Normalise document paths so the browser can serve them directly
+        if (driverInfo) {
+            if (driverInfo.cnicFrontImage)  driverInfo.cnicFrontImage  = normaliseImagePath(driverInfo.cnicFrontImage);
+            if (driverInfo.cnicBackImage)   driverInfo.cnicBackImage   = normaliseImagePath(driverInfo.cnicBackImage);
+            if (driverInfo.licenseImage)    driverInfo.licenseImage    = normaliseImagePath(driverInfo.licenseImage);
+            if (driverInfo.vehicleDocImage) driverInfo.vehicleDocImage = normaliseImagePath(driverInfo.vehicleDocImage);
+            if (driverInfo.profilePhoto)    driverInfo.profilePhoto    = normaliseImagePath(driverInfo.profilePhoto);
+            if (driverInfo.additionalDoc)   driverInfo.additionalDoc   = normaliseImagePath(driverInfo.additionalDoc);
+        }
+        if (driver.profileImage) {
+            driver.profileImage = normaliseImagePath(driver.profileImage);
+        }
 
         res.json({
             driverInfo : driverInfo || null,
@@ -1238,6 +1246,97 @@ exports.saveDriverInfo = async (req, res) => {
     } catch (err) {
         console.error('saveDriverInfo Error:', err);
         res.redirect('/admin/users?error=Failed+to+save+driver+information.&page=drivers');
+    }
+};
+
+
+// ============================================================
+// PENDING DRIVER REGISTRATIONS — dedicated page
+// GET /admin/pending-drivers
+// ============================================================
+exports.getPendingDrivers = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') return res.status(403).send('Access Denied');
+
+        // Fetch all pending driver users
+        const pendingUsers = await User.find({ role: 'driver', status: 'pending' })
+            .select('userId fullname email phoneNumber gender dateOfBirth profileImage createdAt')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        // Fetch their Driver records with all documents
+        const userIds = pendingUsers.map(u => u._id);
+        const driverRecords = await Driver.find({ user: { $in: userIds } }).lean();
+        const driverMap = {};
+        driverRecords.forEach(d => { driverMap[String(d.user)] = d; });
+
+        // Merge user + driver data
+        const drivers = pendingUsers.map(u => {
+            const driver = driverMap[String(u._id)] || {};
+            return {
+                _id: u._id,
+                userId: u.userId,
+                fullname: u.fullname,
+                email: u.email,
+                phoneNumber: u.phoneNumber || '—',
+                gender: u.gender || '—',
+                dateOfBirth: u.dateOfBirth || null,
+                registeredAt: u.createdAt,
+                profileImage: u.profileImage,
+                // Driver-specific
+                cnic: driver.cnic || '—',
+                licenseNumber: driver.licenseNumber || '—',
+                licenseExpiry: driver.licenseExpiry || null,
+                vehicleType: driver.vehicleType || '—',
+                vehicleRegistration: driver.vehicleRegistration || '—',
+                vehicleModel: driver.vehicleModel || '—',
+                serviceArea: driver.serviceArea || '—',
+                experienceYears: driver.experienceYears || null,
+                isVerified: driver.isVerified || false,
+                // Document paths
+                cnicFrontImage: driver.cnicFrontImage || null,
+                cnicBackImage: driver.cnicBackImage || null,
+                licenseImage: driver.licenseImage || null,
+                vehicleDocImage: driver.vehicleDocImage || null,
+                profilePhoto: driver.profilePhoto || null,
+                additionalDoc: driver.additionalDoc || null
+            };
+        });
+
+        // ── Notifications for topbar bell ──
+        const unreadCount = await Notification.countDocuments({
+            isActive: true,
+            $or: [
+                { target: { $in: ['All', 'Admins'] }, readBy: { $nin: [req.user._id] } },
+                { recipient: req.user._id, readBy: { $nin: [req.user._id] } }
+            ]
+        });
+        const recentNotifs = await Notification.find({
+            isActive: true,
+            $or: [
+                { target: { $in: ['All', 'Admins'] } },
+                { recipient: req.user._id }
+            ]
+        }).sort({ createdAt: -1 }).limit(5).lean();
+        recentNotifs.forEach(n => { n._timeAgo = timeAgo(n.createdAt); });
+        const badges = await getSidebarBadges(req.user);
+
+        res.render('admin/pendingDrivers', {
+            user: req.user,
+            activePage: 'pending-drivers',
+            pageTitle: 'Pending Driver Registrations',
+            pageSubtitle: `Review and approve ${drivers.length} pending driver(s)`,
+            drivers,
+            totalPending: drivers.length,
+            unreadCount,
+            recentNotifs,
+            ...badges,
+            successMessage: req.query.success || null,
+            errorMessage: req.query.error || null
+        });
+    } catch (err) {
+        console.error('getPendingDrivers Error:', err);
+        res.status(500).send('Server Error');
     }
 };
 

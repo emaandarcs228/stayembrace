@@ -22,6 +22,7 @@ router.post('/reject/:id', adminMiddleware, adminController.rejectStudent);
 // ======================
 // DRIVER APPROVAL & STATUS MANAGEMENT
 // ======================
+router.get('/pending-drivers', adminMiddleware, adminController.getPendingDrivers);
 router.post('/approve-driver/:id', adminMiddleware, adminController.approveDriver);
 router.post('/reject-driver/:id', adminMiddleware, adminController.rejectDriver);
 router.post('/suspend-driver/:id', adminMiddleware, adminController.suspendDriver);

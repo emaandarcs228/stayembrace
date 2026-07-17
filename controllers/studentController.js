@@ -209,7 +209,7 @@ exports.getProfile = async (req, res) => {
 
         // Split into active and past
         const activeCabBookings = cabBookings.filter(
-            b => ['Pending', 'Confirmed', 'In Progress'].includes(b.status)
+            b => ['Pending', 'Reserved', 'Awaiting Student', 'Confirmed', 'In Progress'].includes(b.status)
         );
         const pastCabBookings = cabBookings.filter(
             b => ['Completed', 'Cancelled'].includes(b.status)
@@ -1957,72 +1957,6 @@ exports.getTransport = async (req, res) => {
     try {
         const base = await buildBaseLocals(req);
 
-        // Fetch only approved drivers with their Driver profile
-        const approvedUsers = await User.find({ role: 'driver', status: 'approved' })
-            .select('fullname email userId phoneNumber gender profileImage')
-            .lean();
-
-        const userIds = approvedUsers.map(u => u._id);
-        const driverProfiles = await Driver.find({ user: { $in: userIds }, isActive: true })
-            .lean();
-
-        // Build a map from user._id → driver profile
-        const driverMap = {};
-        driverProfiles.forEach(d => { driverMap[String(d.user)] = d; });
-
-        // ── Average rating + review count per driver, from rated bookings ──
-        const ratingAgg = await CabBooking.aggregate([
-            { $match: { driver: { $in: userIds }, rating: { $ne: null } } },
-            { $group: { _id: '$driver', avgRating: { $avg: '$rating' }, reviewCount: { $sum: 1 } } }
-        ]);
-        const ratingMap = {};
-        ratingAgg.forEach(r => {
-            ratingMap[String(r._id)] = {
-                avgRating: Math.round(r.avgRating * 10) / 10,
-                reviewCount: r.reviewCount
-            };
-        });
-
-        // Merge approved users with their driver info
-        const providers = approvedUsers.map(u => {
-            const driver = driverMap[String(u._id)] || {};
-            const ratingInfo = ratingMap[String(u._id)] || { avgRating: 0, reviewCount: 0 };
-            // Normalise document image paths for browser URLs
-            const normalise = (p) => normaliseImagePath(p);
-            return {
-                _id: u._id,
-                fullname: u.fullname,
-                email: u.email,
-                userId: u.userId,
-                phoneNumber: u.phoneNumber || '—',
-                gender: u.gender,
-                profileImage: normaliseImagePath(u.profileImage),
-                // Driver-specific fields
-                cnic: driver.cnic || '—',
-                licenseNumber: driver.licenseNumber || '—',
-                licenseExpiry: driver.licenseExpiry || null,
-                vehicleType: driver.vehicleType || '—',
-                vehicleRegistration: driver.vehicleRegistration || '—',
-                vehicleModel: driver.vehicleModel || '—',
-                serviceArea: driver.serviceArea || '—',
-                experienceYears: driver.experienceYears || null,
-                isVerified: driver.isVerified || false,
-                // Rating summary
-                avgRating: ratingInfo.avgRating,
-                reviewCount: ratingInfo.reviewCount,
-                // Document status — which docs have been uploaded
-                hasCnicFront: !!driver.cnicFrontImage,
-                hasCnicBack: !!driver.cnicBackImage,
-                hasLicenseImage: !!driver.licenseImage,
-                hasVehicleDoc: !!driver.vehicleDocImage,
-                // Document URLs for view links
-                cnicFrontUrl: normalise(driver.cnicFrontImage),
-                cnicBackUrl: normalise(driver.cnicBackImage),
-                licenseImageUrl: normalise(driver.licenseImage),
-                vehicleDocUrl: normalise(driver.vehicleDocImage)
-            };
-        });
-
         // Fetch this student's cab booking history
         const myBookings = await CabBooking.find({ student: base.student._id })
             .sort({ createdAt: -1 })
@@ -2032,9 +1966,7 @@ exports.getTransport = async (req, res) => {
             ...base,
             activePage   : 'transport',
             pageTitle    : 'Transport Services',
-            pageSubtitle : 'Approved transport providers',
-            providers,
-            totalProviders: providers.length,
+            pageSubtitle : 'Book a ride',
             myBookings,
             successMessage: req.query.success || null,
             errorMessage  : req.query.error   || null
@@ -2046,29 +1978,22 @@ exports.getTransport = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// CAB BOOKING — Book a ride with a transport provider
+// CAB BOOKING — Submit a ride request (open to all drivers)
 // ─────────────────────────────────────────────────────────────
 exports.postCabBooking = async (req, res) => {
     try {
         const base    = await buildBaseLocals(req);
         const student = base.student;
         const {
-            driverId, driverName, driverPhone,
-            vehicleType, vehicleRegistration,
             pickupLocation, dropoffLocation,
             pickupDate, pickupTime,
-            passengerCount, notes
+            passengerCount, purpose, budget,
+            notes
         } = req.body;
 
         // ── Validation ──
-        if (!driverId || !pickupLocation || !dropoffLocation || !pickupDate) {
+        if (!pickupLocation || !dropoffLocation || !pickupDate || !purpose) {
             return res.redirect('/student/transport?error=Please+fill+all+required+fields.');
-        }
-
-        // Verify the driver exists and is approved
-        const driverUser = await User.findOne({ _id: driverId, role: 'driver', status: 'approved' }).lean();
-        if (!driverUser) {
-            return res.redirect('/student/transport?error=Transport+provider+not+found+or+not+available.');
         }
 
         // Future date check
@@ -2083,48 +2008,63 @@ exports.postCabBooking = async (req, res) => {
             return res.redirect('/student/transport?error=Passenger+count+must+be+between+1+and+10.');
         }
 
+        const parsedBudget = budget !== '' && budget !== null && budget !== undefined
+            ? parseFloat(budget)
+            : null;
+        if (parsedBudget !== null && (isNaN(parsedBudget) || parsedBudget < 0)) {
+            return res.redirect('/student/transport?error=Budget+must+be+a+positive+number.');
+        }
+
         const booking = await CabBooking.create({
             student            : student._id,
-            driver             : driverUser._id,
-            driverName         : driverName || driverUser.fullname,
-            driverPhone        : driverPhone || driverUser.phoneNumber || '—',
-            vehicleType        : vehicleType || null,
-            vehicleRegistration: vehicleRegistration || null,
             pickupLocation,
             dropoffLocation,
             pickupDate         : pickup,
             pickupTime         : pickupTime || '',
             passengerCount     : count,
+            purpose            : purpose || '',
+            budget             : parsedBudget,
             notes              : notes || '',
             status             : 'Pending'
         });
 
-        // ── Notify the driver about the new booking ────────────────
+        // ── Notify only online/approved drivers about the new request ──
         try {
+            // Find approved User records whose Driver profile has isOnline: true
+            const onlineDrivers = await Driver.find({ isOnline: true })
+                .select('user')
+                .populate({ path: 'user', match: { role: 'driver', status: 'approved' }, select: '_id' })
+                .lean();
+
             const studentName = student.user?.fullname || 'A student';
             const dateStr = pickup.toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
-            await Notification.create({
-                title     : 'New Cab Booking',
-                message   : `${studentName} has booked a cab with you on ${dateStr} from "${pickupLocation}" to "${dropoffLocation}".`,
-                recipient : driverUser._id,
-                category  : 'Requests',
-                relatedTo : { model: 'CabBooking', docId: booking._id },
-                createdBy : student.user._id,
-                priority  : 'Medium'
-            });
+
+            // Broadcast only to drivers who are both online and approved
+            for (const driver of onlineDrivers) {
+                if (!driver.user) continue; // skip if user wasn't populated (not approved)
+                await Notification.create({
+                    title     : 'New Ride Request Available',
+                    message   : `${studentName} needs a ride on ${dateStr} from "${pickupLocation}" to "${dropoffLocation}". Be the first to reserve!`,
+                    recipient : driver.user._id,
+                    category  : 'Requests',
+                    relatedTo : { model: 'CabBooking', docId: booking._id },
+                    createdBy : student.user._id,
+                    priority  : 'Medium'
+                });
+            }
         } catch (notifErr) {
             console.error('Cab booking driver notification error:', notifErr);
         }
 
-        // ── Notify warden about the new booking ────────────────────
+        // ── Notify warden about the new request ────────────────────
         try {
             const warden = await User.findOne({ role: 'warden' }).lean();
             if (warden) {
                 const studentName = student.user?.fullname || 'A student';
                 const dateStr = pickup.toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
                 await Notification.create({
-                    title     : 'New Cab Booking',
-                    message   : `${studentName} booked a cab with ${booking.driverName} on ${dateStr}.`,
+                    title     : 'New Ride Request',
+                    message   : `${studentName} requested a ride on ${dateStr} from "${pickupLocation}" to "${dropoffLocation}".`,
                     recipient : warden._id,
                     category  : 'Requests',
                     relatedTo : { model: 'CabBooking', docId: booking._id },
@@ -2136,32 +2076,37 @@ exports.postCabBooking = async (req, res) => {
             console.error('Cab booking warden notification error:', notifErr);
         }
 
-        res.redirect('/student/transport?success=Cab+booked+successfully.+Provider+will+confirm+shortly.');
+        res.redirect('/student/transport?success=Ride+request+submitted.+Drivers+will+respond+shortly.');
 
     } catch (err) {
         console.error('postCabBooking:', err);
-        res.redirect('/student/transport?error=Failed+to+book+cab.');
+        res.redirect('/student/transport?error=Failed+to+submit+ride+request.');
     }
 };
 
 // ─────────────────────────────────────────────────────────────
-// CAB BOOKING — Cancel a pending booking
+// CAB BOOKING — Cancel a pending/reserved booking
 // ─────────────────────────────────────────────────────────────
 exports.cancelCabBooking = async (req, res) => {
     try {
         const base = await buildBaseLocals(req);
 
-        // ── Atomic cancel: guards against a driver accepting/rejecting (or an
-        // admin confirming) this same booking at the same moment. ─────────
+        // Allow cancelling Pending, Reserved, or Awaiting Student
         const booking = await CabBooking.findOneAndUpdate(
-            { _id: req.params.id, student: base.student._id, status: 'Pending' },
+            { _id: req.params.id, student: base.student._id, status: { $in: ['Pending', 'Reserved', 'Awaiting Student'] } },
             { $set: {
                 status: 'Cancelled',
                 cancellation: {
                     by    : 'student',
                     reason: req.body.reason || 'Cancelled by student',
                     at    : new Date()
-                }
+                },
+                reservedBy: null,
+                reservedAt: null,
+                reservationExpiresAt: null,
+                'quote.fare': null,
+                'quote.eta': '',
+                'quote.submittedAt': null
             } },
             { new: true }
         );
@@ -2172,30 +2117,171 @@ exports.cancelCabBooking = async (req, res) => {
                 return res.redirect('/student/transport?error=Booking+not+found.');
             }
             return res.redirect('/student/transport?error=' + encodeURIComponent(
-                `This booking is already ${existing.status.toLowerCase()} and can no longer be cancelled.`
+                `This booking is ${existing.status.toLowerCase()} and can no longer be cancelled.`
             ));
         }
 
-        // ── Notify the driver about the cancellation ───────────────
-        try {
-            const studentName = base.student.user?.fullname || 'A student';
-            await Notification.create({
-                title     : 'Cab Booking Cancelled',
-                message   : `${studentName} has cancelled their cab booking. Reason: ${req.body.reason || 'No reason provided'}.`,
-                recipient : booking.driver,
-                category  : 'Requests',
-                relatedTo : { model: 'CabBooking', docId: booking._id },
-                createdBy : base.student.user._id,
-                priority  : 'Low'
-            });
-        } catch (notifErr) {
-            console.error('Cab booking cancel notification error:', notifErr);
+        // ── Notify reserved/assigned driver about the cancellation ──
+        if (booking.reservedBy || booking.driver) {
+            try {
+                const studentName = base.student.user?.fullname || 'A student';
+                const recipientId = booking.driver || booking.reservedBy;
+                await Notification.create({
+                    title     : 'Ride Request Cancelled',
+                    message   : `${studentName} has cancelled their ride request from "${booking.pickupLocation}" to "${booking.dropoffLocation}". Reason: ${req.body.reason || 'No reason provided'}.`,
+                    recipient : recipientId,
+                    category  : 'Requests',
+                    relatedTo : { model: 'CabBooking', docId: booking._id },
+                    createdBy : base.student.user._id,
+                    priority  : 'Low'
+                });
+            } catch (notifErr) {
+                console.error('Cab booking cancel notification error:', notifErr);
+            }
         }
 
-        res.redirect('/student/transport?success=Cab+booking+cancelled.');
+        res.redirect('/student/transport?success=Ride+request+cancelled.');
     } catch (err) {
         console.error('cancelCabBooking:', err);
-        res.redirect('/student/transport?error=Failed+to+cancel+booking.');
+        res.redirect('/student/transport?error=Failed+to+cancel+request.');
+    }
+};
+
+// ─────────────────────────────────────────────────────────────
+// CAB BOOKING — Respond to a driver's fare quote (accept/reject)
+// POST /student/transport/respond/:id
+// ─────────────────────────────────────────────────────────────
+exports.respondToQuote = async (req, res) => {
+    try {
+        const base    = await buildBaseLocals(req);
+        const student = base.student;
+        const { response: studentResponse } = req.body; // 'accepted' or 'rejected'
+
+        if (!['accepted', 'rejected'].includes(studentResponse)) {
+            return res.redirect('/student/transport?error=Invalid+response.');
+        }
+
+        const booking = await CabBooking.findOne({
+            _id: req.params.id,
+            student: student._id,
+            status: 'Awaiting Student'
+        });
+
+        if (!booking) {
+            const existing = await CabBooking.findOne({ _id: req.params.id, student: student._id }).select('status').lean();
+            if (!existing) return res.redirect('/student/transport?error=Booking+not+found.');
+            return res.redirect('/student/transport?error=' + encodeURIComponent(
+                `This booking is ${existing.status.toLowerCase()} and cannot be responded to.`
+            ));
+        }
+
+        // ── The 2-minute window may have expired right under us, just before
+        // reservationTimeoutJob's next sweep. Release immediately rather than
+        // letting a stale quote be accepted/rejected. ──
+        const now = new Date();
+        if (booking.reservationExpiresAt && booking.reservationExpiresAt <= now) {
+            booking.status = 'Pending';
+            booking.reservedBy = null;
+            booking.reservedAt = null;
+            booking.reservationExpiresAt = null;
+            booking.quote.fare = null;
+            booking.quote.eta = '';
+            booking.quote.submittedAt = null;
+            booking.studentDecision.status = 'expired';
+            booking.studentDecision.decidedAt = now;
+            await booking.save();
+            return res.redirect('/student/transport?error=' + encodeURIComponent(
+                'That fare quote expired before you responded. The request is now open for other drivers.'
+            ));
+        }
+
+        if (studentResponse === 'accepted') {
+            // Student accepts the fare quote → ride is confirmed
+            const driverUser = await User.findById(booking.reservedBy).select('fullname phoneNumber').lean();
+            const driverProfile = await Driver.findOne({ user: booking.reservedBy }).lean();
+
+            booking.status = 'Confirmed';
+            booking.driver = booking.reservedBy;
+            booking.driverName = driverUser?.fullname || null;
+            booking.driverPhone = driverUser?.phoneNumber || null;
+            booking.vehicleType = booking.vehicleType || driverProfile?.vehicleType || null;
+            booking.vehicleRegistration = booking.vehicleRegistration || driverProfile?.vehicleRegistration || null;
+            booking.fare = booking.quote.fare;
+            booking.confirmedAt = new Date();
+            booking.studentDecision.status = 'accepted';
+            booking.studentDecision.decidedAt = new Date();
+            booking.reservationExpiresAt = null; // Clear timer
+
+            await booking.save();
+
+            // ── Notify the driver that they got the ride ─────────
+            try {
+                const studentName = student.user?.fullname || 'A student';
+                await Notification.create({
+                    title     : 'Ride Request Accepted — Booking Confirmed',
+                    message   : `${studentName} accepted your fare quote of Rs ${booking.quote.fare.toLocaleString()} for the ride from "${booking.pickupLocation}" to "${booking.dropoffLocation}".`,
+                    recipient : booking.driver,
+                    category  : 'Requests',
+                    relatedTo : { model: 'CabBooking', docId: booking._id },
+                    createdBy : student.user._id,
+                    priority  : 'Medium'
+                });
+            } catch (notifErr) {
+                console.error('respondToQuote: Driver notification error:', notifErr);
+            }
+
+            // ── Notify admins & wardens ──────────────────────────
+            try {
+                const studentName = student.user?.fullname || 'A student';
+                const statusMsg = `Ride confirmed for ${studentName} (${booking.pickupLocation} → ${booking.dropoffLocation}) with ${booking.driverName} for Rs ${booking.quote.fare.toLocaleString()}.`;
+                await Notification.create({ title: 'Ride Confirmed', message: statusMsg, target: 'Admins', category: 'Requests', relatedTo: { model: 'CabBooking', docId: booking._id }, createdBy: student.user._id, priority: 'Low' });
+                await Notification.create({ title: 'Ride Confirmed', message: statusMsg, target: 'Wardens', category: 'Requests', relatedTo: { model: 'CabBooking', docId: booking._id }, createdBy: student.user._id, priority: 'Low' });
+            } catch (notifErr) {
+                console.error('respondToQuote: Admin/Warden notification error:', notifErr);
+            }
+
+            res.redirect('/student/transport?success=Ride+confirmed!+Driver+will+be+in+touch.');
+
+        } else {
+            // Student rejects the fare → release back to Pending
+            // Capture fare before nulling it
+            const rejectedFare = booking.quote?.fare || 0;
+            const releasedDriver = booking.reservedBy;
+
+            booking.status = 'Pending';
+            booking.studentDecision.status = 'rejected';
+            booking.studentDecision.decidedAt = new Date();
+            booking.reservedBy = null;
+            booking.reservedAt = null;
+            booking.reservationExpiresAt = null;
+            booking.quote.fare = null;
+            booking.quote.eta = '';
+            booking.quote.submittedAt = null;
+
+            await booking.save();
+
+            // ── Notify the driver that their quote was rejected ───
+            try {
+                const studentName = student.user?.fullname || 'A student';
+                await Notification.create({
+                    title     : 'Fare Quote Declined',
+                    message   : `${studentName} declined your fare quote of Rs ${(rejectedFare || 0).toLocaleString()} for the ride from "${booking.pickupLocation}" to "${booking.dropoffLocation}". The request is now open for other drivers.`,
+                    recipient : releasedDriver,
+                    category  : 'Requests',
+                    relatedTo : { model: 'CabBooking', docId: booking._id },
+                    createdBy : student.user._id,
+                    priority  : 'Medium'
+                });
+            } catch (notifErr) {
+                console.error('respondToQuote: Rejection notification error:', notifErr);
+            }
+
+            res.redirect('/student/transport?success=Fare+declined.+Request+is+open+for+other+drivers.');
+        }
+
+    } catch (err) {
+        console.error('respondToQuote:', err);
+        res.redirect('/student/transport?error=Failed+to+respond+to+quote.');
     }
 };
 
@@ -2261,16 +2347,23 @@ exports.getCabBookingStatuses = async (req, res) => {
         if (!student) return res.status(404).json({ error: 'Student record not found.' });
 
         const bookings = await CabBooking.find({ student: student._id })
-            .select('status confirmedAt fare paymentStatus')
+            .select('status confirmedAt fare paymentStatus quote reservationExpiresAt reservedBy driverName driverPhone vehicleType vehicleRegistration')
             .lean();
 
         const statuses = {};
         bookings.forEach(b => {
             statuses[b._id] = {
-                status       : b.status,
-                confirmedAt  : b.confirmedAt,
-                fare         : b.fare,
-                paymentStatus: b.paymentStatus
+                status                : b.status,
+                confirmedAt           : b.confirmedAt,
+                fare                  : b.fare,
+                paymentStatus         : b.paymentStatus,
+                quoteFare             : b.quote?.fare || null,
+                quoteEta              : b.quote?.eta || '',
+                driverName            : b.driverName || null,
+                driverPhone           : b.driverPhone || null,
+                vehicleType           : b.vehicleType || null,
+                vehicleRegistration   : b.vehicleRegistration || null,
+                reservationExpiresAt  : b.reservationExpiresAt
             };
         });
 

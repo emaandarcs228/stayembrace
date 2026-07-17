@@ -800,16 +800,16 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════
-     BOOK A CAB MODAL
+     BOOK A CAB MODAL — Redesigned with Purpose, Budget & more
 ══════════════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="bookCabModal" onclick="if(event.target===this)closeModal('bookCabModal')">
-  <div class="modal-box" style="max-width:520px">
+  <div class="modal-box" style="max-width:540px">
     <div class="modal-head">
       <h3><i class="ti ti-taxi" style="color:#2E7D32"></i> Book a Cab</h3>
       <button class="modal-close" onclick="closeModal('bookCabModal')"><i class="fas fa-times"></i></button>
     </div>
 
-    <form action="/student/transport/book" method="POST">
+    <form action="/student/transport/book" method="POST" id="cabBookingForm">
       <input type="hidden" name="driverId" id="bkDriverId">
       <input type="hidden" name="driverName" id="bkDriverName">
       <input type="hidden" name="driverPhone" id="bkDriverPhone">
@@ -818,54 +818,111 @@
 
       <div class="modal-body" style="display:flex;flex-direction:column;gap:.9rem">
 
+        <!-- Provider banner -->
         <div style="padding:.6rem .85rem;background:#FFF8E1;border:1px solid #FFE082;border-radius:var(--radius-md);font-size:.78rem">
           Booking with: <strong id="bkProviderName">—</strong>
           <span style="font-size:.68rem;color:var(--text-muted)" id="bkProviderVehicle"></span>
         </div>
 
-        <div class="form-grid cols-1" style="gap:.8rem">
-
-          <div class="form-group">
-            <label>Pickup Location <span class="req">*</span></label>
-            <input type="text" name="pickupLocation" placeholder="e.g. Hostel Gate, Main Entrance" required>
+        <!-- ── Trip Details Section ── -->
+        <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.8rem .9rem">
+          <div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.7rem;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#2E7D32">
+            <i class="ti ti-map-pin"></i> Trip Details
           </div>
 
-          <div class="form-group">
-            <label>Drop-off Location <span class="req">*</span></label>
-            <input type="text" name="dropoffLocation" placeholder="e.g. University, Mall, Airport" required>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
+            <div class="form-group" style="grid-column:1/-1">
+              <label>Pickup Location <span class="req">*</span></label>
+              <div style="position:relative">
+                <i class="ti ti-map" style="position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:#bbb;font-size:.8rem"></i>
+                <input type="text" name="pickupLocation" placeholder="e.g. Hostel Gate, Main Entrance" required
+                  style="padding-left:2rem">
+              </div>
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label>Destination <span class="req">*</span></label>
+              <div style="position:relative">
+                <i class="ti ti-map" style="position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:#bbb;font-size:.8rem"></i>
+                <input type="text" name="dropoffLocation" placeholder="e.g. University, Mall, Airport" required
+                  style="padding-left:2rem">
+              </div>
+            </div>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-top:.7rem">
             <div class="form-group">
-              <label>Pickup Date <span class="req">*</span></label>
+              <label>Date <span class="req">*</span></label>
               <input type="date" name="pickupDate" required min="<%= new Date().toISOString().split('T')[0] %>">
             </div>
             <div class="form-group">
-              <label>Pickup Time</label>
+              <label>Time</label>
               <input type="time" name="pickupTime">
             </div>
           </div>
+        </div>
 
-          <div class="form-group">
-            <label>Passenger Count <span class="req">*</span></label>
-            <select name="passengerCount" required>
-              <% for (let i = 1; i <= 6; i++) { %>
-              <option value="<%= i %>" <%= i === 1 ? 'selected' : '' %>><%= i %> person<%= i !== 1 ? 's' : '' %></option>
-              <% } %>
+        <!-- ── Ride Requirements Section ── -->
+        <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.8rem .9rem">
+          <div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.7rem;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#1565C0">
+            <i class="ti ti-users"></i> Ride Requirements
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
+            <div class="form-group">
+              <label>Passengers <span class="req">*</span></label>
+              <div style="position:relative">
+                <i class="ti ti-user" style="position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:#bbb;font-size:.8rem"></i>
+                <select name="passengerCount" required style="padding-left:2rem">
+                  <% for (let i = 1; i <= 10; i++) { %>
+                  <option value="<%= i %>" <%= i === 1 ? 'selected' : '' %>><%= i %> person<%= i !== 1 ? 's' : '' %></option>
+                  <% } %>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Budget (Rs) <span class="req">*</span></label>
+              <div style="position:relative">
+                <i class="ti ti-currency-rupee" style="position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:#bbb;font-size:.8rem"></i>
+                <input type="number" name="budget" placeholder="Max fare" required min="0" step="50"
+                  style="padding-left:2rem">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top:.7rem">
+            <label>Purpose of Trip <span class="req">*</span></label>
+            <select name="purpose" required>
+              <option value="" disabled selected>Select purpose...</option>
+              <option value="Academic">📚 Academic — Class / Exam</option>
+              <option value="Personal">🏠 Personal — Home / Family Visit</option>
+              <option value="Medical">🏥 Medical — Doctor / Hospital</option>
+              <option value="Airport">✈️ Airport — Pickup / Drop</option>
+              <option value="Shopping">🛍️ Shopping — Mall / Market</option>
+              <option value="Social">🎉 Social — Meetup / Event</option>
+              <option value="Official">💼 Official — University / Admin</option>
+              <option value="Other">Other — Specify in notes</option>
             </select>
           </div>
-
-          <div class="form-group full">
-            <label>Notes <span style="font-size:.65rem;color:var(--text-muted)">(optional)</span></label>
-            <textarea name="notes" rows="2" placeholder="Any special instructions for the driver..."></textarea>
-          </div>
-
         </div>
+
+        <!-- ── Additional Info ── -->
+        <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.8rem .9rem">
+          <div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.7rem;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#6A1B9A">
+            <i class="ti ti-file-text"></i> Additional Info
+          </div>
+          <div class="form-group">
+            <label>Notes <span style="font-size:.65rem;color:var(--text-muted)">(optional)</span></label>
+            <textarea name="notes" rows="2" placeholder="Any special instructions for the driver..." style="resize:vertical"></textarea>
+          </div>
+        </div>
+
       </div>
 
-      <div class="modal-foot">
-        <button type="submit" class="btn-modal-save"><i class="ti ti-send"></i> Request Booking</button>
+      <div class="modal-foot" style="display:flex;gap:.5rem;justify-content:flex-end">
         <button type="button" class="btn-modal-cancel" onclick="closeModal('bookCabModal')">Cancel</button>
+        <button type="submit" class="btn-modal-save" style="display:flex;align-items:center;gap:.35rem">
+          <i class="ti ti-send"></i> Request Ride
+        </button>
       </div>
     </form>
   </div>

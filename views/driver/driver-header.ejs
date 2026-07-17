@@ -112,6 +112,19 @@
 
       <div class="topbar-right">
 
+        <!-- ── Availability Toggle ── -->
+        <div class="avail-wrap" id="availWrap">
+          <button class="avail-toggle" id="availToggle"
+            data-online="<%= typeof driver !== 'undefined' && driver && driver.isOnline ? 'true' : 'false' %>"
+            onclick="toggleAvailability(event)"
+            title="<%= typeof driver !== 'undefined' && driver && driver.isOnline ? 'You are online' : 'You are offline' %>">
+            <span class="avail-dot" id="availDot"></span>
+            <span class="avail-label" id="availLabel">
+              <%= typeof driver !== 'undefined' && driver && driver.isOnline ? 'Online' : 'Offline' %>
+            </span>
+          </button>
+        </div>
+
         <!-- ── Notification Bell ── -->
         <div class="notif-wrap">
           <button class="notif-btn" id="notifBtn" aria-label="Notifications">

@@ -137,7 +137,7 @@ function validateFile(filePath, minSizeBytes = 5120) {
 function validateDriverDocuments(files, minSizeBytes = 5120) {
     if (!files) return null;
 
-    const expectedFields = ['cnicFront', 'cnicBack', 'licenseImage', 'vehicleDoc'];
+    const expectedFields = ['cnicFront', 'cnicBack', 'licenseImage', 'vehicleDoc', 'profilePhoto', 'additionalDoc'];
 
     for (const field of expectedFields) {
         const fileArr = files[field];

@@ -311,6 +311,38 @@
                         <span class="doc-error" id="vehicleDocError"></span>
                         <input type="file" id="vehicleDocInput" name="vehicleDoc" accept=".jpg,.jpeg,.png,.webp,.pdf" style="display:none" onpaste="return false">
                     </div>
+                    <!-- Profile Photo -->
+                    <div>
+                        <span class="doc-label">Profile Photo</span>
+                        <div class="doc-upload-box" id="profilePhotoBox" onclick="document.getElementById('profilePhotoInput').click()">
+                            <i class="fas fa-camera doc-icon"></i>
+                            <span class="doc-main-text">Click to upload</span>
+                            <span class="doc-sub-text">JPG, PNG or WebP</span>
+                            <img class="doc-preview-img" id="profilePhotoPreview" src="" alt="Profile Photo">
+                            <i class="fas fa-file-pdf doc-pdf-icon" id="profilePhotoPdfIcon"></i>
+                            <span class="doc-name-text" id="profilePhotoName"></span>
+                            <span class="doc-verify-text" id="profilePhotoVerify">✓ Verified</span>
+                            <button type="button" class="doc-remove-btn" id="profilePhotoRemove" title="Remove file"><i class="fas fa-times"></i></button>
+                        </div>
+                        <span class="doc-error" id="profilePhotoError"></span>
+                        <input type="file" id="profilePhotoInput" name="profilePhoto" accept=".jpg,.jpeg,.png,.webp" style="display:none" onpaste="return false">
+                    </div>
+                    <!-- Additional Verification -->
+                    <div>
+                        <span class="doc-label">Additional Verification</span>
+                        <div class="doc-upload-box" id="additionalDocBox" onclick="document.getElementById('additionalDocInput').click()">
+                            <i class="fas fa-file-shield doc-icon"></i>
+                            <span class="doc-main-text">Click to upload</span>
+                            <span class="doc-sub-text">Police clearance, reference, etc.</span>
+                            <img class="doc-preview-img" id="additionalDocPreview" src="" alt="Additional Doc">
+                            <i class="fas fa-file-pdf doc-pdf-icon" id="additionalDocPdfIcon"></i>
+                            <span class="doc-name-text" id="additionalDocName"></span>
+                            <span class="doc-verify-text" id="additionalDocVerify">✓ Verified</span>
+                            <button type="button" class="doc-remove-btn" id="additionalDocRemove" title="Remove file"><i class="fas fa-times"></i></button>
+                        </div>
+                        <span class="doc-error" id="additionalDocError"></span>
+                        <input type="file" id="additionalDocInput" name="additionalDoc" accept=".jpg,.jpeg,.png,.webp,.pdf" style="display:none" onpaste="return false">
+                    </div>
                 </div>
 
                 <!-- ── Password ── -->
@@ -543,8 +575,8 @@ function showDocError(box, errorEl, msg) {
     errorEl.style.display = 'block';
 }
 
-// ── Initialize all 4 document upload fields ──
-['cnicFront', 'cnicBack', 'licenseImage', 'vehicleDoc'].forEach(initDocUpload);
+// ── Initialize all 6 document upload fields ──
+['cnicFront', 'cnicBack', 'licenseImage', 'vehicleDoc', 'profilePhoto', 'additionalDoc'].forEach(initDocUpload);
 
 // ── EXPERIENCE YEARS DROPDOWN ──
 const expTrigger   = document.getElementById('expTrigger');

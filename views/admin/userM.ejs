@@ -6,6 +6,71 @@
 %>
 <%- include('admin-header') %>
 
+<style>
+  .di-doc-thumb {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    position: relative;
+    cursor: pointer;
+    transition: border-color .2s;
+  }
+  .di-doc-thumb:hover { border-color: #1565C0; }
+  .di-doc-thumb img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+  .di-doc-thumb .di-doc-pdf-icon {
+    font-size: 1.4rem; color: #C62828;
+  }
+  .di-doc-label-overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(0,0,0,.6);
+    color: white; font-size: .48rem; font-weight: 600;
+    text-align: center; padding: .15rem 0;
+    text-transform: uppercase; letter-spacing: .3px;
+  }
+  .di-doc-empty {
+    border: 1px dashed #ddd; background: #fafafa;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    aspect-ratio: 1 / 1;
+    border-radius: var(--radius-md);
+    color: #ccc; font-size: .55rem; font-weight: 500;
+    text-align: center;
+    padding: .2rem;
+  }
+  .di-doc-empty i {
+    font-size: .7rem; margin-bottom: .1rem;
+  }
+  .doc-lightbox {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,.85); z-index: 10000;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 1.5rem;
+    cursor: pointer;
+  }
+  .doc-lightbox.open { display: flex; }
+  .doc-lightbox img {
+    max-width: 90%; max-height: 90%;
+    border-radius: 8px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.4);
+    object-fit: contain;
+  }
+  .doc-lightbox iframe {
+    width: 90%; height: 90%;
+    border-radius: 8px;
+    border: none;
+    background: white;
+  }
+</style>
+
 <!-- ── Search ── -->
 <div style="display:flex;justify-content:flex-end;margin-bottom:1.2rem">
   <div class="search-bar" style="max-width:320px;width:100%">
@@ -479,17 +544,10 @@
                 <button class="act-btn btn-del" data-action="delete" data-id="<%= driver._id %>" data-name="<%= driver.fullname %>">
                   Delete
                 </button>
-                <% if (driver.status === 'approved' || driver.status === 'suspended') { %>
-                  <button class="act-btn" style="background:#FFF3E0;color:#F57C00"
-                    onclick="openDriverInfoModal('<%= driver._id %>', '<%= driver.fullname.replace(/'/g, "\\'") %>', '<%= driver.userId %>')">
-                    <i class="fas fa-truck"></i> Driver Info
-                  </button>
-                <% } else { %>
-                  <button class="act-btn btn-student-info-locked" disabled
-                    title="Driver info is only available after the account is approved">
-                    <i class="fas fa-lock"></i> Driver Info
-                  </button>
-                <% } %>
+                <button class="act-btn" style="background:#FFF3E0;color:#F57C00"
+                  onclick="openDriverInfoModal('<%= driver._id %>', '<%= driver.fullname.replace(/'/g, "\\'") %>', '<%= driver.userId %>')">
+                  <i class="fas fa-truck"></i> Driver Info
+                </button>
               </div>
             </td>
           </tr>
@@ -977,6 +1035,28 @@
           <div class="si-field"><label>Experience</label><span id="dv-experienceYears">—</span></div>
         </div>
 
+        <div class="si-section-title"><i class="fas fa-file-text"></i> Documents</div>
+        <div class="di-doc-grid" id="dv-documents" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:.35rem;margin-top:.2rem">
+          <div class="di-doc-placeholder" data-doc-id="cnicFront">
+            <div class="di-doc-empty"><i class="ti ti-circle-minus"></i><span>CNIC Front</span></div>
+          </div>
+          <div class="di-doc-placeholder" data-doc-id="cnicBack">
+            <div class="di-doc-empty"><i class="ti ti-circle-minus"></i><span>CNIC Back</span></div>
+          </div>
+          <div class="di-doc-placeholder" data-doc-id="licenseImage">
+            <div class="di-doc-empty"><i class="ti ti-circle-minus"></i><span>License</span></div>
+          </div>
+          <div class="di-doc-placeholder" data-doc-id="vehicleDocImage">
+            <div class="di-doc-empty"><i class="ti ti-circle-minus"></i><span>Vehicle Reg</span></div>
+          </div>
+          <div class="di-doc-placeholder" data-doc-id="profilePhoto">
+            <div class="di-doc-empty"><i class="ti ti-circle-minus"></i><span>Photo</span></div>
+          </div>
+          <div class="di-doc-placeholder" data-doc-id="additionalDoc">
+            <div class="di-doc-empty"><i class="ti ti-circle-minus"></i><span>Additional</span></div>
+          </div>
+        </div>
+
       </div>
 
       <form id="di-edit-section" method="POST" style="display:none">
@@ -1060,6 +1140,14 @@
 
 
 <%- include('../partials/id-lightbox') %>
+
+<!-- ════════════════════════════════════════
+     DRIVER DOCUMENT LIGHTBOX
+════════════════════════════════════════ -->
+<div class="doc-lightbox" id="diDocLightbox" onclick="closeDocLightbox()">
+  <img id="diDocLightboxImg" src="" alt="Document preview" style="display:none">
+  <iframe id="diDocLightboxIframe" src="" style="display:none"></iframe>
+</div>
 
 
 <!-- ══════════════════════════════════════
@@ -1794,6 +1882,31 @@ async function openDriverInfoModal(userId, userName, userUid) {
     document.getElementById('dv-serviceArea').textContent        = dInfo.serviceArea || '—';
     document.getElementById('dv-experienceYears').textContent    = dInfo.experienceYears ? dInfo.experienceYears + ' yrs' : '—';
 
+    // ── Documents ──
+    const docFields = [
+      { id: 'cnicFront',    label: 'CNIC Front',  path: dInfo.cnicFrontImage },
+      { id: 'cnicBack',     label: 'CNIC Back',   path: dInfo.cnicBackImage },
+      { id: 'licenseImage', label: 'License',     path: dInfo.licenseImage },
+      { id: 'vehicleDocImage', label: 'Vehicle Reg', path: dInfo.vehicleDocImage },
+      { id: 'profilePhoto', label: 'Photo',       path: dInfo.profilePhoto },
+      { id: 'additionalDoc',label: 'Additional',  path: dInfo.additionalDoc }
+    ];
+    docFields.forEach(function(df) {
+      var placeholder = document.querySelector('#dv-documents .di-doc-placeholder[data-doc-id="' + df.id + '"]');
+      if (!placeholder) return;
+      if (df.path) {
+        var isPdf = df.path.toLowerCase().endsWith('.pdf');
+        placeholder.innerHTML = '<div class="di-doc-thumb" onclick="openDocLightbox(\'' + df.path + '\')">'
+          + (isPdf
+              ? '<div class="di-doc-pdf-icon"><i class="fas fa-file-pdf"></i></div>'
+              : '<img src="/' + df.path + '" alt="' + df.label + '">')
+          + '<div class="di-doc-label-overlay">' + df.label + '</div>'
+          + '</div>';
+      } else {
+        placeholder.innerHTML = '<div class="di-doc-empty"><i class="ti ti-circle-minus"></i><span>' + df.label + '</span></div>';
+      }
+    });
+
     // Edit fields
     document.getElementById('de-cnic').value                = dInfo.cnic || '';
     document.getElementById('de-licenseNumber').value       = dInfo.licenseNumber || '';
@@ -1885,6 +1998,40 @@ document.addEventListener('keydown', function (e) {
     if (document.getElementById('driverInfoModal').classList.contains('open')) {
       closeDriverInfoModal();
     }
+  }
+});
+
+// ── Driver document lightbox ──
+function openDocLightbox(path) {
+  closeDocLightbox();
+  var lb = document.getElementById('diDocLightbox');
+  var img = document.getElementById('diDocLightboxImg');
+  var iframe = document.getElementById('diDocLightboxIframe');
+
+  if (path.toLowerCase().endsWith('.pdf')) {
+    iframe.src = '/' + path;
+    iframe.style.display = 'block';
+  } else {
+    img.src = '/' + path;
+    img.style.display = 'block';
+  }
+  lb.classList.add('open');
+}
+
+function closeDocLightbox() {
+  var lb = document.getElementById('diDocLightbox');
+  if (lb) lb.classList.remove('open');
+  var img = document.getElementById('diDocLightboxImg');
+  if (img) { img.src = ''; img.style.display = 'none'; }
+  var iframe = document.getElementById('diDocLightboxIframe');
+  if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
+}
+
+// Escape key closes the lightbox
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') {
+    var lb = document.getElementById('diDocLightbox');
+    if (lb && lb.classList.contains('open')) closeDocLightbox();
   }
 });
 </script>

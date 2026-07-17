@@ -76,6 +76,18 @@ const userSchema = new mongoose.Schema({
         type    : String,
         ref     : 'User',
         default : 'admin'
+    },
+
+    // When the account was approved (set by admin)
+    approvedAt: {
+        type    : Date,
+        default : null
+    },
+
+    // Why the account was rejected (set by admin)
+    rejectionReason: {
+        type    : String,
+        default : null
     }
 
 }, { timestamps: true });

@@ -10,16 +10,25 @@ const upload = require('../utils/upload.js');
 router.get('/dashboard', driverMiddleware, driverController.getDashboard);
 
 // ══════════════════════════════════════
+// AVAILABILITY TOGGLE (Online / Offline)
+// ══════════════════════════════════════
+router.post('/availability/toggle', driverMiddleware, driverController.toggleAvailability);
+
+// ══════════════════════════════════════
 // PROFILE
 // ══════════════════════════════════════
 router.get('/profile', driverMiddleware, driverController.getProfile);
 
 // ══════════════════════════════════════
-// CAB BOOKINGS
+// CAB BOOKINGS — Ride reservation workflow
 // ══════════════════════════════════════
 router.get('/bookings', driverMiddleware, driverController.getBookings);
+router.get('/bookings/available', driverMiddleware, driverController.getAvailableRequests);
+router.post('/bookings/reserve/:id', driverMiddleware, driverController.reserveRequest);
+router.post('/bookings/quote/:id', driverMiddleware, driverController.submitQuote);
+router.post('/bookings/reject/:id', driverMiddleware, driverController.releaseReservation);
+router.post('/bookings/status/:id', driverMiddleware, driverController.updateRideStatus);
 router.post('/bookings/accept/:id', driverMiddleware, driverController.acceptBooking);
-router.post('/bookings/reject/:id', driverMiddleware, driverController.rejectBooking);
 
 // ══════════════════════════════════════
 // VEHICLE MANAGEMENT

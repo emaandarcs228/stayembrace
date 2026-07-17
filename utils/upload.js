@@ -36,7 +36,7 @@ const storage = multer.diskStorage({
         cb(null, 'public/uploads/complaints');
     } else if (file.fieldname === 'menuItemImage') {
         cb(null, 'public/uploads/mess');
-    } else if (['cnicFront', 'cnicBack', 'licenseImage', 'vehicleDoc'].includes(file.fieldname)) {
+    } else if (['cnicFront', 'cnicBack', 'licenseImage', 'vehicleDoc', 'profilePhoto', 'additionalDoc'].includes(file.fieldname)) {
         cb(null, 'public/uploads/driver-docs');
     } else {
         cb(null, 'public/uploads/profiles');
@@ -52,12 +52,16 @@ const storage = multer.diskStorage({
 });
 
 
-// ── File filter — images only ──────────────────────────────────────────
+// ── File filter — images & PDFs ────────────────────────────────────────
 function fileFilter(req, file, cb) {
-    const allowed = /jpeg|jpg|png|webp|pdf/;
+    // Profile photos must be images only (no PDFs)
+    const isProfilePhoto = file.fieldname === 'profilePhoto';
+    const allowed = isProfilePhoto ? /jpeg|jpg|png|webp/ : /jpeg|jpg|png|webp|pdf/;
     const ext     = path.extname(file.originalname).toLowerCase();
     if (allowed.test(ext)) {
         cb(null, true);
+    } else if (isProfilePhoto) {
+        cb(new Error('Profile photo must be an image (jpg, png, webp). PDFs are not allowed.'));
     } else {
         cb(new Error('Only image files (jpg, png, webp) and PDFs are allowed.'));
     }

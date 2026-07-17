@@ -20,6 +20,13 @@ attendanceSchedule();
 leaveSchedule();
 laundrySchedule();
 
+// ═══════════════════════════════════════════════════════════════
+// CAB BOOKING RESERVATION TIMEOUT — runs every 30 seconds
+// Releases reservations that have exceeded the 2-minute window.
+// ═══════════════════════════════════════════════════════════════
+const releaseExpiredReservations = require('./jobs/reservationTimeoutJob');
+setInterval(releaseExpiredReservations, 30_000);
+
 // Middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());

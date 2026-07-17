@@ -243,6 +243,8 @@ exports.registerDriver = async (req, res) => {
             cnicBackImage: getFile('cnicBack'),
             licenseImage: getFile('licenseImage'),
             vehicleDocImage: getFile('vehicleDoc'),
+            profilePhoto: getFile('profilePhoto'),
+            additionalDoc: getFile('additionalDoc'),
             isVerified: false,
             isActive: true
         });
@@ -376,9 +378,19 @@ exports.loginDriver = async (req, res) => {
             return res.render('login-driver', { error: "Invalid credentials" });
         }
 
-        if (user.status !== "approved") {
+        if (user.status === 'rejected') {
             return res.render('login-driver', {
-                error: "Account not approved yet. Please wait for admin approval."
+                error: 'Your account has been rejected. Reason: ' + (user.rejectionReason || 'No reason provided')
+            });
+        }
+        if (user.status === 'suspended') {
+            return res.render('login-driver', {
+                error: 'Your account has been suspended. Please contact the administration.'
+            });
+        }
+        if (user.status !== 'approved') {
+            return res.render('login-driver', {
+                error: 'Account not approved yet. Please wait for admin approval.'
             });
         }
 

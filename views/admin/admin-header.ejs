@@ -54,6 +54,15 @@
         <% } %>
       </a>
 
+      <a href="/admin/pending-drivers"
+         class="nav-item <%= activePage === 'pending-drivers' ? 'active' : '' %>">
+        <i class="fas fa-taxi"></i>
+        <span>Driver Approvals</span>
+        <% if (typeof totalPending !== 'undefined' && totalPending > 0) { %>
+          <span class="nav-badge"><%= totalPending %></span>
+        <% } %>
+      </a>
+
       <a href="/admin/rooms"
    class="nav-item <%= activePage === 'rooms' ? 'active' : '' %>">
   <i class="ti ti-bed"></i>

@@ -1,0 +1,361 @@
+<% const activePage = 'pending-drivers'; const pageTitle = 'Pending Driver Registrations'; const pageSubtitle = 'Review and manage pending driver applications'; %>
+<%- include('admin-header') %>
+
+<style>
+  @keyframes pdFadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .pd-card {
+    animation: pdFadeIn .35s ease both;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: white;
+    overflow: hidden;
+    transition: box-shadow .25s, transform .2s;
+  }
+  .pd-card:hover {
+    box-shadow: 0 6px 24px rgba(0,0,0,.06);
+  }
+  .pd-section {
+    padding: .85rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .pd-section:last-of-type { border-bottom: none; }
+  .pd-label {
+    font-size: .58rem; font-weight: 600; color: #aaa;
+    text-transform: uppercase; letter-spacing: .5px;
+    margin-bottom: .2rem;
+  }
+  .pd-value {
+    font-size: .8rem; font-weight: 500; color: var(--text-primary);
+  }
+  .pd-value-sm {
+    font-size: .68rem; color: var(--text-muted);
+  }
+  .pd-doc-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: .4rem;
+  }
+  .pd-doc-thumb {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    position: relative;
+    cursor: pointer;
+    transition: border-color .2s;
+  }
+  .pd-doc-thumb:hover { border-color: #1565C0; }
+  .pd-doc-thumb img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+  .pd-doc-thumb .pd-doc-pdf-icon {
+    font-size: 1.4rem; color: #C62828;
+  }
+  .pd-doc-label-overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(0,0,0,.6);
+    color: white; font-size: .48rem; font-weight: 600;
+    text-align: center; padding: .15rem 0;
+    text-transform: uppercase; letter-spacing: .3px;
+  }
+  .pd-doc-missing {
+    border: 1px dashed #ddd; background: #fafafa;
+    display: flex; align-items: center; justify-content: center;
+    aspect-ratio: 1 / 1;
+    border-radius: var(--radius-md);
+    color: #ccc; font-size: .55rem; font-weight: 500;
+  }
+  .pd-stat-chip {
+    display: inline-flex; align-items: center; gap: .2rem;
+    padding: .15rem .45rem;
+    border-radius: var(--radius-pill);
+    font-size: .6rem; font-weight: 600;
+    background: #f5f5f5; color: var(--text-secondary);
+  }
+  .pd-count-pill {
+    display: inline-flex; align-items: center;
+    padding: .15rem .5rem;
+    border-radius: var(--radius-pill);
+    font-size: .6rem; font-weight: 700;
+    background: #FFF3E0; color: #E65100;
+  }
+
+  /* ── Document lightbox ── */
+  .doc-lightbox {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,.85); z-index: 10000;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 1.5rem;
+    cursor: pointer;
+  }
+  .doc-lightbox.open { display: flex; }
+  .doc-lightbox img {
+    max-width: 90%; max-height: 90%;
+    border-radius: 8px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.4);
+    object-fit: contain;
+  }
+  .doc-lightbox iframe {
+    width: 90%; height: 90%;
+    border-radius: 8px;
+    border: none;
+    background: white;
+  }
+</style>
+
+<!-- ── Stats bar ── -->
+<div style="display:flex;gap:.6rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
+  <span style="font-size:.82rem;font-weight:600;color:var(--text-primary)">
+    <i class="ti ti-users" style="color:#E65100"></i>
+    <span id="pdCount"><%= totalPending %></span> pending driver<%= totalPending !== 1 ? 's' : '' %>
+  </span>
+  <span class="pd-count-pill"><i class="ti ti-clock"></i> Awaiting Review</span>
+  <span class="badge badge-info" style="font-size:.58rem"><i class="ti ti-id"></i> All documents</span>
+</div>
+
+<% if (drivers.length > 0) { %>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(480px,1fr));gap:1.2rem" id="driverGrid">
+
+<% drivers.forEach(function(d, idx) {
+  const registeredDate = new Date(d.registeredAt);
+  const dateStr = registeredDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' });
+  const timeStr = registeredDate.toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit' });
+  const expDate = d.licenseExpiry ? new Date(d.licenseExpiry) : null;
+  const expStr = expDate ? expDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+  const expPast = expDate && expDate < new Date();
+
+  const docs = [
+    { name: 'cnicFront', label: 'CNIC Front', path: d.cnicFrontImage, type: 'image' },
+    { name: 'cnicBack', label: 'CNIC Back', path: d.cnicBackImage, type: 'image' },
+    { name: 'licenseImage', label: 'License', path: d.licenseImage, type: 'image' },
+    { name: 'vehicleDoc', label: 'Vehicle Reg', path: d.vehicleDocImage, type: 'image' },
+    { name: 'profilePhoto', label: 'Photo', path: d.profilePhoto, type: 'image' },
+    { name: 'additionalDoc', label: 'Additional', path: d.additionalDoc, type: 'image' },
+  ];
+  const uploadedCount = docs.filter(doc => doc.path).length;
+%>
+
+<div class="pd-card" style="animation-delay:<%= idx * 0.04 %>s">
+
+  <!-- ── HEADER ── -->
+  <div class="pd-section" style="display:flex;align-items:center;gap:.9rem;background:#f8f9fa">
+    <div style="width:52px;height:52px;border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#E65100,#F57C00);color:white;font-size:1.2rem;font-weight:700">
+      <% if (d.profilePhoto) { %>
+        <img src="/<%= d.profilePhoto.replace(/^public[\/\\]/, '') %>" alt="<%= d.fullname %>" style="width:100%;height:100%;object-fit:cover">
+      <% } else { %>
+        <%= d.fullname.charAt(0).toUpperCase() %>
+      <% } %>
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+        <span style="font-size:1rem;font-weight:700;color:var(--text-primary)"><%= d.fullname %></span>
+        <span class="badge badge-warning" style="font-size:.48rem">Pending</span>
+      </div>
+      <div style="font-size:.64rem;color:var(--text-muted);margin-top:.1rem">
+        <i class="ti ti-id-badge"></i> <%= d.userId %> &nbsp;·&nbsp;
+        <i class="ti ti-calendar"></i> Registered <%= dateStr %>
+      </div>
+    </div>
+    <span style="font-size:.58rem;color:var(--text-muted)"><%= timeStr %></span>
+  </div>
+
+  <!-- ── PERSONAL INFO ── -->
+  <div class="pd-section">
+    <div class="pd-label"><i class="ti ti-user"></i> Personal Details</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem">
+      <div><span class="pd-value-sm">Email</span><div class="pd-value"><%= d.email %></div></div>
+      <div><span class="pd-value-sm">Phone</span><div class="pd-value"><%= d.phoneNumber %></div></div>
+      <div><span class="pd-value-sm">Gender</span><div class="pd-value"><%= d.gender %></div></div>
+      <div><span class="pd-value-sm">CNIC</span><div class="pd-value"><%= d.cnic %></div></div>
+      <% if (d.dateOfBirth) { %>
+      <div><span class="pd-value-sm">DOB</span><div class="pd-value"><%= new Date(d.dateOfBirth).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %></div></div>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- ── LICENSE ── -->
+  <div class="pd-section">
+    <div class="pd-label"><i class="ti ti-id"></i> License</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem">
+      <div><span class="pd-value-sm">Number</span><div class="pd-value"><%= d.licenseNumber %></div></div>
+      <div><span class="pd-value-sm">Expiry</span><div class="pd-value" style="color:<%= expPast ? '#C62828' : 'var(--text-primary)' %>"><%= expStr %><% if (expPast) { %> <span class="badge badge-danger" style="font-size:.48rem">Expired</span><% } %></div></div>
+    </div>
+  </div>
+
+  <!-- ── VEHICLE ── -->
+  <div class="pd-section">
+    <div class="pd-label"><i class="ti ti-steering-wheel"></i> Vehicle</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem">
+      <div><span class="pd-value-sm">Type</span><div class="pd-value" style="text-transform:capitalize"><%= d.vehicleType %></div></div>
+      <div><span class="pd-value-sm">Reg No.</span><div class="pd-value"><%= d.vehicleRegistration %></div></div>
+      <div><span class="pd-value-sm">Model</span><div class="pd-value"><%= d.vehicleModel || '—' %></div></div>
+      <div><span class="pd-value-sm">Area</span><div class="pd-value"><%= d.serviceArea || '—' %></div></div>
+      <% if (d.experienceYears !== null && d.experienceYears !== '—') { %>
+      <div><span class="pd-value-sm">Experience</span><div class="pd-value"><%= d.experienceYears %> year<%= d.experienceYears > 1 ? 's' : '' %></div></div>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- ── DOCUMENTS ── -->
+  <div class="pd-section">
+    <div class="pd-label"><i class="ti ti-file-text"></i> Documents (<%= uploadedCount %>/6)</div>
+    <div class="pd-doc-grid">
+      <% docs.forEach(function(doc) { %>
+        <% if (doc.path) { %>
+          <div class="pd-doc-thumb" onclick="openDocLightbox('<%= doc.path.replace(/^public[\/\\]/, '') %>')">
+            <% if (doc.path.toLowerCase().endsWith('.pdf')) { %>
+              <div class="pd-doc-pdf-icon"><i class="fas fa-file-pdf"></i></div>
+            <% } else { %>
+              <img src="/<%= doc.path.replace(/^public[\/\\]/, '') %>" alt="<%= doc.label %>">
+            <% } %>
+            <div class="pd-doc-label-overlay"><%= doc.label %></div>
+          </div>
+        <% } else { %>
+          <div class="pd-doc-missing">
+            <div style="text-align:center">
+              <i class="ti ti-circle-minus" style="display:block;font-size:.7rem;margin-bottom:.1rem"></i>
+              <%= doc.label %>
+            </div>
+          </div>
+        <% } %>
+      <% }); %>
+    </div>
+  </div>
+
+  <!-- ── ACTIONS ── -->
+  <div class="pd-section" style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;background:#fafafa">
+    <button type="button" class="act-btn btn-approve" onclick="openApproveModal('<%= d._id %>', '<%= d.fullname.replace(/'/g, "\\'") %>')">
+      <i class="ti ti-check"></i> Approve
+    </button>
+    <button type="button" class="act-btn btn-cancel" onclick="openRejectModal('<%= d._id %>', '<%= d.fullname.replace(/'/g, "\\'") %>')">
+      <i class="ti ti-x"></i> Reject
+    </button>
+  </div>
+
+</div>
+
+<% }); %>
+
+</div>
+
+<% } else { %>
+
+<div class="card" style="text-align:center;padding:3rem">
+  <i class="ti ti-user-check" style="font-size:3rem;opacity:.2;display:block;margin-bottom:.8rem"></i>
+  <h3>All Clear!</h3>
+  <p style="color:var(--text-muted);font-size:.82rem">There are no pending driver registrations to review.</p>
+</div>
+
+<% } %>
+
+<!-- ════════════════════════════════════════
+     APPROVE MODAL
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="approveModal" onclick="if(event.target===this)closeModal('approveModal')">
+  <div class="del-modal-box" style="max-width:400px">
+    <div class="del-icon" style="background:var(--green-light);color:#2E7D32"><i class="ti ti-check"></i></div>
+    <h3>Approve this driver?</h3>
+    <p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:1rem" id="approveName">—</p>
+    <p style="font-size:.7rem;color:var(--text-muted);margin-bottom:1.2rem">The driver will receive an email with their login credentials once approved.</p>
+    <form id="approveForm" method="POST">
+      <div class="del-btns">
+        <button type="button" class="btn-cancel-del" onclick="closeModal('approveModal')">Cancel</button>
+        <button type="submit" class="btn-confirm-del" style="background:#2E7D32">Yes, Approve</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     REJECT MODAL
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="rejectModal" onclick="if(event.target===this)closeModal('rejectModal')">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-head">
+      <h3><i class="ti ti-x" style="color:#C62828"></i> Reject Driver</h3>
+      <button class="modal-close" onclick="closeModal('rejectModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="rejectForm" method="POST">
+      <div class="modal-body">
+        <p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:.6rem" id="rejectName">—</p>
+        <div class="form-group">
+          <label>Reason for rejection <span class="req">*</span></label>
+          <textarea name="reason" rows="3" required placeholder="Explain why the application is being rejected..."></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="submit" class="btn-modal-save" style="background:#C62828"><i class="ti ti-x"></i> Reject</button>
+        <button type="button" class="btn-modal-cancel" onclick="closeModal('rejectModal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     DOCUMENT LIGHTBOX
+════════════════════════════════════════ -->
+<div class="doc-lightbox" id="docLightbox" onclick="closeDocLightbox()">
+  <img id="docLightboxImg" src="" alt="Document preview" style="display:none">
+  <iframe id="docLightboxIframe" src="" style="display:none"></iframe>
+</div>
+
+<script>
+// ── Modal helpers ──
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── Approve ──
+function openApproveModal(id, name) {
+  document.getElementById('approveName').textContent = name;
+  document.getElementById('approveForm').action = '/admin/approve-driver/' + id + '?redirect=/admin/pending-drivers';
+  openModal('approveModal');
+}
+
+// ── Reject ──
+function openRejectModal(id, name) {
+  document.getElementById('rejectName').textContent = name;
+  document.getElementById('rejectForm').action = '/admin/reject-driver/' + id + '?redirect=/admin/pending-drivers';
+  document.getElementById('rejectForm').querySelector('textarea').value = '';
+  openModal('rejectModal');
+}
+
+// ── Document lightbox ──
+function openDocLightbox(path) {
+  var lb = document.getElementById('docLightbox');
+  var img = document.getElementById('docLightboxImg');
+  var iframe = document.getElementById('docLightboxIframe');
+  img.style.display = 'none';
+  iframe.style.display = 'none';
+
+  if (path.toLowerCase().endsWith('.pdf')) {
+    iframe.src = '/' + path;
+    iframe.style.display = 'block';
+  } else {
+    img.src = '/' + path;
+    img.style.display = 'block';
+  }
+  lb.classList.add('open');
+}
+
+function closeDocLightbox() {
+  document.getElementById('docLightbox').classList.remove('open');
+  document.getElementById('docLightboxImg').src = '';
+  document.getElementById('docLightboxIframe').src = '';
+}
+
+// ── Keyboard shortcut: Esc closes lightbox ──
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeDocLightbox();
+});
+</script>
+
+<%- include('admin-footer') %>

@@ -10,24 +10,23 @@ const cabBookingSchema = new mongoose.Schema({
     },
 
     // ── Who is the transport provider (driver) ────────────────────
-    // References the User record of the approved driver, not the
-    // Driver profile directly, so we can display name/phone without
-    // an extra lookup.
+    // Only set once the student accepts the driver's fare quote.
+    // Until then, the driver who reserves is tracked in reservedBy.
     driver: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        default: null
     },
 
     // Denormalised fields for fast display without population
     driverName: {
         type: String,
-        required: true
+        default: null
     },
 
     driverPhone: {
         type: String,
-        default: '—'
+        default: null
     },
 
     // ── Vehicle info (snapshot at booking time) ───────────────────
@@ -69,23 +68,87 @@ const cabBookingSchema = new mongoose.Schema({
         max: 10
     },
 
+    // Trip purpose (e.g. Personal, Academic, Medical, Airport, Other)
+    purpose: {
+        type: String,
+        default: ''
+    },
+
+    // Maximum budget the student is willing to pay
+    budget: {
+        type: Number,
+        default: null,
+        min: 0
+    },
+
     notes: {
         type: String,
         default: ''
     },
 
-    // ── Status tracking ───────────────────────────────────────────
+    // ── Ride Reservation Workflow ─────────────────────────────────
+    // The ride request workflow:
+    //   Pending (open for reservation) → Reserved (by a driver) →
+    //   Awaiting Student (driver submitted fare) → Confirmed (student accepted)
+    //   → In Progress → Completed
+    //   Cancelled can happen at any open stage.
+    //
+    // Pending:          Student submitted, waiting for a driver to reserve.
+    // Reserved:         A driver has reserved this request for 2 minutes
+    //                   to submit a fare quote. Hidden from other drivers.
+    // Awaiting Student: Driver submitted fare + ETA. Student must accept
+    //                   or reject. 2-min timer still applies.
+    // Confirmed:        Student accepted the fare. Ride is assigned.
+    // In Progress:      Driver has started the ride.
+    // Completed:        Ride finished successfully.
+    //
     status: {
         type: String,
-        enum: ['Pending', 'Confirmed', 'In Progress', 'Completed', 'Cancelled'],
+        enum: ['Pending', 'Reserved', 'Awaiting Student', 'Confirmed', 'In Progress', 'Completed', 'Cancelled'],
         default: 'Pending'
+    },
+
+    // Which driver currently has this request reserved
+    reservedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
+    },
+
+    // When the reservation started
+    reservedAt: {
+        type: Date,
+        default: null
+    },
+
+    // When the reservation expires (reservedAt + 2 minutes)
+    reservationExpiresAt: {
+        type: Date,
+        default: null
+    },
+
+    // The driver's quote: fare + estimated arrival time
+    quote: {
+        fare: { type: Number, default: null, min: 0 },
+        eta:  { type: String, default: '' },
+        submittedAt: { type: Date, default: null }
+    },
+
+    // The student's decision on the driver's quote
+    studentDecision: {
+        status: {
+            type: String,
+            enum: ['pending', 'accepted', 'rejected', 'expired'],
+            default: 'pending'
+        },
+        decidedAt: { type: Date, default: null }
     },
 
     // Tracks who cancelled and why
     cancellation: {
         by: {
             type: String,
-            enum: ['student', 'driver', 'admin', null],
+            enum: ['student', 'driver', 'admin', 'system', null],
             default: null
         },
         reason: {
@@ -110,8 +173,7 @@ const cabBookingSchema = new mongoose.Schema({
     },
 
     // ── Fare & Payment ──────────────────────────────────────────────
-    // Set by the driver when they accept the booking — payment only
-    // becomes possible once this is populated (i.e. status !== Pending).
+    // Set when the student accepts the driver's quote.
     fare: {
         type: Number,
         default: null,
@@ -150,5 +212,8 @@ const cabBookingSchema = new mongoose.Schema({
     }
 
 }, { timestamps: true });
+
+// ── Index for quick reservation expiry queries ─────────────────
+cabBookingSchema.index({ status: 1, reservationExpiresAt: 1 });
 
 module.exports = mongoose.model('CabBooking', cabBookingSchema);

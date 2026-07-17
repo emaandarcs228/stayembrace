@@ -11,14 +11,16 @@ router.post(
     authController.registerStudent
 );
 
-// ── Driver registration (multipart — handles 4 document uploads) ──
+// ── Driver registration (multipart — handles up to 6 document uploads) ──
 router.post(
     '/register/driver',
     upload.fields([
-        { name: 'cnicFront',    maxCount: 1 },
-        { name: 'cnicBack',     maxCount: 1 },
-        { name: 'licenseImage', maxCount: 1 },
-        { name: 'vehicleDoc',   maxCount: 1 }
+        { name: 'cnicFront',       maxCount: 1 },
+        { name: 'cnicBack',        maxCount: 1 },
+        { name: 'licenseImage',    maxCount: 1 },
+        { name: 'vehicleDoc',      maxCount: 1 },
+        { name: 'profilePhoto',    maxCount: 1 },
+        { name: 'additionalDoc',   maxCount: 1 }
     ]),
     authController.registerDriver
 );

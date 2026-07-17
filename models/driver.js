@@ -80,6 +80,18 @@ const driverSchema = new mongoose.Schema({
         default: null
     },
 
+    // Profile photo (for display in student-facing provider cards)
+    profilePhoto: {
+        type: String,
+        default: null
+    },
+
+    // Additional verification document (e.g. police clearance, reference letter)
+    additionalDoc: {
+        type: String,
+        default: null
+    },
+
     // ── Status ──────────────────────────────────────────────────────
     isVerified: {
         type: Boolean,
@@ -89,6 +101,13 @@ const driverSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
+    },
+
+    // Driver self-managed online/offline toggle
+    // Only online drivers appear in the available pool for ride requests
+    isOnline: {
+        type: Boolean,
+        default: false
     }
 
 }, { timestamps: true });

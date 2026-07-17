@@ -1109,6 +1109,8 @@ exports.getCabBookings = async (req, res) => {
         // ── Counts —─
         const totalAll    = allBookings.length;
         const totalPending    = allBookings.filter(b => b.status === 'Pending').length;
+        const totalReserved   = allBookings.filter(b => b.status === 'Reserved').length;
+        const totalAwaiting   = allBookings.filter(b => b.status === 'Awaiting Student').length;
         const totalConfirmed  = allBookings.filter(b => b.status === 'Confirmed').length;
         const totalInProgress = allBookings.filter(b => b.status === 'In Progress').length;
         const totalCompleted  = allBookings.filter(b => b.status === 'Completed').length;
@@ -1133,11 +1135,13 @@ exports.getCabBookings = async (req, res) => {
 
         // ── Helper: status badge class ──
         const statusClass = {
-            'Pending'     : 'badge-warning',
-            'Confirmed'   : 'badge-info',
-            'In Progress' : 'badge-primary',
-            'Completed'   : 'badge-success',
-            'Cancelled'   : 'badge-danger'
+            'Pending'          : 'badge-warning',
+            'Reserved'         : 'badge-info',
+            'Awaiting Student' : 'badge-purple',
+            'Confirmed'        : 'badge-info',
+            'In Progress'      : 'badge-primary',
+            'Completed'        : 'badge-success',
+            'Cancelled'        : 'badge-danger'
         };
 
         res.render('admin/cabBookings', {
@@ -1158,6 +1162,8 @@ exports.getCabBookings = async (req, res) => {
             counts: {
                 all        : totalAll,
                 pending    : totalPending,
+                reserved   : totalReserved,
+                awaiting   : totalAwaiting,
                 confirmed  : totalConfirmed,
                 inProgress : totalInProgress,
                 completed  : totalCompleted,
@@ -1184,10 +1190,21 @@ exports.confirmCabBooking = async (req, res) => {
             return res.status(403).send('Access Denied');
         }
 
-        // ── Atomic confirm: guards against a driver accepting/rejecting (or the
-        // student cancelling) this same booking at the same moment. ────────
+        // ── Atomic confirm: admin can confirm bookings that are in
+        // 'Awaiting Student' (student hasn't responded yet) or 'Confirmed'
+        // (already accepted by student, just needs admin final sign-off).
+        //
+        // Also handles legacy 'Pending' bookings from before the reservation
+        // workflow was introduced, but only if they have a driver assigned.
         const booking = await CabBooking.findOneAndUpdate(
-            { _id: req.params.id, status: 'Pending' },
+            {
+                _id: req.params.id,
+                $or: [
+                    { status: 'Awaiting Student' },
+                    { status: 'Confirmed' },
+                    { status: 'Pending', driver: { $ne: null } }
+                ]
+            },
             { $set: { status: 'Confirmed', confirmedAt: new Date() } },
             { new: true }
         );
