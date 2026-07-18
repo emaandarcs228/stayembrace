@@ -127,10 +127,11 @@ const cabBookingSchema = new mongoose.Schema({
         default: null
     },
 
-    // The driver's quote: fare + estimated arrival time
+    // The driver's quote: fare + estimated arrival time + optional comments
     quote: {
         fare: { type: Number, default: null, min: 0 },
         eta:  { type: String, default: '' },
+        comments: { type: String, default: '' },
         submittedAt: { type: Date, default: null }
     },
 

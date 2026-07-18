@@ -2106,6 +2106,7 @@ exports.cancelCabBooking = async (req, res) => {
                 reservationExpiresAt: null,
                 'quote.fare': null,
                 'quote.eta': '',
+                'quote.comments': '',
                 'quote.submittedAt': null
             } },
             { new: true }
@@ -2186,6 +2187,7 @@ exports.respondToQuote = async (req, res) => {
             booking.reservationExpiresAt = null;
             booking.quote.fare = null;
             booking.quote.eta = '';
+            booking.quote.comments = '';
             booking.quote.submittedAt = null;
             booking.studentDecision.status = 'expired';
             booking.studentDecision.decidedAt = now;
@@ -2256,6 +2258,7 @@ exports.respondToQuote = async (req, res) => {
             booking.reservationExpiresAt = null;
             booking.quote.fare = null;
             booking.quote.eta = '';
+            booking.quote.comments = '';
             booking.quote.submittedAt = null;
 
             await booking.save();

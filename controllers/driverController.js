@@ -455,6 +455,7 @@ exports.submitQuote = async (req, res) => {
         }
 
         const eta = req.body.eta || '';
+        const comments = req.body.comments || '';
         const now = new Date();
 
         // ── Atomic: only succeeds if this driver reserved it, it's still Reserved,
@@ -471,6 +472,7 @@ exports.submitQuote = async (req, res) => {
                     status              : 'Awaiting Student',
                     'quote.fare'        : fare,
                     'quote.eta'         : eta,
+                    'quote.comments'    : comments,
                     'quote.submittedAt' : new Date(),
                     // Refresh the 2-min timer so the student has time to respond
                     reservationExpiresAt: new Date(now.getTime() + 2 * 60 * 1000)
@@ -509,10 +511,17 @@ exports.submitQuote = async (req, res) => {
 
         try {
             if (studentRec && studentRec.user) {
-                const etaStr = eta ? ` (ETA: ${eta})` : '';
+                const commentsStr = comments ? `"${comments}"` : '';
+                const etaLine = eta ? `⏱ ETA: ${eta}` : '';
+                let msg = `🚗 Driver: ${req.user.fullname}\n💰 Fare: Rs ${fare.toLocaleString()}`;
+                if (etaLine) msg += `\n${etaLine}`;
+                msg += `\n📍 Route: ${booking.pickupLocation} → ${booking.dropoffLocation}`;
+                if (commentsStr) {
+                    msg += `\n💬 Note: ${commentsStr}`;
+                }
                 await Notification.create({
-                    title     : 'Fare Quote Received — Review & Accept',
-                    message   : `${req.user.fullname} has quoted Rs ${fare.toLocaleString()}${etaStr} for your ride from "${booking.pickupLocation}" to "${booking.dropoffLocation}".`,
+                    title     : `Fare Quote Received — Rs ${fare.toLocaleString()} from ${req.user.fullname}${eta ? ` (ETA: ${eta})` : ''}`,
+                    message   : msg,
                     recipient : studentRec.user._id,
                     category  : 'Requests',
                     relatedTo : { model: 'CabBooking', docId: booking._id },
@@ -555,6 +564,7 @@ exports.releaseReservation = async (req, res) => {
                     reservationExpiresAt  : null,
                     'quote.fare'          : null,
                     'quote.eta'           : '',
+                    'quote.comments'      : '',
                     'quote.submittedAt'   : null,
                     'studentDecision.status': 'pending',
                     'studentDecision.decidedAt': null

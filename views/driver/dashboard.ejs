@@ -644,6 +644,12 @@
             <label>Estimated Time of Arrival (optional)</label>
             <input type="text" name="eta" id="quoteEta" placeholder="e.g. 10 mins / 2:30 PM">
           </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Comments <span style="font-size:.65rem;color:var(--text-muted)">(optional)</span></label>
+            <textarea name="comments" id="quoteComments" rows="3" maxlength="500"
+              placeholder="Any special notes for the student — e.g. wait at the gate, luggage help, etc."
+              style="resize:vertical;font-size:.78rem"></textarea>
+          </div>
         </div>
       </div>
       <div class="modal-foot">
@@ -655,6 +661,8 @@
 </div>
 
 
+<script src="/js/driver-realtime.js"></script>
+
 <script>
 // ── Open quote modal ──
 function openQuoteModal(bookingId, pickup, dropoff) {
@@ -662,6 +670,7 @@ function openQuoteModal(bookingId, pickup, dropoff) {
   document.getElementById('quoteRoute').textContent = (pickup || '') + ' → ' + (dropoff || '');
   document.getElementById('quoteFare').value = '';
   document.getElementById('quoteEta').value = '';
+  document.getElementById('quoteComments').value = '';
   openModal('quoteModal');
 }
 

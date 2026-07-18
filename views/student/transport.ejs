@@ -597,10 +597,18 @@
               data-review="<%= b.review || '' %>"
               data-fare="<%= b.fare || '' %>"
               data-payment-status="<%= b.paymentStatus %>"
+              data-quote-comments="<%= (b.quote && b.quote.comments) || '' %>"
+              data-quote-eta="<%= (b.quote && b.quote.eta) || '' %>"
               onclick="openBookingDetail(this)">
             <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
             <td>
-              <div style="font-weight:600;font-size:.78rem"><%= b.driverName %></div>
+              <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap">
+                <span style="font-weight:600;font-size:.78rem"><%= b.driverName %></span>
+                <% var quoteEta = (b.quote && b.quote.eta) || ''; %>
+                <% if (b.status === 'Awaiting Student' && quoteEta) { %>
+                  <span class="badge badge-success" style="font-size:.5rem;padding:.08rem .35rem"><i class="ti ti-clock"></i> ETA: <%= quoteEta %></span>
+                <% } %>
+              </div>
               <div style="font-size:.65rem;color:var(--text-muted)"><%= b.vehicleType || '—' %> · <%= b.vehicleRegistration || '—' %></div>
               <% var isAssigned = ['Confirmed', 'In Progress'].includes(b.status); %>
               <div class="tp-assigned-driver" style="<%= isAssigned ? '' : 'display:none;' %>margin-top:.35rem;padding:.35rem .5rem;background:#E8F5E9;border:1px solid #C8E6C9;border-radius:6px">
@@ -655,6 +663,20 @@
                 <form action="/student/transport/cancel/<%= b._id %>" method="POST" id="cancelCabForm-<%= b._id %>" class="cab-cancel-action">
                   <button type="button" class="act-btn btn-cancel" onclick="event.stopPropagation();openCancelCabModal('<%= b._id %>')">
                     <i class="ti ti-x"></i>
+                  </button>
+                </form>
+                <% } %>
+                <% if (b.status === 'Awaiting Student') { %>
+                <form action="/student/transport/respond/<%= b._id %>" method="POST" style="display:inline" class="cab-respond-action">
+                  <input type="hidden" name="response" value="accepted">
+                  <button type="button" class="act-btn btn-approve" style="font-size:.62rem;padding:.25rem .45rem" onclick="event.stopPropagation();openAcceptQuoteModal('<%= b._id %>', '<%= b.driverName %>', '<%= (b.quote && b.quote.fare) || 0 %>')">
+                    <i class="ti ti-check"></i> Accept
+                  </button>
+                </form>
+                <form action="/student/transport/respond/<%= b._id %>" method="POST" style="display:inline" class="cab-respond-action">
+                  <input type="hidden" name="response" value="rejected">
+                  <button type="button" class="act-btn btn-cancel" style="font-size:.62rem;padding:.25rem .45rem" onclick="event.stopPropagation();confirm('Decline this fare quote from <%= b.driverName %>? The driver will be notified and the request will be open for other drivers.')&&this.closest('form').submit()">
+                    <i class="ti ti-x"></i> Decline
                   </button>
                 </form>
                 <% } %>
@@ -736,6 +758,16 @@
         <div style="font-size:.78rem;margin-top:.2rem;display:none" id="bdNotesWrap"><strong>Notes:</strong> <span id="bdNotes"></span></div>
       </div>
 
+      <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.65rem .85rem;display:none" id="bdEtaWrap">
+        <div class="tp-label"><i class="ti ti-clock"></i> Estimated Arrival</div>
+        <div style="font-size:.82rem;font-weight:600;color:#2E7D32" id="bdEta">—</div>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.65rem .85rem;display:none" id="bdDriverNoteWrap">
+        <div class="tp-label"><i class="ti ti-message"></i> Driver's Note</div>
+        <div style="font-size:.78rem;color:var(--text-secondary);line-height:1.5;background:#FFF8E1;padding:.5rem .7rem;border-radius:var(--radius-sm);border-left:3px solid #FFB300" id="bdDriverNote"></div>
+      </div>
+
       <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:.65rem .85rem">
         <div class="tp-label"><i class="ti ti-clock"></i> Timeline</div>
         <div style="font-size:.75rem;display:flex;flex-direction:column;gap:.3rem" id="bdTimeline"></div>
@@ -749,8 +781,24 @@
 
     </div>
 
-    <div class="modal-foot">
+    <div class="modal-foot" id="bdModalFoot">
       <button type="button" class="btn-modal-cancel" onclick="closeModal('bookingDetailModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     ACCEPT QUOTE MODAL
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="acceptQuoteModal">
+  <div class="del-modal-box">
+    <div class="del-icon" style="background:#E8F5E9;color:#2E7D32"><i class="ti ti-check"></i></div>
+    <h3>Accept this fare quote?</h3>
+    <p>The ride will be confirmed and the driver will be notified. You won't be able to cancel after accepting.</p>
+    <p style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem" id="acceptQuoteSummary"></p>
+    <div class="del-btns">
+      <button class="btn-cancel-del" onclick="closeModal('acceptQuoteModal')">Cancel</button>
+      <button class="btn-confirm-del" style="background:#2E7D32" id="confirmAcceptQuoteBtn">Yes, Accept Offer</button>
     </div>
   </div>
 </div>
@@ -1102,6 +1150,7 @@ async function pollCabBookingStatuses() {
       }
       if (info.fare) row.setAttribute('data-fare', info.fare);
       if (info.paymentStatus) row.setAttribute('data-payment-status', info.paymentStatus);
+      if (info.quoteEta) row.setAttribute('data-quote-eta', info.quoteEta);
 
       var badge = row.querySelector('.cab-status-badge');
       if (badge) {
@@ -1212,6 +1261,26 @@ function openBookingDetail(row) {
     notesWrap.style.display = 'none';
   }
 
+  // Driver's ETA (estimated arrival time from the quote)
+  var etaWrap = document.getElementById('bdEtaWrap');
+  var eta = row.getAttribute('data-quote-eta');
+  if (eta) {
+    etaWrap.style.display = '';
+    document.getElementById('bdEta').textContent = eta;
+  } else {
+    etaWrap.style.display = 'none';
+  }
+
+  // Driver's note (quote comments from the driver)
+  var driverNoteWrap = document.getElementById('bdDriverNoteWrap');
+  var driverNote = row.getAttribute('data-quote-comments');
+  if (driverNote) {
+    driverNoteWrap.style.display = '';
+    document.getElementById('bdDriverNote').textContent = driverNote;
+  } else {
+    driverNoteWrap.style.display = 'none';
+  }
+
   // Timeline
   var timeline = [{ label: 'Booked', value: row.getAttribute('data-booked-at') }];
 
@@ -1295,6 +1364,23 @@ function openCancelCabModal(bookingId) {
 document.getElementById('confirmCancelCabBtn').addEventListener('click', function() {
   if (cancelCabTargetId) {
     document.getElementById('cancelCabForm-' + cancelCabTargetId).submit();
+  }
+});
+
+// ── Accept Quote ──
+let acceptQuoteTargetId = null;
+
+function openAcceptQuoteModal(bookingId, driverName, fare) {
+  acceptQuoteTargetId = bookingId;
+  document.getElementById('acceptQuoteSummary').textContent =
+    'Driver: ' + (driverName || '—') + ' · Fare: Rs ' + (Number(fare) || 0).toLocaleString();
+  openModal('acceptQuoteModal');
+}
+
+document.getElementById('confirmAcceptQuoteBtn').addEventListener('click', function() {
+  if (acceptQuoteTargetId) {
+    var form = document.querySelector('form[action="/student/transport/respond/' + acceptQuoteTargetId + '"]');
+    if (form) form.submit();
   }
 });
 

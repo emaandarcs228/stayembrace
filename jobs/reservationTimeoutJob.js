@@ -44,6 +44,7 @@ async function releaseExpiredReservations() {
                     reservationExpiresAt    : null,
                     'quote.fare'            : null,
                     'quote.eta'             : '',
+                    'quote.comments'        : '',
                     'quote.submittedAt'     : null,
                     'studentDecision.status': 'expired',
                     'studentDecision.decidedAt': new Date()
