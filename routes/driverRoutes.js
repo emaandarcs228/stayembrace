@@ -20,6 +20,13 @@ router.post('/availability/toggle', driverMiddleware, driverController.toggleAva
 router.get('/profile', driverMiddleware, driverController.getProfile);
 
 // ══════════════════════════════════════
+// NOTIFICATIONS
+// ══════════════════════════════════════
+router.get('/notifications', driverMiddleware, driverController.getNotifications);
+router.post('/notifications/mark-read/:id', driverMiddleware, driverController.markNotificationRead);
+router.post('/notifications/mark-all-read', driverMiddleware, driverController.markAllNotificationsRead);
+
+// ══════════════════════════════════════
 // CAB BOOKINGS — Ride reservation workflow
 // ══════════════════════════════════════
 router.get('/bookings', driverMiddleware, driverController.getBookings);
@@ -27,7 +34,8 @@ router.get('/bookings/available', driverMiddleware, driverController.getAvailabl
 router.post('/bookings/reserve/:id', driverMiddleware, driverController.reserveRequest);
 router.post('/bookings/quote/:id', driverMiddleware, driverController.submitQuote);
 router.post('/bookings/reject/:id', driverMiddleware, driverController.releaseReservation);
-router.post('/bookings/status/:id', driverMiddleware, driverController.updateRideStatus);
+router.post('/bookings/status/:id', driverMiddleware, driverController.advanceRideStage);
+router.post('/bookings/cancel/:id', driverMiddleware, driverController.cancelConfirmedRide);
 router.post('/bookings/accept/:id', driverMiddleware, driverController.acceptBooking);
 
 // ══════════════════════════════════════

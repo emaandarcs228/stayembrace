@@ -48,27 +48,29 @@
   .di-doc-empty i {
     font-size: .7rem; margin-bottom: .1rem;
   }
-  .doc-lightbox {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,.85); z-index: 10000;
-    display: none;
-    align-items: center; justify-content: center;
-    padding: 1.5rem;
-    cursor: pointer;
+  .di-doc-thumb-container {
+    position: relative;
   }
-  .doc-lightbox.open { display: flex; }
-  .doc-lightbox img {
-    max-width: 90%; max-height: 90%;
-    border-radius: 8px;
-    box-shadow: 0 8px 40px rgba(0,0,0,.4);
-    object-fit: contain;
+  .di-doc-download-btn {
+    position: absolute; top: 2px; right: 2px;
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.55);
+    color: white;
+    border-radius: 4px;
+    font-size: .55rem;
+    text-decoration: none;
+    opacity: 0;
+    transition: opacity .2s;
+    z-index: 2;
   }
-  .doc-lightbox iframe {
-    width: 90%; height: 90%;
-    border-radius: 8px;
-    border: none;
-    background: white;
+  .di-doc-thumb-container:hover .di-doc-download-btn {
+    opacity: 1;
   }
+  .di-doc-download-btn:hover {
+    background: rgba(21,101,192,.85);
+  }
+
 </style>
 
 <!-- ── Search ── -->
@@ -1144,9 +1146,30 @@
 <!-- ════════════════════════════════════════
      DRIVER DOCUMENT LIGHTBOX
 ════════════════════════════════════════ -->
-<div class="doc-lightbox" id="diDocLightbox" onclick="closeDocLightbox()">
-  <img id="diDocLightboxImg" src="" alt="Document preview" style="display:none">
-  <iframe id="diDocLightboxIframe" src="" style="display:none"></iframe>
+<div class="modal-overlay" id="diDocLightbox" onclick="closeDocLightbox()">
+  <div class="lightbox-box" onclick="event.stopPropagation()">
+    <div class="lightbox-head">
+      <span id="diDocTitle" class="lightbox-title">Document</span>
+      <div class="lightbox-actions">
+        <a id="diDocDownload" href="#" download class="lightbox-btn">
+          <i class="fas fa-download"></i> Download
+        </a>
+        <button class="lightbox-btn lightbox-close-btn" onclick="closeDocLightbox()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+    <div class="lightbox-body">
+      <img id="diDocLightboxImg" src="" alt="Document preview" class="lightbox-img" style="display:none">
+      <div id="diDocLightboxPdfMsg" style="display:none;text-align:center;padding:2rem">
+        <i class="fas fa-file-pdf" style="font-size:3rem;color:#C62828;display:block;margin-bottom:.8rem"></i>
+        <p style="color:var(--text-secondary);margin-bottom:.6rem">This document is a PDF file.</p>
+        <a id="diDocLightboxPdfLink" href="#" target="_blank" class="btn-primary" style="display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1.2rem;border-radius:6px;font-size:.82rem;text-decoration:none">
+          <i class="fas fa-external-link-alt"></i> Open PDF
+        </a>
+      </div>
+    </div>
+  </div>
 </div>
 
 
@@ -1502,19 +1525,33 @@ function togglePw(inputId, btn) {
    PASSWORD VALIDATION (Add User form)
 ═══════════════════════════════════════════════ */
 function validatePasswordField() {
-  const input = document.getElementById('au-password');
-  const hint  = document.getElementById('au-password-hint');
-  const val   = input.value;
-  const valid = val.length >= 8 && isStrongPasswordClient(val);
+  var input = document.getElementById('au-password');
+  var hint  = document.getElementById('au-password-hint');
+  if (!input || !hint) return false;
+  var val = input.value;
+  if (typeof window.updatePasswordHint === 'function') {
+    return window.updatePasswordHint('au-password', 'au-password-hint');
+  }
+  // Fallback if shared helper not loaded
+  var hasLen   = val.length >= 8;
+  var hasLower = /[a-z]/.test(val);
+  var hasUpper = /[A-Z]/.test(val);
+  var hasDigit = /\d/.test(val);
+  var hasSpecial = /[^A-Za-z0-9]/.test(val);
+  var count = (hasLower ? 1 : 0) + (hasUpper ? 1 : 0) + (hasDigit ? 1 : 0) + (hasSpecial ? 1 : 0);
+  var valid = hasLen && count >= 3;
   if (val.length === 0) {
+    hint.innerHTML = 'Min 8 chars with at least 3 of: uppercase, lowercase, number, special character.';
     hint.style.color = '#888';
-    hint.textContent = 'Min 8 chars with at least 3 of: uppercase, lowercase, number, special character.';
   } else if (valid) {
+    hint.innerHTML = '✓ Password meets requirements.';
     hint.style.color = '#2E7D32';
-    hint.textContent = '✓ Password meets requirements.';
   } else {
-    hint.style.color = '#C62828';
-    hint.textContent = '✗ Needs min 8 chars with at least 3 of: uppercase, lowercase, number, special character.';
+    hint.innerHTML = '<span style="color:#C62828">✗ Needs: '
+      + (!hasLen ? '8+ chars; ' : '')
+      + (count < 3 ? '3 of 4 types (upper, lower, digit, special)' : '')
+      + '</span>';
+    hint.style.color = '';
   }
   return valid;
 }
@@ -1896,11 +1933,16 @@ async function openDriverInfoModal(userId, userName, userUid) {
       if (!placeholder) return;
       if (df.path) {
         var isPdf = df.path.toLowerCase().endsWith('.pdf');
-        placeholder.innerHTML = '<div class="di-doc-thumb" onclick="openDocLightbox(\'' + df.path + '\')">'
+        placeholder.innerHTML = '<div class="di-doc-thumb-container" style="position:relative">'
+          + '<div class="di-doc-thumb" onclick="openDocLightbox(\'' + df.path + '\', \'' + df.label + '\')">'
           + (isPdf
               ? '<div class="di-doc-pdf-icon"><i class="fas fa-file-pdf"></i></div>'
               : '<img src="/' + df.path + '" alt="' + df.label + '">')
           + '<div class="di-doc-label-overlay">' + df.label + '</div>'
+          + '</div>'
+          + '<a href="/' + df.path + '" download class="di-doc-download-btn" title="Download ' + df.label + '" onclick="event.stopPropagation()">'
+          + '<i class="fas fa-download"></i>'
+          + '</a>'
           + '</div>';
       } else {
         placeholder.innerHTML = '<div class="di-doc-empty"><i class="ti ti-circle-minus"></i><span>' + df.label + '</span></div>';
@@ -2002,15 +2044,24 @@ document.addEventListener('keydown', function (e) {
 });
 
 // ── Driver document lightbox ──
-function openDocLightbox(path) {
+function openDocLightbox(path, label) {
   closeDocLightbox();
   var lb = document.getElementById('diDocLightbox');
+
+  // Title & download
+  document.getElementById('diDocTitle').textContent = label || 'Document';
+  var dl = document.getElementById('diDocDownload');
+  dl.href = '/' + path;
+  dl.download = label ? label.replace(/\s+/g, '_') + '_' + path.split('/').pop() : path.split('/').pop();
+
   var img = document.getElementById('diDocLightboxImg');
-  var iframe = document.getElementById('diDocLightboxIframe');
+  var pdfMsg = document.getElementById('diDocLightboxPdfMsg');
+  img.style.display = 'none';
+  pdfMsg.style.display = 'none';
 
   if (path.toLowerCase().endsWith('.pdf')) {
-    iframe.src = '/' + path;
-    iframe.style.display = 'block';
+    document.getElementById('diDocLightboxPdfLink').href = '/' + path;
+    pdfMsg.style.display = 'block';
   } else {
     img.src = '/' + path;
     img.style.display = 'block';
@@ -2023,8 +2074,8 @@ function closeDocLightbox() {
   if (lb) lb.classList.remove('open');
   var img = document.getElementById('diDocLightboxImg');
   if (img) { img.src = ''; img.style.display = 'none'; }
-  var iframe = document.getElementById('diDocLightboxIframe');
-  if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
+  var pdfMsg = document.getElementById('diDocLightboxPdfMsg');
+  if (pdfMsg) pdfMsg.style.display = 'none';
 }
 
 // Escape key closes the lightbox

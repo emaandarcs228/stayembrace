@@ -1,0 +1,307 @@
+<% const activePage = 'notifications'; const pageTitle = 'Notifications'; const pageSubtitle = 'Stay updated with your ride alerts and announcements'; %>
+<%- include('driver-header') %>
+
+<style>
+  .notif-page-card {
+    animation: fadeIn .3s ease both;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .notif-row {
+    display: flex;
+    align-items: flex-start;
+    gap: .9rem;
+    padding: .9rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+    transition: background .2s;
+  }
+  .notif-row:last-child { border-bottom: none; }
+  .notif-row:hover { background: #f8f9fa; }
+  .notif-row.unread { background: #E3F2FD; }
+  .notif-row.unread:hover { background: #BBDEFB; }
+
+  .notif-row-icon {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .9rem;
+    color: white;
+  }
+  .notif-row-icon.payments { background: linear-gradient(135deg,#1565C0,#1976D2); }
+  .notif-row-icon.requests { background: linear-gradient(135deg,#E65100,#F57C00); }
+  .notif-row-icon.announcements { background: linear-gradient(135deg,#2E7D32,#43A047); }
+  .notif-row-icon.general { background: linear-gradient(135deg,#7B1FA2,#9C27B0); }
+
+  .notif-row-body { flex: 1; min-width: 0; }
+  .notif-row-title {
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: .15rem;
+    line-height: 1.4;
+  }
+  .notif-row-msg {
+    font-size: .7rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .notif-row-meta {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    margin-top: .25rem;
+    font-size: .6rem;
+    color: var(--text-muted);
+  }
+  .notif-unread-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #1565C0;
+    flex-shrink: 0;
+    margin-top: 6px;
+  }
+
+  .notif-mark-btn {
+    padding: .25rem .55rem;
+    border-radius: var(--radius-pill);
+    font-size: .58rem;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all .2s;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .notif-mark-btn:hover {
+    border-color: #1565C0;
+    color: #1565C0;
+    background: #E3F2FD;
+  }
+  .notif-mark-btn.marked {
+    border-color: #E8F5E9;
+    color: #2E7D32;
+    background: #E8F5E9;
+    cursor: default;
+  }
+
+  .notif-page-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    flex-wrap: wrap;
+    margin-bottom: .8rem;
+  }
+  .notif-page-head h3 {
+    font-size: .95rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+  }
+  .notif-page-head-actions {
+    display: flex;
+    gap: .4rem;
+  }
+
+  .notif-count-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: .15rem .5rem;
+    border-radius: var(--radius-pill);
+    font-size: .6rem;
+    font-weight: 700;
+    background: #E3F2FD;
+    color: #1565C0;
+  }
+  .notif-count-chip.unread-badge {
+    background: #FFEBEE;
+    color: #C62828;
+  }
+</style>
+
+<div class="notif-page-card">
+
+  <!-- ── Header ── -->
+  <div class="notif-page-head">
+    <h3><i class="ti ti-bell"></i> Notifications
+      <% if (unreadCount > 0) { %>
+        <span class="notif-count-chip unread-badge"><%= unreadCount %> unread</span>
+      <% } %>
+      <span class="notif-count-chip"><%= total %> total</span>
+    </h3>
+    <div class="notif-page-head-actions">
+      <% if (unreadCount > 0) { %>
+        <button class="act-btn btn-approve" id="notifPageMarkAll" style="font-size:.65rem">
+          <i class="ti ti-check"></i> Mark All Read
+        </button>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- ── Notifications List ── -->
+  <% if (notifications.length > 0) { %>
+    <div class="card" id="notifList">
+      <% notifications.forEach(function(n) {
+           const iconMap = {
+             'Payments':      { cls: 'payments',      icon: 'fas fa-wallet' },
+             'Requests':      { cls: 'requests',      icon: 'fas fa-paper-plane' },
+             'Announcements': { cls: 'announcements', icon: 'fas fa-bullhorn' },
+             'General':       { cls: 'general',       icon: 'fas fa-bell' }
+           };
+           const ic = iconMap[n.category] || { cls: 'announcements', icon: 'fas fa-bell' };
+           const isUnread = n._isUnread;
+      %>
+      <div class="notif-row <%= isUnread ? 'unread' : '' %>" data-id="<%= n._id %>">
+        <% if (isUnread) { %>
+          <div class="notif-unread-dot"></div>
+        <% } else { %>
+          <div style="width:8px;flex-shrink:0"></div>
+        <% } %>
+
+        <div class="notif-row-icon <%= ic.cls %>">
+          <i class="<%= ic.icon %>"></i>
+        </div>
+
+        <div class="notif-row-body">
+          <div class="notif-row-title"><%= n.title %></div>
+          <div class="notif-row-msg"><%= n.message %></div>
+          <div class="notif-row-meta">
+            <span><%= ic.cls.charAt(0).toUpperCase() + ic.cls.slice(1) %></span>
+            <span>·</span>
+            <span><%= n._timeAgo %></span>
+            <% if (n.priority && n.priority !== 'Medium') { %>
+              <span>·</span>
+              <span style="color:<%= n.priority === 'High' ? '#C62828' : '#888' %>;font-weight:600"><%= n.priority %></span>
+            <% } %>
+          </div>
+        </div>
+
+        <div>
+          <button class="notif-mark-btn <%= !isUnread ? 'marked' : '' %>"
+            onclick="toggleRead(this, '<%= n._id %>')">
+            <%= isUnread ? 'Mark Read' : '✓ Read' %>
+          </button>
+        </div>
+      </div>
+      <% }); %>
+    </div>
+  <% } else { %>
+    <div class="card" style="text-align:center;padding:3rem">
+      <i class="ti ti-bell-off" style="font-size:3rem;opacity:.2;display:block;margin-bottom:.8rem"></i>
+      <h3>All Caught Up!</h3>
+      <p style="color:var(--text-muted);font-size:.82rem">You have no notifications at this time.</p>
+    </div>
+  <% } %>
+
+</div>
+
+<!-- ── Pagination ── -->
+<% if (totalPages > 1) { %>
+<div class="pagination">
+  <span>Showing <%= (page - 1) * limit + 1 %>–<%= Math.min(page * limit, total) %> of <%= total %> notifications</span>
+  <div class="page-btns">
+    <% if (page > 1) { %>
+      <a href="?page=<%= page - 1 %>&limit=<%= limit %>" class="act-btn">&laquo; Prev</a>
+    <% } %>
+    <% for (let p = 1; p <= totalPages; p++) { %>
+      <a href="?page=<%= p %>&limit=<%= limit %>"
+         class="act-btn <%= p === page ? 'active-page' : '' %>"
+         style="<%= p === page ? 'background:#1565C0;color:white;border-color:#1565C0' : '' %>"><%= p %></a>
+    <% } %>
+    <% if (page < totalPages) { %>
+      <a href="?page=<%= page + 1 %>&limit=<%= limit %>" class="act-btn">Next &raquo;</a>
+    <% } %>
+  </div>
+</div>
+<% } %>
+
+<script>
+// ── Mark single notification as read ──
+function toggleRead(btn, id) {
+  if (btn.classList.contains('marked')) return; // Already read
+  fetch('/driver/notifications/mark-read/' + id, { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        btn.textContent = '✓ Read';
+        btn.classList.add('marked');
+        var row = btn.closest('.notif-row');
+        if (row) {
+          row.classList.remove('unread');
+          var dot = row.querySelector('.notif-unread-dot');
+          if (dot) dot.style.display = 'none';
+        }
+        updateUnreadCount(-1);
+      }
+    })
+    .catch(function(err) { console.error('mark-read failed:', err); });
+}
+
+// ── Update unread count after marking ──
+function updateUnreadCount(delta) {
+  var chips = document.querySelectorAll('.notif-count-chip.unread-badge');
+  chips.forEach(function(chip) {
+    var cur = parseInt(chip.textContent);
+    var next = cur + delta;
+    if (next <= 0) { chip.style.display = 'none'; }
+    else { chip.textContent = next + ' unread'; }
+  });
+  var markAllBtn = document.getElementById('notifPageMarkAll');
+  if (markAllBtn) {
+    var chipsAfter = document.querySelectorAll('.notif-count-chip.unread-badge');
+    var totalUnread = 0;
+    chipsAfter.forEach(function(c) {
+      if (c.style.display !== 'none') {
+        totalUnread += parseInt(c.textContent) || 0;
+      }
+    });
+    if (totalUnread <= 0 && markAllBtn) markAllBtn.style.display = 'none';
+  }
+}
+
+// ── Mark all as read ──
+(function() {
+  var markAllBtn = document.getElementById('notifPageMarkAll');
+  if (markAllBtn) {
+    markAllBtn.addEventListener('click', async function() {
+      try {
+        var res = await fetch('/driver/notifications/mark-all-read', { method: 'POST' });
+        var data = await res.json();
+        if (data.success) {
+          document.querySelectorAll('.notif-row.unread').forEach(function(row) {
+            row.classList.remove('unread');
+            var dot = row.querySelector('.notif-unread-dot');
+            if (dot) dot.style.display = 'none';
+            var btn = row.querySelector('.notif-mark-btn');
+            if (btn && !btn.classList.contains('marked')) {
+              btn.textContent = '✓ Read';
+              btn.classList.add('marked');
+            }
+          });
+          document.querySelectorAll('.notif-count-chip.unread-badge').forEach(function(c) {
+            c.style.display = 'none';
+          });
+          markAllBtn.style.display = 'none';
+        }
+      } catch (err) {
+        console.error('mark-all-read failed:', err);
+      }
+    });
+  }
+})();
+</script>
+
+<%- include('driver-footer') %>

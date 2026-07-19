@@ -4,6 +4,16 @@ const Student = require('../models/student');
 const CabBooking = require('../models/cabBooking');
 const Notification = require('../models/notification');
 const { getSidebarBadges } = require('../utils/sidebarBadges');
+const {
+    getValidPredecessors,
+    getNextStage,
+    ASSIGNED_GROUP,
+    NEXT_STAGE_LABEL,
+    BADGE_CLASS: RIDE_STATUS_BADGE_CLASS,
+    LEGACY_DIRECT_CONFIRM_FROM,
+    DRIVER_CANCELLABLE_FROM
+} = require('../utils/rideStatus');
+const { notifyStudent, notifyDriver } = require('../utils/rideNotifications');
 
 // ======================
 // HELPER — timeAgo
@@ -37,9 +47,12 @@ exports.getDashboard = async (req, res) => {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
         });
 
-        // ── Available ride requests — only shown when driver is online ──
+        // ── Available ride requests — only shown when driver is online.
+        // driver: null excludes legacy direct-assigned bookings (Pending,
+        // reservedBy null, but already spoken for by a specific driver) so
+        // they don't leak into every other driver's marketplace. ──
         const availableRequests = driver?.isOnline
-            ? await CabBooking.find({ status: 'Pending', reservedBy: null })
+            ? await CabBooking.find({ status: 'Pending', reservedBy: null, driver: null })
                 .populate({
                     path: 'student',
                     populate: { path: 'user', select: 'fullname userId phoneNumber' }
@@ -51,7 +64,7 @@ exports.getDashboard = async (req, res) => {
         // ── My reservations (this driver currently has reserved/quoting) ──
         const myReservations = await CabBooking.find({
             reservedBy: req.user._id,
-            status: { $in: ['Reserved', 'Awaiting Student'] }
+            status: { $in: ['Reserved by Driver', 'Waiting for Student Confirmation'] }
         })
             .populate({
                 path: 'student',
@@ -60,10 +73,10 @@ exports.getDashboard = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
-        // ── Active rides (this driver's confirmed/in-progress bookings) ──
+        // ── Active rides (this driver's confirmed-through-not-yet-completed bookings) ──
         const activeRides = await CabBooking.find({
             driver: req.user._id,
-            status: { $in: ['Confirmed', 'In Progress'] }
+            status: { $in: ASSIGNED_GROUP }
         })
             .populate({
                 path: 'student',
@@ -76,14 +89,14 @@ exports.getDashboard = async (req, res) => {
         const unreadCount = await Notification.countDocuments({
             isActive: true,
             $or: [
-                { target: { $in: ['All', 'Students'] }, readBy: { $nin: [req.user._id] } },
+                { target: { $in: ['All'] }, readBy: { $nin: [req.user._id] } },
                 { recipient: req.user._id, readBy: { $nin: [req.user._id] } }
             ]
         });
         const recentNotifs = await Notification.find({
             isActive: true,
             $or: [
-                { target: { $in: ['All', 'Students'] } },
+                { target: { $in: ['All'] } },
                 { recipient: req.user._id }
             ]
         }).sort({ createdAt: -1 }).limit(5).lean();
@@ -103,6 +116,9 @@ exports.getDashboard = async (req, res) => {
             availableRequests,
             myReservations,
             activeRides,
+            rideStatusBadgeClass: RIDE_STATUS_BADGE_CLASS,
+            nextStageLabel: NEXT_STAGE_LABEL,
+            driverCancellableFrom: DRIVER_CANCELLABLE_FROM,
             unreadCount,
             recentNotifs,
             ...badges,
@@ -162,14 +178,14 @@ exports.getProfile = async (req, res) => {
         const unreadCount = await Notification.countDocuments({
             isActive: true,
             $or: [
-                { target: { $in: ['All', 'Students'] }, readBy: { $nin: [req.user._id] } },
+                { target: { $in: ['All'] }, readBy: { $nin: [req.user._id] } },
                 { recipient: req.user._id, readBy: { $nin: [req.user._id] } }
             ]
         });
         const recentNotifs = await Notification.find({
             isActive: true,
             $or: [
-                { target: { $in: ['All', 'Students'] } },
+                { target: { $in: ['All'] } },
                 { recipient: req.user._id }
             ]
         }).sort({ createdAt: -1 }).limit(5).lean();
@@ -209,14 +225,14 @@ exports.getVehicle = async (req, res) => {
         const unreadCount = await Notification.countDocuments({
             isActive: true,
             $or: [
-                { target: { $in: ['All', 'Students'] }, readBy: { $nin: [req.user._id] } },
+                { target: { $in: ['All'] }, readBy: { $nin: [req.user._id] } },
                 { recipient: req.user._id, readBy: { $nin: [req.user._id] } }
             ]
         });
         const recentNotifs = await Notification.find({
             isActive: true,
             $or: [
-                { target: { $in: ['All', 'Students'] } },
+                { target: { $in: ['All'] } },
                 { recipient: req.user._id }
             ]
         }).sort({ createdAt: -1 }).limit(5).lean();
@@ -252,11 +268,14 @@ exports.getBookings = async (req, res) => {
 
         const driver = await Driver.findOne({ user: req.user._id }).lean();
 
-        // ── Available requests — only shown when driver is online ──
+        // ── Available requests — only shown when driver is online.
+        // driver: null excludes legacy direct-assigned bookings so they
+        // don't leak into every other driver's marketplace. ──
         const availableRequests = driver?.isOnline
             ? await CabBooking.find({
                 status: 'Pending',
-                reservedBy: null
+                reservedBy: null,
+                driver: null
               })
                 .populate({
                     path: 'student',
@@ -269,7 +288,7 @@ exports.getBookings = async (req, res) => {
         // ── My reservations (this driver currently has reserved/quoting) ──
         const myReservations = await CabBooking.find({
             reservedBy: req.user._id,
-            status: { $in: ['Reserved', 'Awaiting Student'] }
+            status: { $in: ['Reserved by Driver', 'Waiting for Student Confirmation'] }
         })
             .populate({
                 path: 'student',
@@ -278,10 +297,10 @@ exports.getBookings = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
-        // ── Active rides (this driver's confirmed/in-progress bookings) ──
+        // ── Active rides (this driver's confirmed-through-not-yet-completed bookings) ──
         const activeRides = await CabBooking.find({
             driver: req.user._id,
-            status: { $in: ['Confirmed', 'In Progress'] }
+            status: { $in: ASSIGNED_GROUP }
         })
             .populate({
                 path: 'student',
@@ -293,7 +312,7 @@ exports.getBookings = async (req, res) => {
         // ── History (completed/cancelled bookings for this driver) ──
         const pastBookings = await CabBooking.find({
             driver: req.user._id,
-            status: { $in: ['Completed', 'Cancelled'] }
+            status: { $in: ['Ride Completed', 'Cancelled'] }
         })
             .populate({
                 path: 'student',
@@ -319,14 +338,14 @@ exports.getBookings = async (req, res) => {
         const unreadCount = await Notification.countDocuments({
             isActive: true,
             $or: [
-                { target: { $in: ['All', 'Students'] }, readBy: { $nin: [req.user._id] } },
+                { target: { $in: ['All'] }, readBy: { $nin: [req.user._id] } },
                 { recipient: req.user._id, readBy: { $nin: [req.user._id] } }
             ]
         });
         const recentNotifs = await Notification.find({
             isActive: true,
             $or: [
-                { target: { $in: ['All', 'Students'] } },
+                { target: { $in: ['All'] } },
                 { recipient: req.user._id }
             ]
         }).sort({ createdAt: -1 }).limit(5).lean();
@@ -345,6 +364,9 @@ exports.getBookings = async (req, res) => {
             activeRides,
             pastBookings,
             legacyAssigned,
+            rideStatusBadgeClass: RIDE_STATUS_BADGE_CLASS,
+            nextStageLabel: NEXT_STAGE_LABEL,
+            driverCancellableFrom: DRIVER_CANCELLABLE_FROM,
             unreadCount,
             recentNotifs,
             ...badges,
@@ -378,7 +400,7 @@ exports.getAvailableRequests = async (req, res) => {
             return res.json({ requests: [], offline: true, message: 'You are offline. Go online to see available requests.' });
         }
 
-        const requests = await CabBooking.find({ status: 'Pending', reservedBy: null })
+        const requests = await CabBooking.find({ status: 'Pending', reservedBy: null, driver: null })
             .populate({
                 path: 'student',
                 populate: { path: 'user', select: 'fullname userId phoneNumber' }
@@ -405,24 +427,32 @@ exports.reserveRequest = async (req, res) => {
         const now = new Date();
         const expiresAt = new Date(now.getTime() + 2 * 60 * 1000); // 2 minutes
 
-        // ── Atomic reserve: only succeeds if still Pending and not already reserved ──
+        // ── Atomic reserve: only succeeds if still Pending, not already
+        // reserved, and not a legacy booking already assigned to a
+        // specific driver. ──
         const booking = await CabBooking.findOneAndUpdate(
-            { _id: req.params.id, status: 'Pending', reservedBy: null },
+            { _id: req.params.id, status: { $in: getValidPredecessors('Reserved by Driver') }, reservedBy: null, driver: null },
             {
                 $set: {
-                    status                : 'Reserved',
+                    status                : 'Reserved by Driver',
                     reservedBy            : req.user._id,
                     reservedAt            : now,
                     reservationExpiresAt  : expiresAt
+                },
+                $push: {
+                    statusHistory: { status: 'Reserved by Driver', changedBy: req.user._id, changedByRole: 'driver', at: now }
                 }
             },
             { new: true }
         );
 
         if (!booking) {
-            const existing = await CabBooking.findById(req.params.id).select('status reservedBy').lean();
+            const existing = await CabBooking.findById(req.params.id).select('status reservedBy driver').lean();
             if (!existing) {
                 return res.redirect('/driver/bookings?error=Request+not+found.');
+            }
+            if (existing.driver) {
+                return res.redirect('/driver/bookings?error=This+request+is+already+assigned+to+a+driver.');
             }
             if (existing.reservedBy) {
                 return res.redirect('/driver/bookings?error=This+request+was+just+reserved+by+another+driver.');
@@ -430,6 +460,19 @@ exports.reserveRequest = async (req, res) => {
             return res.redirect('/driver/bookings?error=' + encodeURIComponent(
                 `This request is ${existing.status} and cannot be reserved.`
             ));
+        }
+
+        // ── Confirm to the driver themselves (durable record, not just
+        // the redirect flash message) ──
+        try {
+            await notifyDriver('RIDE_RESERVED', {
+                recipient: req.user._id,
+                actorId  : req.user._id,
+                bookingId: booking._id,
+                ctx: { pickup: booking.pickupLocation, dropoff: booking.dropoffLocation }
+            });
+        } catch (notifErr) {
+            console.error('reserveRequest: Driver confirmation notification error:', notifErr);
         }
 
         res.redirect('/driver/bookings?success=Request+reserved.+You+have+2+minutes+to+submit+a+fare+quote.');
@@ -458,24 +501,28 @@ exports.submitQuote = async (req, res) => {
         const comments = req.body.comments || '';
         const now = new Date();
 
-        // ── Atomic: only succeeds if this driver reserved it, it's still Reserved,
-        // and the 2-minute reservation window has not expired ──
+        // ── Atomic: only succeeds if this driver reserved it, it's still
+        // Reserved by Driver, and the 2-minute reservation window has not
+        // expired ──
         const booking = await CabBooking.findOneAndUpdate(
             {
                 _id: req.params.id,
                 reservedBy: req.user._id,
-                status: 'Reserved',
+                status: 'Reserved by Driver',
                 reservationExpiresAt: { $gt: now }
             },
             {
                 $set: {
-                    status              : 'Awaiting Student',
+                    status              : 'Waiting for Student Confirmation',
                     'quote.fare'        : fare,
                     'quote.eta'         : eta,
                     'quote.comments'    : comments,
                     'quote.submittedAt' : new Date(),
                     // Refresh the 2-min timer so the student has time to respond
                     reservationExpiresAt: new Date(now.getTime() + 2 * 60 * 1000)
+                },
+                $push: {
+                    statusHistory: { status: 'Waiting for Student Confirmation', changedBy: req.user._id, changedByRole: 'driver', at: now }
                 }
             },
             { new: true }
@@ -487,11 +534,11 @@ exports.submitQuote = async (req, res) => {
             if (String(existing.reservedBy) !== String(req.user._id)) {
                 return res.redirect('/driver/bookings?error=You+no+longer+hold+the+reservation+for+this+request.');
             }
-            if (existing.status === 'Reserved' && existing.reservationExpiresAt && existing.reservationExpiresAt <= now) {
+            if (existing.status === 'Reserved by Driver' && existing.reservationExpiresAt && existing.reservationExpiresAt <= now) {
                 // Expired right under us — release immediately instead of making
                 // the driver wait for the next sweep of reservationTimeoutJob.
                 await CabBooking.updateOne(
-                    { _id: req.params.id, status: 'Reserved', reservedBy: req.user._id },
+                    { _id: req.params.id, status: 'Reserved by Driver', reservedBy: req.user._id },
                     { $set: { status: 'Pending', reservedBy: null, reservedAt: null, reservationExpiresAt: null } }
                 );
                 return res.redirect('/driver/bookings?error=Your+2-minute+reservation+window+expired.');
@@ -511,22 +558,11 @@ exports.submitQuote = async (req, res) => {
 
         try {
             if (studentRec && studentRec.user) {
-                const commentsStr = comments ? `"${comments}"` : '';
-                const etaLine = eta ? `⏱ ETA: ${eta}` : '';
-                let msg = `🚗 Driver: ${req.user.fullname}\n💰 Fare: Rs ${fare.toLocaleString()}`;
-                if (etaLine) msg += `\n${etaLine}`;
-                msg += `\n📍 Route: ${booking.pickupLocation} → ${booking.dropoffLocation}`;
-                if (commentsStr) {
-                    msg += `\n💬 Note: ${commentsStr}`;
-                }
-                await Notification.create({
-                    title     : `Fare Quote Received — Rs ${fare.toLocaleString()} from ${req.user.fullname}${eta ? ` (ETA: ${eta})` : ''}`,
-                    message   : msg,
-                    recipient : studentRec.user._id,
-                    category  : 'Requests',
-                    relatedTo : { model: 'CabBooking', docId: booking._id },
-                    createdBy : req.user._id,
-                    priority  : 'Medium'
+                await notifyStudent('DRIVER_OFFERED_FARE', {
+                    recipient: studentRec.user._id,
+                    actorId  : req.user._id,
+                    bookingId: booking._id,
+                    ctx: { driverName: req.user.fullname, fare, eta, comments, pickup: booking.pickupLocation, dropoff: booking.dropoffLocation }
                 });
             }
         } catch (notifErr) {
@@ -550,11 +586,12 @@ exports.releaseReservation = async (req, res) => {
     try {
         if (!req.user || req.user.role !== 'driver') return res.status(403).send('Access Denied');
 
+        const now = new Date();
         const booking = await CabBooking.findOneAndUpdate(
             {
                 _id: req.params.id,
                 reservedBy: req.user._id,
-                status: { $in: ['Reserved', 'Awaiting Student'] }
+                status: { $in: ['Reserved by Driver', 'Waiting for Student Confirmation'] }
             },
             {
                 $set: {
@@ -568,6 +605,9 @@ exports.releaseReservation = async (req, res) => {
                     'quote.submittedAt'   : null,
                     'studentDecision.status': 'pending',
                     'studentDecision.decidedAt': null
+                },
+                $push: {
+                    statusHistory: { status: 'Pending', changedBy: req.user._id, changedByRole: 'driver', at: now, note: 'Driver released reservation' }
                 }
             },
             { new: true }
@@ -611,44 +651,210 @@ exports.releaseReservation = async (req, res) => {
 
 
 // ======================
-// CAB BOOKINGS — UPDATE RIDE STATUS (start / complete ride)
+// CAB BOOKINGS — ADVANCE RIDE STAGE (one click always moves to the very
+// next stage in the post-confirmation chain: Ride Confirmed → Driver On
+// the Way → Driver Arrived → Student Coming → Ride Started → Ride
+// Completed). The next stage is always computed server-side from the
+// booking's CURRENT status in the DB — the client never supplies or is
+// trusted for "current status"/"target status".
 // POST /driver/bookings/status/:id
 // ======================
-exports.updateRideStatus = async (req, res) => {
+exports.advanceRideStage = async (req, res) => {
     try {
         if (!req.user || req.user.role !== 'driver') return res.status(403).send('Access Denied');
 
-        const { newStatus, arrivedDropoffLocation } = req.body;
-
-        let update = {};
-
-        if (newStatus === 'In Progress') {
-            if (!['Confirmed'].includes(req.body.currentStatus)) {
-                return res.redirect('/driver/bookings?error=Booking+must+be+confirmed+before+starting+the+ride.');
-            }
-            update.status = 'In Progress';
-        } else if (newStatus === 'Completed') {
-            update.status = 'Completed';
-            update.completedAt = new Date();
-        } else {
-            return res.redirect('/driver/bookings?error=Invalid+status+transition.');
+        const existing = await CabBooking.findOne({ _id: req.params.id, driver: req.user._id }).select('status').lean();
+        if (!existing) {
+            return res.redirect('/driver/bookings?error=Booking+not+found+or+not+assigned+to+you.');
         }
 
+        const nextStatus = getNextStage(existing.status);
+        if (!nextStatus) {
+            return res.redirect('/driver/bookings?error=' + encodeURIComponent(
+                `Cannot advance from "${existing.status}".`
+            ));
+        }
+
+        const now = new Date();
+        const set = { status: nextStatus };
+        if (nextStatus === 'Driver On the Way') set.driverOnWayAt = now;
+        if (nextStatus === 'Driver Arrived') set.driverArrivedAt = now;
+        if (nextStatus === 'Student Coming') set.studentComingAt = now;
+        if (nextStatus === 'Ride Started') set.rideStartedAt = now;
+        if (nextStatus === 'Ride Completed') set.completedAt = now;
+
+        // ── Atomic guard: only succeeds if the DB is STILL at the exact
+        // status we just read, so a double-click / concurrent request
+        // can't advance the same booking twice. ──
         const booking = await CabBooking.findOneAndUpdate(
-            { _id: req.params.id, driver: req.user._id },
-            { $set: update },
+            { _id: req.params.id, driver: req.user._id, status: existing.status },
+            {
+                $set: set,
+                $push: { statusHistory: { status: nextStatus, changedBy: req.user._id, changedByRole: 'driver', at: now } }
+            },
             { new: true }
         );
 
         if (!booking) {
-            return res.redirect('/driver/bookings?error=Booking+not+found+or+not+assigned+to+you.');
+            return res.redirect('/driver/bookings?error=Ride+status+already+changed+by+another+action.+Refresh+and+try+again.');
         }
 
-        res.redirect('/driver/bookings?success=Ride+status+updated+to+' + encodeURIComponent(update.status) + '.');
+        // ── Notify the student that the ride's status moved forward ──
+        const STUDENT_EVENT_FOR_STAGE = {
+            'Driver On the Way': 'DRIVER_ON_THE_WAY',
+            'Driver Arrived'   : 'DRIVER_ARRIVED',
+            'Ride Started'     : 'RIDE_STARTED',
+            'Ride Completed'   : 'RIDE_COMPLETED'
+        };
+        let studentRec = null;
+        try {
+            studentRec = await Student.findById(booking.student).populate('user', '_id fullname').lean();
+            if (studentRec && studentRec.user) {
+                const eventKey = STUDENT_EVENT_FOR_STAGE[nextStatus];
+                if (eventKey) {
+                    await notifyStudent(eventKey, {
+                        recipient: studentRec.user._id,
+                        actorId  : req.user._id,
+                        bookingId: booking._id,
+                        ctx: { driverName: req.user.fullname, fare: booking.fare, pickup: booking.pickupLocation, dropoff: booking.dropoffLocation }
+                    });
+                } else {
+                    // 'Student Coming' (driver marking it on the student's
+                    // behalf) isn't one of the named catalog events — keep
+                    // it as a plain notice.
+                    await Notification.create({
+                        title     : 'Ride Update — Student Coming',
+                        message   : `${req.user.fullname} is waiting for you at "${booking.pickupLocation}".`,
+                        recipient : studentRec.user._id,
+                        category  : 'Requests',
+                        relatedTo : { model: 'CabBooking', docId: booking._id },
+                        createdBy : req.user._id,
+                        priority  : 'Medium'
+                    });
+                }
+            }
+        } catch (notifErr) {
+            console.error('advanceRideStage: Student notification error:', notifErr);
+        }
+
+        // ── Confirm to the driver themselves once the ride is complete ──
+        if (nextStatus === 'Ride Completed') {
+            try {
+                await notifyDriver('RIDE_COMPLETED', {
+                    recipient: req.user._id,
+                    actorId  : req.user._id,
+                    bookingId: booking._id,
+                    ctx: { studentName: studentRec?.user?.fullname || 'the student', fare: booking.fare }
+                });
+            } catch (notifErr) {
+                console.error('advanceRideStage: Driver completion notification error:', notifErr);
+            }
+        }
+
+        res.redirect('/driver/bookings?success=Ride+status+updated+to+' + encodeURIComponent(nextStatus) + '.');
 
     } catch (err) {
-        console.error('updateRideStatus Error:', err);
+        console.error('advanceRideStage Error:', err);
         res.redirect('/driver/bookings?error=Failed+to+update+ride+status.');
+    }
+};
+
+
+// ======================
+// CAB BOOKINGS — DRIVER CANCELS A CONFIRMED RIDE (before reaching pickup)
+// Only valid while status is 'Ride Confirmed' or 'Driver On the Way' —
+// once the driver marks 'Driver Arrived' they're on-site and this path
+// is no longer appropriate.
+// POST /driver/bookings/cancel/:id
+// ======================
+exports.cancelConfirmedRide = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'driver') return res.status(403).send('Access Denied');
+
+        const reason = (req.body.reason || '').trim();
+        if (!reason) {
+            return res.redirect('/driver/bookings?error=Please+enter+a+reason+for+cancelling+this+ride.');
+        }
+
+        const now = new Date();
+
+        const existing = await CabBooking.findOne({ _id: req.params.id, driver: req.user._id })
+            .select('status fare paymentStatus pickupLocation dropoffLocation student')
+            .lean();
+
+        if (!existing) {
+            return res.redirect('/driver/bookings?error=Booking+not+found+or+not+assigned+to+you.');
+        }
+        if (!DRIVER_CANCELLABLE_FROM.includes(existing.status)) {
+            return res.redirect('/driver/bookings?error=' + encodeURIComponent(
+                `This ride is "${existing.status}" and can no longer be cancelled this way.`
+            ));
+        }
+
+        // Driver-initiated cancellation is not the student's fault — no
+        // cancellation fee applies (unlike the student-cancellation
+        // policy). If already paid, flag the full fare for a manual
+        // refund (no payment-gateway refund API exists in this codebase).
+        const wasPaid = existing.paymentStatus === 'Paid';
+        const setFields = {
+            status: 'Cancelled',
+            cancellation: { by: 'driver', reason, at: now }
+        };
+        if (wasPaid) setFields.paymentStatus = 'Refund Pending';
+
+        // ── Atomic guard: only succeeds if the DB is STILL at the exact
+        // status we just read, so a double-click / concurrent advance
+        // can't race this cancellation. ──
+        const booking = await CabBooking.findOneAndUpdate(
+            { _id: req.params.id, driver: req.user._id, status: existing.status },
+            {
+                $set: setFields,
+                $push: { statusHistory: { status: 'Cancelled', changedBy: req.user._id, changedByRole: 'driver', at: now, note: reason } }
+            },
+            { new: true }
+        );
+
+        if (!booking) {
+            return res.redirect('/driver/bookings?error=Ride+status+already+changed.+Refresh+and+try+again.');
+        }
+
+        // ── Notify the student ──
+        try {
+            const studentRec = await Student.findById(booking.student).populate('user', '_id fullname').lean();
+            if (studentRec && studentRec.user) {
+                await notifyStudent('RIDE_CANCELLED', {
+                    recipient: studentRec.user._id,
+                    actorId  : req.user._id,
+                    bookingId: booking._id,
+                    ctx: {
+                        pickup: booking.pickupLocation,
+                        dropoff: booking.dropoffLocation,
+                        by: 'the driver',
+                        reason,
+                        refundNote: wasPaid ? 'A full refund will be processed by the hostel.' : ''
+                    }
+                });
+            }
+        } catch (notifErr) {
+            console.error('cancelConfirmedRide: Student notification error:', notifErr);
+        }
+
+        // ── If the fare was already paid, flag the refund for admins/wardens ──
+        if (wasPaid) {
+            try {
+                const msg = `Driver ${req.user.fullname} cancelled a paid, confirmed ride (${booking.pickupLocation} → ${booking.dropoffLocation}). Full refund owed: Rs ${existing.fare.toLocaleString()}.`;
+                await Notification.create({ title: 'Cab Booking Refund Owed', message: msg, target: 'Admins', category: 'Payments', relatedTo: { model: 'CabBooking', docId: booking._id }, createdBy: req.user._id, priority: 'Medium' });
+                await Notification.create({ title: 'Cab Booking Refund Owed', message: msg, target: 'Wardens', category: 'Payments', relatedTo: { model: 'CabBooking', docId: booking._id }, createdBy: req.user._id, priority: 'Medium' });
+            } catch (notifErr) {
+                console.error('cancelConfirmedRide: Refund notification error:', notifErr);
+            }
+        }
+
+        res.redirect('/driver/bookings?success=Ride+cancelled.');
+
+    } catch (err) {
+        console.error('cancelConfirmedRide Error:', err);
+        res.redirect('/driver/bookings?error=Failed+to+cancel+ride.');
     }
 };
 
@@ -667,10 +873,17 @@ exports.acceptBooking = async (req, res) => {
             return res.redirect('/driver/bookings?error=Please+enter+a+valid+fare+amount.');
         }
 
-        // ── Atomic accept ──
+        // ── Atomic accept: this is the legacy direct-assign path (booking
+        // created with `driver` pre-set, skipping the whole reservation
+        // cycle), so it deliberately jumps Pending → Ride Confirmed rather
+        // than going through the marketplace TRANSITIONS table. ──
+        const now = new Date();
         const booking = await CabBooking.findOneAndUpdate(
-            { _id: req.params.id, driver: req.user._id, status: 'Pending' },
-            { $set: { status: 'Confirmed', confirmedAt: new Date(), fare, paymentStatus: 'Unpaid' } },
+            { _id: req.params.id, driver: req.user._id, status: { $in: LEGACY_DIRECT_CONFIRM_FROM } },
+            {
+                $set: { status: 'Ride Confirmed', confirmedAt: now, fare, paymentStatus: 'Unpaid' },
+                $push: { statusHistory: { status: 'Ride Confirmed', changedBy: req.user._id, changedByRole: 'driver', at: now, note: 'Legacy direct-accept path' } }
+            },
             { new: true }
         );
 
@@ -693,14 +906,11 @@ exports.acceptBooking = async (req, res) => {
 
         try {
             if (studentRec && studentRec.user) {
-                await Notification.create({
-                    title     : 'Cab Booking Accepted',
-                    message   : `${req.user.fullname} has accepted your cab booking request from "${booking.pickupLocation}" to "${booking.dropoffLocation}".`,
-                    recipient : studentRec.user._id,
-                    category  : 'Requests',
-                    relatedTo : { model: 'CabBooking', docId: booking._id },
-                    createdBy : req.user._id,
-                    priority  : 'Medium'
+                await notifyStudent('RIDE_CONFIRMED', {
+                    recipient: studentRec.user._id,
+                    actorId  : req.user._id,
+                    bookingId: booking._id,
+                    ctx: { driverName: booking.driverName || req.user.fullname, fare: booking.fare, pickup: booking.pickupLocation, dropoff: booking.dropoffLocation }
                 });
             }
         } catch (notifErr) {
@@ -724,6 +934,129 @@ exports.acceptBooking = async (req, res) => {
 };
 
 
+// ======================
+// NOTIFICATIONS — LIST
+// GET /driver/notifications?page=1&limit=20
+// ======================
+exports.getNotifications = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'driver') return res.status(403).send('Access Denied');
+
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(50, Math.max(5, parseInt(req.query.limit) || 20));
+        const skip = (page - 1) * limit;
+
+        const query = {
+            isActive: true,
+            $or: [
+                { target: { $in: ['All'] } },
+                { recipient: req.user._id }
+            ]
+        };
+
+        const driverRec = await Driver.findOne({ user: req.user._id }).select('isOnline').lean();
+
+        const [notifications, total] = await Promise.all([
+            Notification.find(query)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Notification.countDocuments(query)
+        ]);
+
+        const userId = req.user._id;
+        notifications.forEach(n => {
+            n._isUnread = !n.readBy || !n.readBy.map(String).includes(String(userId));
+            n._timeAgo = timeAgo(n.createdAt);
+        });
+
+        // Unread count for sidebar badge
+        const unreadCount = await Notification.countDocuments({
+            isActive: true,
+            $or: [
+                { target: { $in: ['All'] }, readBy: { $nin: [userId] } },
+                { recipient: userId, readBy: { $nin: [userId] } }
+            ]
+        });
+
+        // Recent notifs for topbar dropdown
+        const recentNotifs = await Notification.find(query)
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .lean();
+        recentNotifs.forEach(n => { n._timeAgo = timeAgo(n.createdAt); });
+
+        const totalPages = Math.ceil(total / limit);
+        const badges = await getSidebarBadges(req.user);
+
+        res.render('driver/notifications', {
+            user: req.user,
+            driver: driverRec || {},
+            activePage: 'notifications',
+            pageTitle: 'Notifications',
+            pageSubtitle: 'Stay updated with your ride alerts and announcements',
+            notifications,
+            unreadCount,
+            recentNotifs,
+            page,
+            limit,
+            total,
+            totalPages,
+            ...badges,
+            successMessage: req.query.success || null,
+            errorMessage: req.query.error || null
+        });
+    } catch (err) {
+        console.error('getNotifications Error:', err);
+        res.status(500).send('Server Error');
+    }
+};
+
+
+// ======================
+// NOTIFICATIONS — MARK SINGLE AS READ
+// POST /driver/notifications/mark-read/:id
+// ======================
+exports.markNotificationRead = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        await Notification.findByIdAndUpdate(
+            req.params.id,
+            { $addToSet: { readBy: userId } }
+        );
+        res.json({ success: true });
+    } catch (err) {
+        console.error('markNotificationRead:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+
+// ======================
+// NOTIFICATIONS — MARK ALL READ
+// POST /driver/notifications/mark-all-read
+// ======================
+exports.markAllNotificationsRead = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        await Notification.updateMany(
+            {
+                isActive: true,
+                readBy  : { $nin: [userId] },
+                $or: [
+                    { target: { $in: ['All'] } },
+                    { recipient: userId }
+                ]
+            },
+            { $addToSet: { readBy: userId } }
+        );
+        res.json({ success: true });
+    } catch (err) {
+        console.error('markAllNotificationsRead:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
 
 
 

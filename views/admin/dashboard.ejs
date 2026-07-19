@@ -129,6 +129,303 @@
 </div>
 
 <!-- ══════════════════════════════════════
+     LIVE RIDE STATUSES
+══════════════════════════════════════ -->
+<div class="card" id="liveRideWidget">
+  <div class="card-head">
+    <h3><i class="ti ti-radar"></i> Live Ride Statuses</h3>
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <span style="font-size:.65rem;color:var(--text-muted)">
+        <span id="rideLastUpdated">just now</span>
+      </span>
+      <a href="/admin/operations/ride-monitoring" class="add-btn" style="text-decoration:none;font-size:.72rem">
+        <i class="ti ti-external-link"></i> Full Monitor
+      </a>
+    </div>
+  </div>
+
+  <div id="rideWidgetBody">
+  <% if (typeof rideStats !== 'undefined' && rideStats.totalActive > 0) { %>
+  <!-- Stats mini-row -->
+  <div class="stats-row" style="padding:.8rem 1.2rem;margin-bottom:0;grid-template-columns:repeat(auto-fit,minmax(100px,1fr))">
+    <div class="stat-card" style="padding:.6rem .8rem">
+      <div class="s-icon blue" style="width:32px;height:32px;font-size:.8rem"><i class="ti ti-car"></i></div>
+      <div class="s-info">
+        <h4 style="font-size:.6rem">Active Rides</h4>
+        <h3 style="font-size:1rem" id="dashActiveRides"><%= rideStats.totalActive %></h3>
+      </div>
+    </div>
+    <div class="stat-card" style="padding:.6rem .8rem">
+      <div class="s-icon orange" style="width:32px;height:32px;font-size:.8rem"><i class="ti ti-steering-wheel"></i></div>
+      <div class="s-info">
+        <h4 style="font-size:.6rem">On Road</h4>
+        <h3 style="font-size:1rem" id="dashOnRoad"><%= rideStats.totalDrivers %></h3>
+      </div>
+    </div>
+    <div class="stat-card" style="padding:.6rem .8rem">
+      <div class="s-icon teal" style="width:32px;height:32px;font-size:.8rem"><i class="ti ti-wifi"></i></div>
+      <div class="s-info">
+        <h4 style="font-size:.6rem">Online</h4>
+        <h3 style="font-size:1rem" id="dashOnlineDrivers"><%= rideStats.totalOnlineDrivers %></h3>
+      </div>
+    </div>
+    <div class="stat-card" style="padding:.6rem .8rem">
+      <div class="s-icon green" style="width:32px;height:32px;font-size:.8rem"><i class="ti ti-map-pin"></i></div>
+      <div class="s-info">
+        <h4 style="font-size:.6rem">Stages</h4>
+        <h3 style="font-size:1rem"><%= Object.keys(rideStats.countByStatus).length %></h3>
+      </div>
+    </div>
+  </div>
+
+  <!-- Compact ride list -->
+  <div style="padding:0 1.2rem 1rem;max-height:300px;overflow-y:auto;scrollbar-width:thin">
+    <table style="width:100%;font-size:.72rem;border-collapse:collapse">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border-mid);color:var(--text-muted);font-size:.62rem;text-transform:uppercase;letter-spacing:.4px">
+          <th style="padding:.35rem .5rem;text-align:left">Student</th>
+          <th style="padding:.35rem .5rem;text-align:left">Driver</th>
+          <th style="padding:.35rem .5rem;text-align:left">Pickup</th>
+          <th style="padding:.35rem .5rem;text-align:left">Destination</th>
+          <th style="padding:.35rem .5rem;text-align:left">Status</th>
+          <th style="padding:.35rem .5rem;text-align:left">Fare</th>
+        </tr>
+      </thead>
+      <tbody id="dashRideList">
+        <% (recentRides || []).forEach(function(b) {
+          const studentName = b.student?.user?.fullname || 'Unknown';
+          const statusIcons = {
+            'Ride Confirmed': 'ti ti-circle-check',
+            'Driver On the Way': 'ti ti-steering-wheel',
+            'Driver Arrived': 'ti ti-map-pin-check',
+            'Student Coming': 'ti ti-user-check',
+            'Ride Started': 'ti ti-car',
+            'Pending': 'ti ti-clock'
+          };
+          const statusCls = {
+            'Ride Confirmed': 'badge-info',
+            'Driver On the Way': 'badge-primary',
+            'Driver Arrived': 'badge-purple',
+            'Student Coming': 'badge-teal',
+            'Ride Started': 'badge-primary',
+            'Pending': 'badge-warning'
+          };
+          const initial = studentName.charAt(0).toUpperCase();
+        %>
+        <tr style="border-bottom:1px solid #f5f5f5">
+          <td style="padding:.4rem .5rem">
+            <div style="display:flex;align-items:center;gap:.4rem">
+              <div class="u-av s" style="width:26px;height:26px;font-size:.6rem;flex-shrink:0"><%= initial %></div>
+              <div>
+                <div style="font-weight:500;color:var(--text-primary);font-size:.72rem"><%= studentName %></div>
+                <div style="font-size:.6rem;color:var(--text-muted);font-family:monospace"><%= b.student?.user?.userId || '—' %></div>
+              </div>
+            </div>
+          </td>
+          <td style="padding:.4rem .5rem">
+            <div style="display:flex;align-items:center;gap:.35rem">
+              <div style="position:relative;width:22px;height:22px;flex-shrink:0">
+                <div class="u-av s" style="width:22px;height:22px;font-size:.55rem;background:#FFF3E0;color:#E65100"><%= (b.driverName || '?').charAt(0).toUpperCase() %></div>
+                <span style="position:absolute;bottom:-1px;right:-1px;width:7px;height:7px;border-radius:50%;border:1.5px solid white;background:<%= b._driverOnline ? '#4CAF50' : '#BDBDBD' %>"></span>
+              </div>
+              <span><%= b.driverName || '—' %></span>
+            </div>
+          </td>
+          <td style="padding:.4rem .5rem;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<%= b.pickupLocation %>"><%= b.pickupLocation %></td>
+          <td style="padding:.4rem .5rem;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<%= b.dropoffLocation %>"><%= b.dropoffLocation %></td>
+          <td style="padding:.4rem .5rem">
+            <span class="badge <%= statusCls[b.status] || 'badge-neutral' %>" style="font-size:.6rem;white-space:nowrap">
+              <i class="<%= statusIcons[b.status] || 'ti ti-circle' %>" style="font-size:.55rem"></i> <%= b.status %>
+            </span>
+          </td>
+          <td style="padding:.4rem .5rem;font-weight:600"><%= b.fare ? 'Rs ' + b.fare.toLocaleString() : '—' %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <% } else { %>
+  <div style="padding:1.5rem 1.2rem;text-align:center;color:var(--text-muted)">
+    <i class="ti ti-car-off" style="font-size:1.5rem;opacity:.3;display:block;margin-bottom:.4rem"></i>
+    <h4 style="font-size:.82rem;font-weight:500;color:var(--text-secondary)">No active rides</h4>
+    <p style="font-size:.7rem;margin-top:.2rem">All cab bookings have been completed or none are currently in progress.</p>
+  </div>
+  <% } %>
+  </div>
+
+  <!-- Status pill badges -->
+  <% if (typeof rideStats !== 'undefined' && rideStats.totalActive > 0) { %>
+  <div style="display:flex;gap:.35rem;flex-wrap:wrap;padding:0 1.2rem 1rem" id="dashStatusPills">
+    <% const pillColors = {
+      'Pending': 'badge-warning',
+      'Ride Confirmed': 'badge-info',
+      'Driver On the Way': 'badge-primary',
+      'Driver Arrived': 'badge-purple',
+      'Student Coming': 'badge-teal',
+      'Ride Started': 'badge-primary'
+    }; %>
+    <% Object.keys(rideStats.countByStatus).sort().forEach(function(s) { %>
+      <span class="badge <%= pillColors[s] || 'badge-neutral' %>" style="font-size:.62rem;padding:.2rem .5rem">
+        <%= s %>: <strong><%= rideStats.countByStatus[s] %></strong>
+      </span>
+    <% }); %>
+  </div>
+  <% } %>
+</div>
+
+<!-- ── Auto-refresh script for live ride widget ── -->
+<script>
+(function() {
+  var lastRefresh = Date.now();
+
+  function updateRideWidget(data) {
+    if (!data || !data.ok) return;
+
+    // Update stats
+    var elActive = document.getElementById('dashActiveRides');
+    var elOnRoad = document.getElementById('dashOnRoad');
+    var elOnline = document.getElementById('dashOnlineDrivers');
+    var elUpdated = document.getElementById('rideLastUpdated');
+
+    if (elActive) elActive.textContent = data.totalActive;
+    if (elOnRoad) elOnRoad.textContent = data.totalDrivers;
+    if (elOnline) elOnline.textContent = data.totalOnlineDrivers;
+    if (elUpdated) elUpdated.textContent = 'just now';
+
+    // Rebuild the ride table
+    var tbody = document.getElementById('dashRideList');
+    var pills = document.getElementById('dashStatusPills');
+    if (!tbody) return;
+
+    if (data.rides && data.rides.length > 0) {
+      var html = '';
+      var statusPillsHtml = '';
+      var statusCounts = {};
+
+      data.rides.slice(0, 5).forEach(function(b) {
+        var initial = (b.studentName || '?').charAt(0).toUpperCase();
+        var drvInitial = (b.driverName || '?').charAt(0).toUpperCase();
+        var dotColor = b.driverOnline ? '#4CAF50' : '#BDBDBD';
+        var statusIco = {
+          'Ride Confirmed': 'ti ti-circle-check',
+          'Driver On the Way': 'ti ti-steering-wheel',
+          'Driver Arrived': 'ti ti-map-pin-check',
+          'Student Coming': 'ti ti-user-check',
+          'Ride Started': 'ti ti-car',
+          'Pending': 'ti ti-clock'
+        }[b.status] || 'ti ti-circle';
+        var statusCls = {
+          'Ride Confirmed': 'badge-info',
+          'Driver On the Way': 'badge-primary',
+          'Driver Arrived': 'badge-purple',
+          'Student Coming': 'badge-teal',
+          'Ride Started': 'badge-primary',
+          'Pending': 'badge-warning'
+        }[b.status] || 'badge-neutral';
+        var fare = b.fare ? 'Rs ' + Number(b.fare).toLocaleString() : '—';
+
+        html += '<tr style="border-bottom:1px solid #f5f5f5">' +
+          '<td style="padding:.4rem .5rem"><div style="display:flex;align-items:center;gap:.4rem">' +
+            '<div class="u-av s" style="width:26px;height:26px;font-size:.6rem;flex-shrink:0">' + initial + '</div>' +
+            '<div><div style="font-weight:500;color:var(--text-primary);font-size:.72rem">' + escapeHtml(b.studentName) + '</div>' +
+            '<div style="font-size:.6rem;color:var(--text-muted);font-family:monospace">' + escapeHtml(b.studentId) + '</div></div></div></td>' +
+          '<td style="padding:.4rem .5rem"><div style="display:flex;align-items:center;gap:.35rem">' +
+            '<div style="position:relative;width:22px;height:22px;flex-shrink:0">' +
+              '<div class="u-av s" style="width:22px;height:22px;font-size:.55rem;background:#FFF3E0;color:#E65100">' + drvInitial + '</div>' +
+              '<span style="position:absolute;bottom:-1px;right:-1px;width:7px;height:7px;border-radius:50%;border:1.5px solid white;background:' + dotColor + '"></span></div>' +
+            '<span>' + escapeHtml(b.driverName) + '</span></div></td>' +
+          '<td style="padding:.4rem .5rem;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeAttr(b.pickupLocation) + '">' + escapeHtml(b.pickupLocation) + '</td>' +
+          '<td style="padding:.4rem .5rem;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeAttr(b.dropoffLocation) + '">' + escapeHtml(b.dropoffLocation) + '</td>' +
+          '<td style="padding:.4rem .5rem"><span class="badge ' + statusCls + '" style="font-size:.6rem;white-space:nowrap"><i class="' + statusIco + '" style="font-size:.55rem"></i> ' + escapeHtml(b.status) + '</span></td>' +
+          '<td style="padding:.4rem .5rem;font-weight:600">' + fare + '</td></tr>';
+
+        statusCounts[b.status] = (statusCounts[b.status] || 0) + 1;
+      });
+
+      tbody.innerHTML = html;
+
+      // Rebuild status pills
+      if (pills) {
+        var pillColors = {
+          'Pending': 'badge-warning',
+          'Ride Confirmed': 'badge-info',
+          'Driver On the Way': 'badge-primary',
+          'Driver Arrived': 'badge-purple',
+          'Student Coming': 'badge-teal',
+          'Ride Started': 'badge-primary'
+        };
+        var statusKeys = Object.keys(statusCounts).sort();
+        var pillsHtml = '';
+        statusKeys.forEach(function(s) {
+            pillsHtml += '<span class="badge ' + (pillColors[s] || 'badge-neutral') + '" style="font-size:.62rem;padding:.2rem .5rem">' +
+            s + ': <strong>' + statusCounts[s] + '</strong></span>';
+        });
+        pills.innerHTML = pillsHtml;
+      // Update stages count
+      var elStages = document.querySelector('#liveRideWidget .stats-row .stat-card:last-child h3');
+      if (elStages && data.countByStatus) {
+        elStages.textContent = Object.keys(data.countByStatus).length;
+      }
+
+      // Show empty state if no rides — keep table skeleton alive so
+      // recovery works when rides come back on the next poll
+      if (!data.rides || data.rides.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.78rem">' +
+          '<i class="ti ti-car-off" style="font-size:1.2rem;opacity:.3;display:block;margin-bottom:.3rem"></i>' +
+          'No active rides</td></tr>';
+        if (pills) pills.innerHTML = '';
+        return;
+      }
+    }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '—';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
+  function escapeAttr(str) {
+    if (!str) return '';
+    return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function fetchRideStatus() {
+    fetch('/admin/dashboard/ride-status.json')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        lastRefresh = Date.now();
+        updateRideWidget(data);
+        var el = document.getElementById('rideLastUpdated');
+        if (el) el.textContent = 'just now';
+      })
+      .catch(function() {
+        var el = document.getElementById('rideLastUpdated');
+        if (el) el.textContent = 'offline';
+      });
+  }
+
+  // Update the "last updated" timestamp every 30 seconds
+  setInterval(function() {
+    var el = document.getElementById('rideLastUpdated');
+    if (!el) return;
+    var mins = Math.floor((Date.now() - lastRefresh) / 60000);
+    if (mins < 1) { el.textContent = '< 1m ago'; }
+    else if (mins === 1) { el.textContent = '1m ago'; }
+    else { el.textContent = mins + 'm ago'; }
+  }, 30000);
+
+  // Poll every 15 seconds
+  setInterval(fetchRideStatus, 15000);
+
+  // Initial fetch after 5 seconds to let page settle
+  setTimeout(fetchRideStatus, 5000);
+})();
+</script>
+
+<!-- ══════════════════════════════════════
      MODULE QUICK ACCESS
 ══════════════════════════════════════ -->
 <div class="card">
@@ -286,5 +583,157 @@
 
   </div>
 </div>
+
+<!-- ══════════════════════════════════════
+     COMPLETED RIDE FARES
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <h3><i class="ti ti-currency-rupee"></i> Transport Revenue — Completed Rides</h3>
+    <a href="/admin/operations/completed-rides" class="add-btn" style="text-decoration:none">
+      <i class="ti ti-arrow-right"></i> View All
+    </a>
+  </div>
+
+  <div class="stats-row" style="padding:.8rem 1.2rem;margin-bottom:0;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">
+    <div class="stat-card" style="padding:.6rem .8rem">
+      <div class="s-icon green" style="width:32px;height:32px;font-size:.8rem"><i class="ti ti-currency-rupee"></i></div>
+      <div class="s-info">
+        <h4 style="font-size:.6rem">Total Fare Collected</h4>
+        <h3 style="font-size:1rem;color:var(--green)" id="dashTotalFare">Rs <%= (completedFareStats.totalFare || 0).toLocaleString() %></h3>
+      </div>
+    </div>
+    <div class="stat-card" style="padding:.6rem .8rem">
+      <div class="s-icon blue" style="width:32px;height:32px;font-size:.8rem"><i class="ti ti-car"></i></div>
+      <div class="s-info">
+        <h4 style="font-size:.6rem">Completed Rides</h4>
+        <h3 style="font-size:1rem" id="dashCompletedCount"><%= completedFareStats.count || 0 %></h3>
+      </div>
+    </div>
+    <div class="stat-card" style="padding:.6rem .8rem">
+      <div class="s-icon purple" style="width:32px;height:32px;font-size:.8rem"><i class="ti ti-calendar-stats"></i></div>
+      <div class="s-info">
+        <h4 style="font-size:.6rem">Avg Fare / Ride</h4>
+        <h3 style="font-size:1rem" id="dashAvgFare">Rs <%= Math.round(completedFareStats.avgFare || 0).toLocaleString() %></h3>
+      </div>
+    </div>
+  </div>
+
+  <% if (typeof recentCompletedRides !== 'undefined' && recentCompletedRides.length > 0) { %>
+  <div style="padding:0 1.2rem 1rem;max-height:220px;overflow-y:auto;scrollbar-width:thin">
+    <table style="width:100%;font-size:.72rem;border-collapse:collapse">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border-mid);color:var(--text-muted);font-size:.62rem;text-transform:uppercase;letter-spacing:.4px">
+          <th style="padding:.35rem .5rem;text-align:left">Student</th>
+          <th style="padding:.35rem .5rem;text-align:left">Driver</th>
+          <th style="padding:.35rem .5rem;text-align:left">Pickup → Destination</th>
+          <th style="padding:.35rem .5rem;text-align:right">Agreed Fare</th>
+          <th style="padding:.35rem .5rem;text-align:right">Completed</th>
+        </tr>
+      </thead>
+      <tbody id="dashCompletedList">
+        <% recentCompletedRides.forEach(function(b) {
+          const studentName = b.student?.user?.fullname || 'Unknown';
+          const initial = studentName.charAt(0).toUpperCase();
+          const completedDate = b.completedAt ? new Date(b.completedAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
+        %>
+        <tr style="border-bottom:1px solid #f5f5f5">
+          <td style="padding:.35rem .5rem">
+            <div style="display:flex;align-items:center;gap:.35rem">
+              <div class="u-av s" style="width:24px;height:24px;font-size:.55rem;flex-shrink:0"><%= initial %></div>
+              <span style="font-weight:500"><%= studentName %></span>
+            </div>
+          </td>
+          <td style="padding:.35rem .5rem"><%= b.driverName || '—' %></td>
+          <td style="padding:.35rem .5rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<%= b.pickupLocation %> → <%= b.dropoffLocation %>">
+            <%= b.pickupLocation %> → <%= b.dropoffLocation %>
+          </td>
+          <td style="padding:.35rem .5rem;text-align:right;font-weight:700;color:var(--green-dark);font-size:.78rem">
+            <%= b.fare ? 'Rs ' + b.fare.toLocaleString() : '—' %>
+          </td>
+          <td style="padding:.35rem .5rem;text-align:right;font-size:.65rem;color:var(--text-muted);white-space:nowrap">
+            <%= completedDate %>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } else { %>
+  <div style="padding:1rem 1.2rem;text-align:center;color:var(--text-muted)">
+    <i class="ti ti-currency-rupee-off" style="font-size:1.2rem;opacity:.3;display:block;margin-bottom:.3rem"></i>
+    <p style="font-size:.75rem">No completed rides yet. Fares will appear here once rides are completed.</p>
+  </div>
+  <% } %>
+</div>
+
+<!-- ── Auto-refresh script extension for completed fare widget ── -->
+<script>
+(function() {
+  // Independent polling for the completed fare widget.
+  // Can't patch into the existing IIFE above (updateRideWidget is not
+  // exposed on window), so we add a separate fetch cycle.
+  function updateCompletedFareWidget(data) {
+    if (!data || !data.ok || !data.completedFare) return;
+
+    var elTotal = document.getElementById('dashTotalFare');
+    var elCount = document.getElementById('dashCompletedCount');
+    var elAvg   = document.getElementById('dashAvgFare');
+    var elList  = document.getElementById('dashCompletedList');
+
+    if (elTotal) elTotal.textContent = 'Rs ' + Number(data.completedFare.totalFare || 0).toLocaleString();
+    if (elCount) elCount.textContent = data.completedFare.count || 0;
+    if (elAvg) elAvg.textContent = 'Rs ' + Number(data.completedFare.avgFare || 0).toLocaleString();
+
+    if (!elList) return;
+
+    var completed = data.completedFare.recentCompleted;
+    if (completed && completed.length > 0) {
+      var html = '';
+      completed.forEach(function(b) {
+        var initial = (b.studentName || '?').charAt(0).toUpperCase();
+        var fare = b.fare ? 'Rs ' + Number(b.fare).toLocaleString() : '—';
+        var dateStr = b.completedAt ? new Date(b.completedAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
+        var route = (b.pickupLocation || '') + ' \u2192 ' + (b.dropoffLocation || '');
+
+        html += '<tr style="border-bottom:1px solid #f5f5f5">' +
+          '<td style="padding:.35rem .5rem"><div style="display:flex;align-items:center;gap:.35rem">' +
+            '<div class="u-av s" style="width:24px;height:24px;font-size:.55rem;flex-shrink:0">' + initial + '</div>' +
+            '<span style="font-weight:500">' + escapeHtml(b.studentName) + '</span></div></td>' +
+          '<td style="padding:.35rem .5rem">' + escapeHtml(b.driverName) + '</td>' +
+          '<td style="padding:.35rem .5rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeAttr(route) + '">' + escapeHtml(route) + '</td>' +
+          '<td style="padding:.35rem .5rem;text-align:right;font-weight:700;color:var(--green-dark);font-size:.78rem">' + fare + '</td>' +
+          '<td style="padding:.35rem .5rem;text-align:right;font-size:.65rem;color:var(--text-muted);white-space:nowrap">' + dateStr + '</td></tr>';
+      });
+      elList.innerHTML = html;
+    } else {
+      elList.innerHTML = '';
+    }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '—';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
+  function escapeAttr(str) {
+    if (!str) return '';
+    return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // Poll every 15 seconds (same interval as active rides widget)
+  function fetchFareStatus() {
+    fetch('/admin/dashboard/ride-status.json')
+      .then(function(r) { return r.json(); })
+      .then(updateCompletedFareWidget)
+      .catch(function() {});
+  }
+
+  setInterval(fetchFareStatus, 15000);
+  setTimeout(fetchFareStatus, 6000);
+})();
+</script>
 
 <%- include('admin-footer') %>

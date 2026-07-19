@@ -1,25 +1,228 @@
 <%
   const activePage = 'bookings';
   const showProfileDropdown = true;
+  const isOnline = typeof driver !== 'undefined' && driver && driver.isOnline;
 %>
 <%- include('driver-header') %>
+
+<style>
+/* ── Ride Request Card ── */
+.ride-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  transition: all .25s ease;
+  overflow: hidden;
+  position: relative;
+}
+.ride-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.ride-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--accent), var(--accent-dark));
+  border-radius: 0 2px 2px 0;
+}
+.ride-card-body {
+  padding: 1rem 1.1rem 1rem 1.4rem;
+}
+
+/* Route display */
+.ride-route {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  margin-bottom: .7rem;
+}
+.ride-from, .ride-to {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  word-break: break-word;
+  line-height: 1.3;
+}
+.ride-arrow {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: .7rem;
+  margin-top: .2rem;
+}
+
+/* Info chips */
+.ride-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-bottom: .7rem;
+}
+.ride-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .2rem .55rem;
+  border-radius: var(--radius-pill);
+  font-size: .68rem;
+  font-weight: 500;
+  background: #f5f5f5;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.ride-chip i {
+  font-size: .6rem;
+  color: var(--text-muted);
+}
+.ride-chip.budget-chip {
+  background: #E8F5E9;
+  color: #2E7D32;
+}
+.ride-chip.budget-chip i {
+  color: #2E7D32;
+}
+.ride-chip.pass-chip {
+  background: #E3F2FD;
+  color: #1565C0;
+}
+.ride-chip.pass-chip i {
+  color: #1565C0;
+}
+.ride-chip.date-chip {
+  background: #FFF8E1;
+  color: #E65100;
+}
+.ride-chip.date-chip i {
+  color: #E65100;
+}
+.ride-chip.time-chip {
+  background: #F3E5F5;
+  color: #7B1FA2;
+}
+.ride-chip.time-chip i {
+  color: #7B1FA2;
+}
+
+/* Notes */
+.ride-notes {
+  font-size: .72rem;
+  color: var(--text-muted);
+  background: #fafafa;
+  padding: .45rem .6rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: .7rem;
+  line-height: 1.4;
+  border-left: 2px solid #eee;
+}
+.ride-notes strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* Ride card footer */
+.ride-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: .65rem;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+.ride-student {
+  font-size: .68rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+}
+.ride-student strong {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* Ride request grid */
+.ride-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: .9rem;
+  padding: 1rem 1.2rem;
+}
+
+/* Reserved card variant */
+.ride-card.reserved {
+  border-color: #E3F2FD;
+}
+.ride-card.reserved::before {
+  background: linear-gradient(180deg, #1565C0, #0D47A1);
+}
+.ride-card.reserved .ride-chip.date-chip {
+  background: #E3F2FD;
+  color: #0D47A1;
+}
+
+/* Active ride card variant */
+.ride-card.active-ride {
+  border-color: #C8E6C9;
+}
+.ride-card.active-ride::before {
+  background: linear-gradient(180deg, #2E7D32, #1B5E20);
+}
+
+/* Online/offline banner */
+.offline-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2.5rem 1rem;
+  background: #FFFBEB;
+  border: 2px dashed #FDE68A;
+  border-radius: var(--radius-lg);
+  margin: .5rem 1.2rem .2rem;
+}
+.offline-banner i {
+  font-size: 2.2rem;
+  color: #F59E0B;
+  margin-bottom: .7rem;
+}
+.offline-banner h4 {
+  font-size: .9rem;
+  color: #92400E;
+  font-weight: 600;
+  margin-bottom: .2rem;
+}
+.offline-banner p {
+  font-size: .75rem;
+  color: #A16207;
+}
+
+/* Quote modal specific */
+.quote-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .8rem;
+}
+</style>
 
 <!-- ══════════════════════════════════════
      CAB BOOKINGS
 ══════════════════════════════════════ -->
 
-<!-- ══ PENDING REQUESTS ══ -->
+<!-- ══ LEGACY PENDING REQUESTS (directly assigned, pre-reservation-system) ══ -->
+<% if (legacyAssigned.length > 0) { %>
 <div class="card" style="margin-bottom:1.2rem">
   <div class="card-head">
     <h3><i class="ti ti-bell" style="color:#C62828"></i> Pending Requests</h3>
-    <% if (pendingBookings.length > 0) { %>
-    <span class="badge badge-danger"><%= pendingBookings.length %> awaiting response</span>
-    <% } else { %>
-    <span class="count-pill">0 pending</span>
-    <% } %>
+    <span class="badge badge-danger"><%= legacyAssigned.length %> awaiting response</span>
   </div>
 
-  <% if (pendingBookings.length > 0) { %>
   <div class="tbl-wrap">
     <table>
       <thead>
@@ -36,7 +239,7 @@
         </tr>
       </thead>
       <tbody>
-        <% pendingBookings.forEach(function(b, i) {
+        <% legacyAssigned.forEach(function(b, i) {
              const studentName = b.student?.user?.fullname || '—';
              const studentPhone = b.student?.user?.phoneNumber || '';
              const pickupDate = new Date(b.pickupDate);
@@ -68,10 +271,6 @@
                 onclick="openAcceptModal(this)">
                 <i class="ti ti-check"></i> Accept
               </button>
-              <form action="/driver/bookings/reject/<%= b._id %>" method="POST" style="display:inline"
-                onsubmit="return confirm('Reject this ride request?')">
-                <button type="submit" class="act-btn btn-reject"><i class="ti ti-x"></i> Reject</button>
-              </form>
             </div>
           </td>
         </tr>
@@ -79,21 +278,219 @@
       </tbody>
     </table>
   </div>
-  <% } else { %>
-  <div class="empty-state">
-    <i class="ti ti-bell-off"></i>
-    <h4>No pending requests</h4>
-    <p>New ride requests awaiting your response will appear here first.</p>
+</div>
+<% } %>
+
+<!-- ══ AVAILABLE RIDE REQUESTS ══ -->
+<div class="card" style="margin-bottom:1.2rem">
+  <div class="card-head">
+    <h3><i class="ti ti-bell-ringing" style="color:#2E7D32"></i> Available Ride Requests</h3>
+    <% if (isOnline && availableRequests.length > 0) { %>
+      <span class="count-pill"><%= availableRequests.length %> request<%= availableRequests.length !== 1 ? 's' : '' %></span>
+    <% } %>
   </div>
+
+  <% if (isOnline) { %>
+    <% if (availableRequests.length > 0) { %>
+    <div class="ride-grid">
+      <% availableRequests.forEach(function(b) {
+           const studentName = b.student?.user?.fullname || '—';
+           const studentPhone = b.student?.user?.phoneNumber || '';
+           const pickupDate = new Date(b.pickupDate);
+           const hasNotes = b.notes && b.notes.trim();
+           const hasBudget = b.budget && b.budget > 0;
+      %>
+      <div class="ride-card">
+        <div class="ride-card-body">
+          <div class="ride-route">
+            <div class="ride-from">
+              <i class="ti ti-map-pin" style="color:var(--accent);font-size:.65rem;margin-right:.25rem"></i>
+              <%= b.pickupLocation %>
+            </div>
+            <div class="ride-arrow"><i class="ti ti-arrow-right"></i></div>
+            <div class="ride-to">
+              <i class="ti ti-map" style="color:#C62828;font-size:.65rem;margin-right:.25rem"></i>
+              <%= b.dropoffLocation %>
+            </div>
+          </div>
+
+          <div class="ride-info">
+            <span class="ride-chip date-chip">
+              <i class="ti ti-calendar"></i>
+              <%= pickupDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+            </span>
+            <% if (b.pickupTime) { %>
+            <span class="ride-chip time-chip">
+              <i class="ti ti-clock"></i>
+              <%= b.pickupTime %>
+            </span>
+            <% } %>
+            <span class="ride-chip pass-chip">
+              <i class="ti ti-users"></i>
+              <%= b.passengerCount %> passenger<%= b.passengerCount !== 1 ? 's' : '' %>
+            </span>
+            <% if (hasBudget) { %>
+            <span class="ride-chip budget-chip">
+              <i class="ti ti-currency-rupee"></i>
+              Rs <%= b.budget.toLocaleString() %>
+            </span>
+            <% } %>
+            <% if (b.purpose) { %>
+            <span class="ride-chip">
+              <i class="ti ti-tag"></i>
+              <%= b.purpose %>
+            </span>
+            <% } %>
+          </div>
+
+          <% if (hasNotes) { %>
+          <div class="ride-notes">
+            <strong><i class="ti ti-file-text" style="font-size:.6rem"></i> Notes:</strong>
+            <%= b.notes %>
+          </div>
+          <% } %>
+
+          <div class="ride-footer">
+            <div class="ride-student">
+              <i class="ti ti-user-circle"></i>
+              <strong><%= studentName %></strong>
+              <% if (studentPhone) { %>
+              <span style="color:#bbb;font-size:.6rem"><%= studentPhone %></span>
+              <% } %>
+            </div>
+            <form action="/driver/bookings/reserve/<%= b._id %>" method="POST" style="display:inline"
+              onsubmit="return confirm('Reserve this ride request? You will have 2 minutes to submit a fare quote.')">
+              <button type="submit" class="act-btn btn-approve" style="padding:.35rem .75rem;font-size:.72rem">
+                <i class="ti ti-hand-click"></i> Reserve
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <% }); %>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+      <i class="ti ti-bell-off"></i>
+      <h4>No ride requests available</h4>
+      <p>All pending requests have been reserved. Check again soon.</p>
+    </div>
+    <% } %>
+  <% } else { %>
+    <div class="offline-banner">
+      <i class="ti ti-wifi-off"></i>
+      <h4>You are currently offline</h4>
+      <p>Toggle the <strong>Online</strong> switch in the top bar to start receiving ride requests.</p>
+    </div>
   <% } %>
 </div>
+
+<!-- ══ MY RESERVATIONS ══ -->
+<% if (myReservations.length > 0) { %>
+<div class="card" style="margin-bottom:1.2rem">
+  <div class="card-head">
+    <h3><i class="ti ti-clock" style="color:#1565C0"></i> My Reservations</h3>
+    <span class="count-pill"><%= myReservations.length %> reserved</span>
+  </div>
+
+  <div class="ride-grid">
+    <% myReservations.forEach(function(b) {
+         const studentName = b.student?.user?.fullname || '—';
+         const pickupDate = new Date(b.pickupDate);
+         const hasNotes = b.notes && b.notes.trim();
+         const hasBudget = b.budget && b.budget > 0;
+         const expireAt = b.reservationExpiresAt ? new Date(b.reservationExpiresAt) : null;
+         const isAwaiting = b.status === 'Waiting for Student Confirmation';
+    %>
+    <div class="ride-card reserved">
+      <div class="ride-card-body">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+          <span class="badge <%= isAwaiting ? 'badge-warning' : 'badge-info' %>" style="font-size:.62rem">
+            <i class="ti ti-<%= isAwaiting ? 'mail-opened' : 'lock' %>" style="font-size:.55rem"></i>
+            <%= b.status %>
+          </span>
+          <% if (expireAt) { %>
+          <span class="timer-badge" data-expires="<%= expireAt.toISOString() %>" style="font-size:.62rem;color:var(--text-muted)">
+            <i class="ti ti-clock"></i> <span class="timer-countdown"></span>
+          </span>
+          <% } %>
+        </div>
+
+        <div class="ride-route">
+          <div class="ride-from">
+            <i class="ti ti-map-pin" style="color:var(--accent);font-size:.65rem;margin-right:.25rem"></i>
+            <%= b.pickupLocation %>
+          </div>
+          <div class="ride-arrow"><i class="ti ti-arrow-right"></i></div>
+          <div class="ride-to">
+            <i class="ti ti-map" style="color:#C62828;font-size:.65rem;margin-right:.25rem"></i>
+            <%= b.dropoffLocation %>
+          </div>
+        </div>
+
+        <div class="ride-info">
+          <span class="ride-chip date-chip">
+            <i class="ti ti-calendar"></i>
+            <%= pickupDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
+          </span>
+          <% if (b.pickupTime) { %>
+          <span class="ride-chip time-chip">
+            <i class="ti ti-clock"></i>
+            <%= b.pickupTime %>
+          </span>
+          <% } %>
+          <span class="ride-chip pass-chip">
+            <i class="ti ti-users"></i>
+            <%= b.passengerCount %>
+          </span>
+          <% if (hasBudget) { %>
+          <span class="ride-chip budget-chip">
+            <i class="ti ti-currency-rupee"></i>
+            Rs <%= b.budget.toLocaleString() %>
+          </span>
+          <% } %>
+        </div>
+
+        <% if (hasNotes) { %>
+        <div class="ride-notes">
+          <strong><i class="ti ti-file-text" style="font-size:.6rem"></i> Notes:</strong>
+          <%= b.notes %>
+        </div>
+        <% } %>
+
+        <div class="ride-footer">
+          <div class="ride-student">
+            <i class="ti ti-user-circle"></i>
+            <strong><%= studentName %></strong>
+          </div>
+          <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+            <% if (!isAwaiting) { %>
+            <button type="button" class="act-btn btn-approve" style="padding:.3rem .65rem;font-size:.68rem"
+              onclick="openQuoteModal('<%= b._id %>', '<%= b.pickupLocation.replace(/'/g, "\\'") %>', '<%= b.dropoffLocation.replace(/'/g, "\\'") %>')">
+              <i class="ti ti-currency-rupee"></i> Submit Fare
+            </button>
+            <% } %>
+            <form action="/driver/bookings/reject/<%= b._id %>" method="POST" style="display:inline"
+              onsubmit="return confirm('Release this reservation?')">
+              <button type="submit" class="act-btn btn-reject" style="padding:.3rem .65rem;font-size:.68rem" title="Release reservation">
+                <i class="ti ti-x"></i> Release
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
 
 <!-- ── Sub-nav ── -->
 <div style="display:flex;gap:.5rem;margin-bottom:1.2rem;flex-wrap:wrap">
   <button class="act-btn btn-view" id="btn-active" onclick="switchTab('active', this)">
     <i class="ti ti-sparkles"></i> Active
-    <% if (activeBookings.length > 0) { %>
-    <span class="badge badge-success" style="margin-left:.3rem;font-size:.55rem"><%= activeBookings.length %></span>
+    <% if (activeRides.length > 0) { %>
+    <span class="badge badge-success" style="margin-left:.3rem;font-size:.55rem"><%= activeRides.length %></span>
     <% } %>
   </button>
   <button class="act-btn" style="background:#f5f5f5;color:var(--text-secondary)" id="btn-history" onclick="switchTab('history', this)">
@@ -104,101 +501,100 @@
   </button>
 </div>
 
-<!-- ══ ACTIVE BOOKINGS ══ -->
+<!-- ══ ACTIVE RIDES ══ -->
 <div class="page active" id="page-active">
   <div class="card">
     <div class="card-head">
-      <h3><i class="ti ti-calendar-check" style="color:#2E7D32"></i> Active Ride Requests</h3>
-      <span class="count-pill"><%= activeBookings.length %> request<%= activeBookings.length !== 1 ? 's' : '' %></span>
+      <h3><i class="ti ti-calendar-check" style="color:#2E7D32"></i> Active Rides</h3>
+      <span class="count-pill"><%= activeRides.length %> ride<%= activeRides.length !== 1 ? 's' : '' %></span>
     </div>
 
-    <% if (activeBookings.length > 0) { %>
-    <div class="tbl-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Student</th>
-            <th>Pickup</th>
-            <th>Destination</th>
-            <th>Date / Time</th>
-            <th>Pass.</th>
-            <th>Status</th>
-            <th>Fare</th>
-            <th>Payment</th>
-            <th>Booked</th>
-            <th class="actions-th">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% activeBookings.forEach(function(b, i) {
-               const statusMap = {
-                 'Pending'     : 'badge-warning',
-                 'Confirmed'   : 'badge-info',
-                 'In Progress' : 'badge-purple'
-               };
-               const studentName = b.student?.user?.fullname || '—';
-               const studentPhone = b.student?.user?.phoneNumber || '';
-               const pickupDate = new Date(b.pickupDate);
-               const createdAt = b.createdAt ? new Date(b.createdAt) : null;
-               const isPending = b.status === 'Pending';
-          %>
-          <tr>
-            <td style="color:var(--text-muted);font-size:.7rem"><%= i + 1 %></td>
-            <td>
-              <div style="font-weight:600;font-size:.78rem"><%= studentName %></div>
-              <div style="font-size:.65rem;color:var(--text-muted)"><%= studentPhone %></div>
-            </td>
-            <td style="font-size:.72rem;max-width:130px;word-break:break-word"><%= b.pickupLocation %></td>
-            <td style="font-size:.72rem;max-width:130px;word-break:break-word"><%= b.dropoffLocation %></td>
-            <td style="font-size:.72rem">
+    <% if (activeRides.length > 0) { %>
+    <div class="ride-grid">
+      <% activeRides.forEach(function(b) {
+           const studentName = b.student?.user?.fullname || '—';
+           const studentPhone = b.student?.user?.phoneNumber || '';
+           const pickupDate = new Date(b.pickupDate);
+           const statusColor = (rideStatusBadgeClass && rideStatusBadgeClass[b.status]) || 'badge-neutral';
+      %>
+      <div class="ride-card active-ride">
+        <div class="ride-card-body">
+          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+            <span class="badge <%= statusColor %>" style="font-size:.62rem">
+              <i class="ti ti-<%= b.status === 'Ride Confirmed' ? 'calendar-check' : 'steering-wheel' %>" style="font-size:.55rem"></i>
+              <%= b.status %>
+            </span>
+            <% if (b.fare) { %>
+            <span class="badge badge-success" style="font-size:.62rem">
+              <i class="ti ti-currency-rupee" style="font-size:.55rem"></i>
+              Rs <%= b.fare.toLocaleString() %>
+            </span>
+            <% } %>
+          </div>
+
+          <div class="ride-route">
+            <div class="ride-from" style="font-size:.78rem">
+              <i class="ti ti-map-pin" style="color:var(--accent);font-size:.6rem;margin-right:.25rem"></i>
+              <%= b.pickupLocation %>
+            </div>
+            <div class="ride-arrow" style="font-size:.6rem"><i class="ti ti-arrow-right"></i></div>
+            <div class="ride-to" style="font-size:.78rem">
+              <i class="ti ti-map" style="color:#C62828;font-size:.6rem;margin-right:.25rem"></i>
+              <%= b.dropoffLocation %>
+            </div>
+          </div>
+
+          <div class="ride-info">
+            <span class="ride-chip date-chip">
+              <i class="ti ti-calendar"></i>
               <%= pickupDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) %>
-              <% if (b.pickupTime) { %><div style="font-size:.62rem;color:var(--text-muted)"><%= b.pickupTime %></div><% } %>
-            </td>
-            <td style="text-align:center"><span class="count-pill"><%= b.passengerCount %></span></td>
-            <td><span class="badge <%= statusMap[b.status] || 'badge-neutral' %>"><%= b.status %></span></td>
-            <td style="font-size:.75rem;font-weight:600">
-              <%= b.fare ? 'Rs ' + b.fare.toLocaleString() : '—' %>
-            </td>
-            <td>
-              <% if (b.fare) { %>
-                <span class="badge <%= b.paymentStatus === 'Paid' ? 'badge-success' : 'badge-warning' %>"><%= b.paymentStatus %></span>
-              <% } else { %>
-                <span style="color:#ccc;font-size:.7rem">—</span>
+            </span>
+            <% if (b.pickupTime) { %>
+            <span class="ride-chip time-chip">
+              <i class="ti ti-clock"></i>
+              <%= b.pickupTime %>
+            </span>
+            <% } %>
+            <span class="ride-chip pass-chip">
+              <i class="ti ti-users"></i>
+              <%= b.passengerCount %>
+            </span>
+          </div>
+
+          <div class="ride-footer">
+            <div class="ride-student">
+              <i class="ti ti-user-circle"></i>
+              <strong><%= studentName %></strong>
+              <% if (studentPhone) { %>
+              <span style="color:#bbb;font-size:.6rem"><%= studentPhone %></span>
               <% } %>
-            </td>
-            <td style="font-size:.68rem;color:var(--text-muted)">
-              <%= createdAt ? createdAt.toLocaleDateString('en-PK', { day:'2-digit', month:'short' }) : '—' %>
-            </td>
-            <td class="actions-cell">
-              <% if (isPending) { %>
-              <div class="action-cell">
-                <button type="button" class="act-btn btn-approve"
-                  data-booking-id="<%= b._id %>"
-                  data-pickup="<%= b.pickupLocation %>"
-                  data-dropoff="<%= b.dropoffLocation %>"
-                  onclick="openAcceptModal(this)">
-                  <i class="ti ti-check"></i> Accept
+            </div>
+            <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+              <% if (nextStageLabel && nextStageLabel[b.status]) { %>
+              <form action="/driver/bookings/status/<%= b._id %>" method="POST" style="display:inline">
+                <button type="submit" class="act-btn btn-approve" style="padding:.3rem .65rem;font-size:.68rem"
+                  onclick="return confirm('Advance this ride to the next stage?')">
+                  <i class="ti ti-arrow-right"></i> <%= nextStageLabel[b.status] %>
                 </button>
-                <form action="/driver/bookings/reject/<%= b._id %>" method="POST" style="display:inline"
-                  onsubmit="return confirm('Reject this ride request?')">
-                  <button type="submit" class="act-btn btn-reject"><i class="ti ti-x"></i> Reject</button>
-                </form>
-              </div>
-              <% } else { %>
-                <span style="color:#ccc;font-size:.7rem">—</span>
+              </form>
               <% } %>
-            </td>
-          </tr>
-          <% }); %>
-        </tbody>
-      </table>
+              <% if ((driverCancellableFrom || []).includes(b.status)) { %>
+              <button type="button" class="act-btn btn-reject" style="padding:.3rem .65rem;font-size:.68rem"
+                onclick="openDriverCancelModal('<%= b._id %>', '<%= b.pickupLocation.replace(/'/g, "\\'") %>', '<%= b.dropoffLocation.replace(/'/g, "\\'") %>')">
+                <i class="ti ti-x"></i> Cancel Ride
+              </button>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      </div>
+      <% }); %>
     </div>
     <% } else { %>
     <div class="empty-state">
       <i class="ti ti-calendar-off"></i>
-      <h4>No active ride requests</h4>
-      <p>New bookings from students will appear here once assigned.</p>
+      <h4>No active rides</h4>
+      <p>Rides you're confirmed for will appear here once a student accepts your quote.</p>
     </div>
     <% } %>
   </div>
@@ -231,10 +627,7 @@
         </thead>
         <tbody>
           <% pastBookings.forEach(function(b, i) {
-               const statusMap = {
-                 'Completed' : 'badge-success',
-                 'Cancelled' : 'badge-neutral'
-               };
+               const statusMap = rideStatusBadgeClass || {};
                const studentName = b.student?.user?.fullname || '—';
                const pickupDate = new Date(b.pickupDate);
                const hasRating = b.rating && b.rating > 0;
@@ -256,7 +649,7 @@
             </td>
             <td>
               <% if (b.fare) { %>
-                <span class="badge <%= b.paymentStatus === 'Paid' ? 'badge-success' : 'badge-warning' %>"><%= b.paymentStatus %></span>
+                <span class="badge <%= b.paymentStatus === 'Paid' ? 'badge-success' : (b.paymentStatus === 'Refund Pending' ? 'badge-danger' : 'badge-warning') %>"><%= b.paymentStatus %></span>
               <% } else { %>
                 <span style="color:#ccc;font-size:.7rem">—</span>
               <% } %>
@@ -286,8 +679,9 @@
 </div><!-- /page-history -->
 
 <!-- ══════════════════════════════════════════════════════════════
-     ACCEPT BOOKING MODAL — fare must be entered before accepting;
-     payment only becomes available to the student once this is set.
+     ACCEPT BOOKING MODAL (legacy direct-assign flow) — fare must be
+     entered before accepting; payment only becomes available to the
+     student once this is set.
 ══════════════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="acceptBookingModal" onclick="if(event.target===this) closeModal('acceptBookingModal')">
   <div class="modal-box modal-box-sm">
@@ -311,6 +705,71 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════
+     SUBMIT QUOTE MODAL — driver submits fare + ETA for a reserved request
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="quoteModal" onclick="if(event.target===this) closeModal('quoteModal')">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-currency-rupee" style="color:var(--accent)"></i> Submit Fare Quote</h3>
+      <button class="modal-close" onclick="closeModal('quoteModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="quoteForm" method="POST">
+      <div class="modal-body">
+        <p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:.9rem" id="quoteRoute"></p>
+        <div class="quote-form-grid">
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Fare Amount (PKR) <span class="req">*</span></label>
+            <input type="number" name="fare" id="quoteFare" min="1" step="1" required placeholder="e.g. 500">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Estimated Time of Arrival (optional)</label>
+            <input type="text" name="eta" id="quoteEta" placeholder="e.g. 10 mins / 2:30 PM">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Comments <span style="font-size:.65rem;color:var(--text-muted)">(optional)</span></label>
+            <textarea name="comments" id="quoteComments" rows="3" maxlength="500"
+              placeholder="Any special notes for the student — e.g. wait at the gate, luggage help, etc."
+              style="resize:vertical;font-size:.78rem"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="submit" class="btn-modal-save"><i class="ti ti-send"></i> Submit Quote</button>
+        <button type="button" class="btn-modal-cancel" onclick="closeModal('quoteModal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     CANCEL RIDE MODAL — driver must enter a reason before cancelling
+     a confirmed ride (before reaching the pickup location)
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="driverCancelModal" onclick="if(event.target===this) closeModal('driverCancelModal')">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-x" style="color:#C62828"></i> Cancel Ride</h3>
+      <button class="modal-close" onclick="closeModal('driverCancelModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="driverCancelForm" method="POST">
+      <div class="modal-body">
+        <p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:.9rem" id="driverCancelRoute"></p>
+        <div class="form-group">
+          <label>Reason for cancelling <span class="req">*</span></label>
+          <textarea name="reason" id="driverCancelReason" rows="3" maxlength="500" required
+            placeholder="e.g. vehicle breakdown, emergency, traffic — the student will see this"
+            style="resize:vertical;font-size:.78rem"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="submit" class="btn-modal-save" style="background:#C62828"><i class="ti ti-x"></i> Confirm Cancellation</button>
+        <button type="button" class="btn-modal-cancel" onclick="closeModal('driverCancelModal')">Keep Ride</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script src="/js/driver-realtime.js"></script>
 
 <script>
@@ -323,6 +782,47 @@ function openAcceptModal(btn) {
   document.getElementById('acceptBookingFare').value = '';
   openModal('acceptBookingModal');
 }
+
+// ── Quote modal: collect fare + ETA before submitting ──
+function openQuoteModal(bookingId, pickup, dropoff) {
+  document.getElementById('quoteForm').action = '/driver/bookings/quote/' + bookingId;
+  document.getElementById('quoteRoute').textContent = (pickup || '') + ' → ' + (dropoff || '');
+  document.getElementById('quoteFare').value = '';
+  document.getElementById('quoteEta').value = '';
+  document.getElementById('quoteComments').value = '';
+  openModal('quoteModal');
+}
+
+// ── Cancel-ride modal: require a reason before cancelling ──
+function openDriverCancelModal(bookingId, pickup, dropoff) {
+  document.getElementById('driverCancelForm').action = '/driver/bookings/cancel/' + bookingId;
+  document.getElementById('driverCancelRoute').textContent = (pickup || '') + ' → ' + (dropoff || '');
+  document.getElementById('driverCancelReason').value = '';
+  openModal('driverCancelModal');
+}
+
+// ── Reservation countdown timers ──
+document.querySelectorAll('.timer-countdown').forEach(function(el) {
+  var expiresAt = el.closest('.timer-badge').getAttribute('data-expires');
+  if (!expiresAt) return;
+  var expireTime = new Date(expiresAt).getTime();
+  function tick() {
+    var now = new Date().getTime();
+    var diff = expireTime - now;
+    if (diff <= 0) {
+      el.textContent = 'Expired';
+      el.style.color = '#C62828';
+      return;
+    }
+    var mins = Math.floor(diff / 60000);
+    var secs = Math.floor((diff % 60000) / 1000);
+    el.textContent = mins + ':' + (secs < 10 ? '0' : '') + secs + ' left';
+    if (mins < 1) el.style.color = '#C62828';
+    else el.style.color = '';
+  }
+  tick();
+  setInterval(tick, 1000);
+});
 
 // ── Tab switching ──
 function switchTab(name, btnEl) {

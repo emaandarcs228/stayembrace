@@ -29,6 +29,7 @@ const MessLog  = require('../models/messDailyLog');
 const laundryActions = require('../services/laundryActions');
 const mobileLoadActions = require('../services/mobileLoadActions');
 const CabBooking = require('../models/cabBooking');
+const { STATUS_ORDER: RIDE_STATUS_ORDER, BADGE_CLASS: RIDE_STATUS_BADGE_CLASS, isTerminal } = require('../utils/rideStatus');
 
 // ─────────────────────────────────────────────────────────────
 // HELPERS
@@ -1076,20 +1077,15 @@ exports.getCabBookings = async (req, res) => {
             });
         }
 
-        const totalAll        = bookings.length;
-        const totalPending    = bookings.filter(b => b.status === 'Pending').length;
-        const totalConfirmed  = bookings.filter(b => b.status === 'Confirmed').length;
-        const totalInProgress = bookings.filter(b => b.status === 'In Progress').length;
-        const totalCompleted  = bookings.filter(b => b.status === 'Completed').length;
-        const totalCancelled  = bookings.filter(b => b.status === 'Cancelled').length;
+        const totalAll = bookings.length;
+        const counts = { all: totalAll };
+        RIDE_STATUS_ORDER.forEach(s => {
+            counts[s] = bookings.filter(b => b.status === s).length;
+        });
 
-        const statusClass = {
-            'Pending'     : 'badge-warning',
-            'Confirmed'   : 'badge-info',
-            'In Progress' : 'badge-primary',
-            'Completed'   : 'badge-success',
-            'Cancelled'   : 'badge-danger'
-        };
+        // Precompute Active-vs-History grouping server-side so the view
+        // doesn't need its own copy of "which statuses count as active".
+        bookings.forEach(b => { b._isActive = !isTerminal(b.status); });
 
         res.render('warden/cabBookings', {
             ...base,
@@ -1100,15 +1096,9 @@ exports.getCabBookings = async (req, res) => {
             total         : totalAll,
             search,
             statusF,
-            statusClass,
-            counts: {
-                all        : totalAll,
-                pending    : totalPending,
-                confirmed  : totalConfirmed,
-                inProgress : totalInProgress,
-                completed  : totalCompleted,
-                cancelled  : totalCancelled
-            },
+            statusClass: RIDE_STATUS_BADGE_CLASS,
+            statusOrder: RIDE_STATUS_ORDER,
+            counts,
             successMessage : req.query.success || null,
             errorMessage   : req.query.error   || null
         });

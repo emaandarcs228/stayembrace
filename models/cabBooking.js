@@ -87,24 +87,29 @@ const cabBookingSchema = new mongoose.Schema({
     },
 
     // ── Ride Reservation Workflow ─────────────────────────────────
-    // The ride request workflow:
-    //   Pending (open for reservation) → Reserved (by a driver) →
-    //   Awaiting Student (driver submitted fare) → Confirmed (student accepted)
-    //   → In Progress → Completed
-    //   Cancelled can happen at any open stage.
+    // Pending → Reserved by Driver → Waiting for Student Confirmation →
+    // Ride Confirmed → Driver On the Way → Driver Arrived → Student Coming
+    // → Ride Started → Ride Completed.
+    // Cancelled is only reachable from Pending / Reserved by Driver /
+    // Waiting for Student Confirmation.
     //
-    // Pending:          Student submitted, waiting for a driver to reserve.
-    // Reserved:         A driver has reserved this request for 2 minutes
-    //                   to submit a fare quote. Hidden from other drivers.
-    // Awaiting Student: Driver submitted fare + ETA. Student must accept
-    //                   or reject. 2-min timer still applies.
-    // Confirmed:        Student accepted the fare. Ride is assigned.
-    // In Progress:      Driver has started the ride.
-    // Completed:        Ride finished successfully.
-    //
+    // See utils/rideStatus.js for the full transition table, badge
+    // classes, and semantic group helpers — this enum must stay in exact
+    // sync with STATUS_ORDER exported there.
     status: {
         type: String,
-        enum: ['Pending', 'Reserved', 'Awaiting Student', 'Confirmed', 'In Progress', 'Completed', 'Cancelled'],
+        enum: [
+            'Pending',
+            'Reserved by Driver',
+            'Waiting for Student Confirmation',
+            'Ride Confirmed',
+            'Driver On the Way',
+            'Driver Arrived',
+            'Student Coming',
+            'Ride Started',
+            'Ride Completed',
+            'Cancelled'
+        ],
         default: 'Pending'
     },
 
@@ -162,11 +167,48 @@ const cabBookingSchema = new mongoose.Schema({
         }
     },
 
+    // ── Status History (audit trail) ──────────────────────────────
+    // One entry appended on every transition, including system-initiated
+    // ones (reservationTimeoutJob), where changedBy is null and
+    // changedByRole is 'system'. Append-only — distinct from the flat
+    // confirmedAt/completedAt/driverArrivedAt-etc. "current stage"
+    // timestamp fields below, which remain the fast-path read for
+    // "when did X happen" without needing to scan this array.
+    statusHistory: [{
+        status: {
+            type: String,
+            enum: [
+                'Pending', 'Reserved by Driver', 'Waiting for Student Confirmation',
+                'Ride Confirmed', 'Driver On the Way', 'Driver Arrived',
+                'Student Coming', 'Ride Started', 'Ride Completed', 'Cancelled'
+            ],
+            required: true
+        },
+        changedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
+        changedByRole: {
+            type: String,
+            enum: ['student', 'driver', 'admin', 'system', null],
+            default: null
+        },
+        at: { type: Date, default: Date.now },
+        note: { type: String, default: '' }
+    }],
+
     // Admin override / driver confirmation audit
     confirmedAt: {
         type: Date,
         default: null
     },
+
+    // ── Driver progress sub-stage timestamps (post-confirmation) ──
+    driverOnWayAt: { type: Date, default: null },
+    driverArrivedAt: { type: Date, default: null },
+    studentComingAt: { type: Date, default: null },
+    rideStartedAt: { type: Date, default: null },
 
     completedAt: {
         type: Date,
@@ -181,9 +223,13 @@ const cabBookingSchema = new mongoose.Schema({
         min: 0
     },
 
+    // 'Refund Pending' — the student had already paid in full when they
+    // cancelled a Ride Confirmed-or-later booking; the hostel owes them
+    // (fare - cancellationFee) back. There's no payment-gateway refund
+    // API in this codebase, so this is settled manually by an admin.
     paymentStatus: {
         type: String,
-        enum: ['Unpaid', 'Paid'],
+        enum: ['Unpaid', 'Paid', 'Refund Pending'],
         default: 'Unpaid'
     },
 
@@ -192,6 +238,16 @@ const cabBookingSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Payment',
         default: null
+    },
+
+    // Hostel cancellation policy: cancelling a Ride Confirmed-or-later
+    // booking (before Ride Started) carries a flat 50% fee on the agreed
+    // fare. Set only when that fee applies; null for free (pre-confirmation)
+    // cancellations. See utils/rideStatus.js CANCELLATION_FEE_FROM.
+    cancellationFee: {
+        type: Number,
+        default: null,
+        min: 0
     },
 
     // ── Rating & Review (student → driver, only for Completed rides) ──

@@ -525,11 +525,9 @@
     </div>
     <div style="display:flex;gap:.35rem;flex-wrap:wrap" id="bookingStatusFilters">
       <button class="tp-filter-btn active" data-status="all" onclick="setBookingFilter('all', this)">All</button>
-      <button class="tp-filter-btn" data-status="Pending" onclick="setBookingFilter('Pending', this)">Pending</button>
-      <button class="tp-filter-btn" data-status="Confirmed" onclick="setBookingFilter('Confirmed', this)">Confirmed</button>
-      <button class="tp-filter-btn" data-status="In Progress" onclick="setBookingFilter('In Progress', this)">In Progress</button>
-      <button class="tp-filter-btn" data-status="Completed" onclick="setBookingFilter('Completed', this)">Completed</button>
-      <button class="tp-filter-btn" data-status="Cancelled" onclick="setBookingFilter('Cancelled', this)">Cancelled</button>
+      <% (typeof rideStatusBadgeClass !== 'undefined' ? Object.keys(rideStatusBadgeClass) : ['Pending','Confirmed','Completed','Cancelled']).forEach(function(s) { %>
+      <button class="tp-filter-btn" data-status="<%= s %>" onclick="setBookingFilter('<%= s %>', this)"><%= s %></button>
+      <% }); %>
     </div>
   </div>
 
@@ -557,18 +555,17 @@
         </thead>
         <tbody id="bookingTbody">
           <% myBookings.forEach(function(b, i) {
-               const statusMap = {
-                 'Pending'     : 'badge-warning',
-                 'Confirmed'   : 'badge-info',
-                 'In Progress' : 'badge-purple',
-                 'Completed'   : 'badge-success',
-                 'Cancelled'   : 'badge-neutral'
-               };
+               const statusMap = rideStatusBadgeClass || {};
+               const fmt = (d) => d ? new Date(d).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
                const pickupDate   = new Date(b.pickupDate);
-               const bookedAtStr  = b.createdAt   ? new Date(b.createdAt).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
-               const confirmedStr = b.confirmedAt ? new Date(b.confirmedAt).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
-               const completedStr = b.completedAt ? new Date(b.completedAt).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
-               const cancelAtStr  = (b.cancellation && b.cancellation.at) ? new Date(b.cancellation.at).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+               const bookedAtStr  = b.createdAt ? fmt(b.createdAt) : '—';
+               const confirmedStr = fmt(b.confirmedAt);
+               const driverOnWayStr   = fmt(b.driverOnWayAt);
+               const driverArrivedStr = fmt(b.driverArrivedAt);
+               const studentComingStr = fmt(b.studentComingAt);
+               const rideStartedStr   = fmt(b.rideStartedAt);
+               const completedStr = fmt(b.completedAt);
+               const cancelAtStr  = (b.cancellation && b.cancellation.at) ? fmt(b.cancellation.at) : '';
                const cancelBy     = (b.cancellation && b.cancellation.by) ? b.cancellation.by : '';
                const cancelReason = (b.cancellation && b.cancellation.reason) ? b.cancellation.reason : '';
                const searchBlob   = (b.driverName + ' ' + b.pickupLocation + ' ' + b.dropoffLocation + ' ' + (b.vehicleType || '')).toLowerCase();
@@ -588,6 +585,10 @@
               data-notes="<%= b.notes || '' %>"
               data-booked-at="<%= bookedAtStr %>"
               data-confirmed-at="<%= confirmedStr %>"
+              data-driver-on-way-at="<%= driverOnWayStr %>"
+              data-driver-arrived-at="<%= driverArrivedStr %>"
+              data-student-coming-at="<%= studentComingStr %>"
+              data-ride-started-at="<%= rideStartedStr %>"
               data-completed-at="<%= completedStr %>"
               data-cancel-by="<%= cancelBy %>"
               data-cancel-reason="<%= cancelReason %>"
@@ -605,12 +606,12 @@
               <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap">
                 <span style="font-weight:600;font-size:.78rem"><%= b.driverName %></span>
                 <% var quoteEta = (b.quote && b.quote.eta) || ''; %>
-                <% if (b.status === 'Awaiting Student' && quoteEta) { %>
+                <% if (b.status === 'Waiting for Student Confirmation' && quoteEta) { %>
                   <span class="badge badge-success" style="font-size:.5rem;padding:.08rem .35rem"><i class="ti ti-clock"></i> ETA: <%= quoteEta %></span>
                 <% } %>
               </div>
               <div style="font-size:.65rem;color:var(--text-muted)"><%= b.vehicleType || '—' %> · <%= b.vehicleRegistration || '—' %></div>
-              <% var isAssigned = ['Confirmed', 'In Progress'].includes(b.status); %>
+              <% var isAssigned = (rideAssignedGroup || []).includes(b.status); %>
               <div class="tp-assigned-driver" style="<%= isAssigned ? '' : 'display:none;' %>margin-top:.35rem;padding:.35rem .5rem;background:#E8F5E9;border:1px solid #C8E6C9;border-radius:6px">
                 <div style="font-size:.55rem;font-weight:700;color:#2E7D32;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.15rem">
                   <i class="ti ti-steering-wheel"></i> Assigned Driver
@@ -636,6 +637,30 @@
                   </button>
                 </div>
               </div>
+              <% if (b.status === 'Cancelled' && b.cancellationFee) { %>
+              <div style="margin-top:.35rem;padding:.35rem .5rem;background:#FFF3E0;border:1px solid #FFCC80;border-radius:6px">
+                <div style="font-size:.55rem;font-weight:700;color:#E65100;text-transform:uppercase;letter-spacing:.4px;margin-bottom:.15rem">
+                  <i class="ti ti-receipt"></i> Cancellation Fee
+                </div>
+                <% if (b.paymentStatus === 'Unpaid') { %>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:.4rem">
+                  <span style="font-size:.64rem;color:#E65100">Rs <%= b.cancellationFee.toLocaleString() %> due</span>
+                  <button type="button" class="act-btn btn-approve tp-pay-btn" style="font-size:.58rem;padding:.2rem .5rem"
+                    data-booking-id="<%= b._id %>"
+                    data-fare="<%= b.cancellationFee %>"
+                    data-pickup="<%= b.pickupLocation %>"
+                    data-dropoff="<%= b.dropoffLocation %>"
+                    onclick="event.stopPropagation();openCabPayModal(this)">
+                    <i class="ti ti-credit-card"></i> Pay Now
+                  </button>
+                </div>
+                <% } else if (b.paymentStatus === 'Refund Pending') { %>
+                <div style="font-size:.64rem;color:#E65100">Rs <%= (b.fare - b.cancellationFee).toLocaleString() %> refund pending from the hostel</div>
+                <% } else { %>
+                <div style="font-size:.64rem;color:#E65100">Rs <%= b.cancellationFee.toLocaleString() %> fee paid</div>
+                <% } %>
+              </div>
+              <% } %>
             </td>
             <td style="font-size:.72rem;max-width:120px;word-break:break-word"><%= b.pickupLocation %></td>
             <td style="font-size:.72rem;max-width:120px;word-break:break-word"><%= b.dropoffLocation %></td>
@@ -646,9 +671,9 @@
             <td style="text-align:center"><span class="count-pill"><%= b.passengerCount %></span></td>
             <td><span class="badge cab-status-badge <%= statusMap[b.status] || 'badge-neutral' %>"><%= b.status %></span></td>
             <td>
-              <% if (b.status === 'Completed' && b.rating) { %>
+              <% if (b.status === 'Ride Completed' && b.rating) { %>
                 <span class="tp-rating-badge"><i class="fas fa-star"></i> <%= b.rating %>/5</span>
-              <% } else if (b.status === 'Completed') { %>
+              <% } else if (b.status === 'Ride Completed') { %>
                 <span style="font-size:.65rem;color:#bbb">Not rated</span>
               <% } else { %>
                 <span style="color:#ccc;font-size:.7rem">—</span>
@@ -659,14 +684,14 @@
                 <button type="button" class="act-btn btn-view" onclick="event.stopPropagation();openBookingDetail(this.closest('tr'))">
                   <i class="ti ti-eye"></i>
                 </button>
-                <% if (b.status === 'Pending') { %>
+                <% if ((rideCancellableFrom || []).includes(b.status)) { %>
                 <form action="/student/transport/cancel/<%= b._id %>" method="POST" id="cancelCabForm-<%= b._id %>" class="cab-cancel-action">
-                  <button type="button" class="act-btn btn-cancel" onclick="event.stopPropagation();openCancelCabModal('<%= b._id %>')">
+                  <button type="button" class="act-btn btn-cancel" onclick="event.stopPropagation();openCancelCabModal('<%= b._id %>', <%= (rideCancellationFeeFrom || []).includes(b.status) %>)">
                     <i class="ti ti-x"></i>
                   </button>
                 </form>
                 <% } %>
-                <% if (b.status === 'Awaiting Student') { %>
+                <% if (b.status === 'Waiting for Student Confirmation') { %>
                 <form action="/student/transport/respond/<%= b._id %>" method="POST" style="display:inline" class="cab-respond-action">
                   <input type="hidden" name="response" value="accepted">
                   <button type="button" class="act-btn btn-approve" style="font-size:.62rem;padding:.25rem .45rem" onclick="event.stopPropagation();openAcceptQuoteModal('<%= b._id %>', '<%= b.driverName %>', '<%= (b.quote && b.quote.fare) || 0 %>')">
@@ -680,7 +705,12 @@
                   </button>
                 </form>
                 <% } %>
-                <% if (b.status === 'Completed') { %>
+                <form action="/student/transport/coming/<%= b._id %>" method="POST" class="cab-coming-action" style="<%= b.status === 'Driver Arrived' ? 'display:inline' : 'display:none' %>">
+                  <button type="button" class="act-btn btn-approve" style="font-size:.62rem;padding:.25rem .45rem" onclick="event.stopPropagation();confirm('Let your driver know you are heading out to meet them?')&&this.closest('form').submit()">
+                    <i class="ti ti-walk"></i> I'm Coming
+                  </button>
+                </form>
+                <% if (b.status === 'Ride Completed') { %>
                 <button type="button" class="act-btn btn-view" style="background:#E8F5E9;color:#2E7D32" onclick="event.stopPropagation();openRateModal(this.closest('tr'))">
                   <i class="fas fa-star"></i> <%= b.rating ? 'Edit' : 'Rate' %>
                 </button>
@@ -984,6 +1014,9 @@
     <div class="del-icon"><i class="ti ti-x"></i></div>
     <h3>Cancel this cab booking?</h3>
     <p>The provider will be notified. This action can't be undone.</p>
+    <p id="cancelCabFeeWarning" style="display:none;font-size:.75rem;color:#C62828;background:#FFEBEE;border:1px solid #FFCDD2;border-radius:var(--radius-sm);padding:.5rem .7rem;margin-top:.4rem">
+      <i class="ti ti-alert-triangle"></i> A driver has already been confirmed for this ride — cancelling now applies the hostel's 50% cancellation fee on the agreed fare.
+    </p>
     <div class="del-btns">
       <button class="btn-cancel-del" onclick="closeModal('cancelCabModal')">Keep Booking</button>
       <button class="btn-confirm-del" id="confirmCancelCabBtn">Yes, Cancel</button>
@@ -1032,6 +1065,13 @@
 </div>
 
 <script>
+// ── Ride status vocabulary, serialized once from the server-side shared
+// module (utils/rideStatus.js) so the live-poll script and the initial
+// EJS render can never drift out of sync with each other. ──
+var RIDE_STATUS_BADGE = <%- JSON.stringify(typeof rideStatusBadgeClass !== 'undefined' ? rideStatusBadgeClass : {}) %>;
+var RIDE_STATUS_ASSIGNED_GROUP = <%- JSON.stringify(typeof rideAssignedGroup !== 'undefined' ? rideAssignedGroup : []) %>;
+var RIDE_STATUS_CANCELLABLE = <%- JSON.stringify(typeof rideCancellableFrom !== 'undefined' ? rideCancellableFrom : []) %>;
+
 // Activate initial sub-nav tab
 document.getElementById('btn-providers').classList.add('active');
 
@@ -1117,14 +1157,6 @@ function filterBookings() {
 
 // ── Poll for accept/reject status changes so the assigned driver's
 // contact info appears automatically, without a page reload ──
-const cabStatusBadgeMap = {
-  'Pending'     : 'badge-warning',
-  'Confirmed'   : 'badge-info',
-  'In Progress' : 'badge-purple',
-  'Completed'   : 'badge-success',
-  'Cancelled'   : 'badge-neutral'
-};
-
 async function pollCabBookingStatuses() {
   var tbody = document.getElementById('bookingTbody');
   if (!tbody) return;
@@ -1151,14 +1183,19 @@ async function pollCabBookingStatuses() {
       if (info.fare) row.setAttribute('data-fare', info.fare);
       if (info.paymentStatus) row.setAttribute('data-payment-status', info.paymentStatus);
       if (info.quoteEta) row.setAttribute('data-quote-eta', info.quoteEta);
+      if (info.driverOnWayAt) row.setAttribute('data-driver-on-way-at', new Date(info.driverOnWayAt).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }));
+      if (info.driverArrivedAt) row.setAttribute('data-driver-arrived-at', new Date(info.driverArrivedAt).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }));
+      if (info.studentComingAt) row.setAttribute('data-student-coming-at', new Date(info.studentComingAt).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }));
+      if (info.rideStartedAt) row.setAttribute('data-ride-started-at', new Date(info.rideStartedAt).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }));
+      if (info.completedAt) row.setAttribute('data-completed-at', new Date(info.completedAt).toLocaleString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }));
 
       var badge = row.querySelector('.cab-status-badge');
       if (badge) {
         badge.textContent = info.status;
-        badge.className = 'badge cab-status-badge ' + (cabStatusBadgeMap[info.status] || 'badge-neutral');
+        badge.className = 'badge cab-status-badge ' + (RIDE_STATUS_BADGE[info.status] || 'badge-neutral');
       }
 
-      var isAssigned = info.status === 'Confirmed' || info.status === 'In Progress';
+      var isAssigned = RIDE_STATUS_ASSIGNED_GROUP.indexOf(info.status) !== -1;
       var assignedBox = row.querySelector('.tp-assigned-driver');
       if (assignedBox) {
         assignedBox.style.display = isAssigned ? '' : 'none';
@@ -1180,7 +1217,12 @@ async function pollCabBookingStatuses() {
 
       var cancelAction = row.querySelector('.cab-cancel-action');
       if (cancelAction) {
-        cancelAction.style.display = info.status === 'Pending' ? '' : 'none';
+        cancelAction.style.display = RIDE_STATUS_CANCELLABLE.indexOf(info.status) !== -1 ? '' : 'none';
+      }
+
+      var comingAction = row.querySelector('.cab-coming-action');
+      if (comingAction) {
+        comingAction.style.display = info.status === 'Driver Arrived' ? 'inline' : 'none';
       }
     });
 
@@ -1196,18 +1238,11 @@ if (document.getElementById('bookingTbody')) {
 
 // ── Booking Detail Modal ──
 function openBookingDetail(row) {
-  var statusMap = {
-    'Pending'     : 'badge-warning',
-    'Confirmed'   : 'badge-info',
-    'In Progress' : 'badge-purple',
-    'Completed'   : 'badge-success',
-    'Cancelled'   : 'badge-neutral'
-  };
   var status = row.getAttribute('data-status');
 
   var badge = document.getElementById('bdStatus');
   badge.textContent = status;
-  badge.className = 'badge ' + (statusMap[status] || 'badge-neutral');
+  badge.className = 'badge ' + (RIDE_STATUS_BADGE[status] || 'badge-neutral');
 
   document.getElementById('bdBookedAt').textContent = 'Booked: ' + row.getAttribute('data-booked-at');
   document.getElementById('bdDriverName').textContent = row.getAttribute('data-driver-name') || '—';
@@ -1285,10 +1320,22 @@ function openBookingDetail(row) {
   var timeline = [{ label: 'Booked', value: row.getAttribute('data-booked-at') }];
 
   var confirmedAt = row.getAttribute('data-confirmed-at');
-  if (confirmedAt) timeline.push({ label: 'Confirmed', value: confirmedAt });
+  if (confirmedAt) timeline.push({ label: 'Ride Confirmed', value: confirmedAt });
+
+  var driverOnWayAt = row.getAttribute('data-driver-on-way-at');
+  if (driverOnWayAt) timeline.push({ label: 'Driver On the Way', value: driverOnWayAt });
+
+  var driverArrivedAt = row.getAttribute('data-driver-arrived-at');
+  if (driverArrivedAt) timeline.push({ label: 'Driver Arrived', value: driverArrivedAt });
+
+  var studentComingAt = row.getAttribute('data-student-coming-at');
+  if (studentComingAt) timeline.push({ label: 'Student Coming', value: studentComingAt });
+
+  var rideStartedAt = row.getAttribute('data-ride-started-at');
+  if (rideStartedAt) timeline.push({ label: 'Ride Started', value: rideStartedAt });
 
   var completedAt = row.getAttribute('data-completed-at');
-  if (completedAt) timeline.push({ label: 'Completed', value: completedAt });
+  if (completedAt) timeline.push({ label: 'Ride Completed', value: completedAt });
 
   var cancelAt = row.getAttribute('data-cancel-at');
   if (cancelAt) {
@@ -1356,8 +1403,9 @@ function openBookCabModal(btn) {
 // ── Cancel Booking ──
 let cancelCabTargetId = null;
 
-function openCancelCabModal(bookingId) {
+function openCancelCabModal(bookingId, feeApplies) {
   cancelCabTargetId = bookingId;
+  document.getElementById('cancelCabFeeWarning').style.display = feeApplies ? '' : 'none';
   openModal('cancelCabModal');
 }
 

@@ -16,6 +16,8 @@ const GuestRoomBooking = require('../models/guestRoomBooking');
 const { getSidebarBadges } = require('../utils/sidebarBadges');
 const WardenActivityLog   = require('../models/wardenActivityLog');
 const Driver              = require('../models/driver');
+const CabBooking          = require('../models/cabBooking');
+const { ASSIGNED_GROUP }  = require('../utils/rideStatus');
 const { validateFile }    = require('../utils/validateFile');
 // ======================
 // HELPER — normalise the idImage path stored in the DB.
@@ -176,6 +178,75 @@ const opsPendingGuestBookings = opsPendingVisitors + opsPendingBookings;
 
         const badges = await getSidebarBadges(req.user);
 
+        // ── Live Ride Statuses ────────────────────────────────────────
+        const activeRides = await CabBooking.find({ status: { $in: ASSIGNED_GROUP } })
+            .populate({
+                path: 'student',
+                select: 'guardianName guardianContact',
+                populate: { path: 'user', select: 'fullname userId phoneNumber profileImage' }
+            })
+            .sort({ pickupDate: 1, createdAt: -1 })
+            .lean();
+
+        const pendingAssigned = await CabBooking.find({ status: 'Pending', driver: { $ne: null } })
+            .populate({
+                path: 'student',
+                select: 'guardianName guardianContact',
+                populate: { path: 'user', select: 'fullname userId phoneNumber profileImage' }
+            })
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const allActive = [...activeRides, ...pendingAssigned];
+
+        // Enrich with driver online status
+        const driverUserIds = allActive.filter(b => b.driver).map(b => b.driver);
+        const uniqueDriverUserIds = [...new Set(driverUserIds.map(id => id.toString()))];
+        const driverDocs = await Driver.find({ user: { $in: uniqueDriverUserIds } })
+            .select('user isOnline')
+            .lean();
+        const driverOnlineMap = {};
+        driverDocs.forEach(d => { driverOnlineMap[d.user.toString()] = d.isOnline; });
+        allActive.forEach(b => {
+            b._driverOnline = b.driver ? !!driverOnlineMap[b.driver.toString()] : false;
+        });
+
+        // Counts by status
+        const rideCountByStatus = {};
+        allActive.forEach(b => {
+            rideCountByStatus[b.status] = (rideCountByStatus[b.status] || 0) + 1;
+        });
+        const totalActiveRides = allActive.length;
+        const totalDriversOnRoad = uniqueDriverUserIds.length;
+        const totalOnlineDrivers = driverDocs.filter(d => d.isOnline).length;
+
+        // Take the 5 most recent rides for the mini-list
+        const recentRides = allActive.slice(0, 5);
+
+        // ── Completed Ride Fares ──────────────────────────────────────
+        const completedRides = await CabBooking.find({ status: 'Ride Completed' })
+            .populate({
+                path: 'student',
+                select: 'guardianName guardianContact',
+                populate: { path: 'user', select: 'fullname userId phoneNumber' }
+            })
+            .sort({ completedAt: -1 })
+            .limit(5)
+            .lean();
+
+        const completedFareAgg = await CabBooking.aggregate([
+            { $match: { status: 'Ride Completed', fare: { $ne: null } } },
+            {
+                $group: {
+                    _id: null,
+                    totalFare: { $sum: '$fare' },
+                    count: { $sum: 1 },
+                    avgFare: { $avg: '$fare' }
+                }
+            }
+        ]);
+        const completedFareStats = completedFareAgg[0] || { totalFare: 0, count: 0, avgFare: 0 };
+
         const topbarGreeting = 'Welcome back, ' + (user.fullname || 'Admin').split(' ')[0] + '!';
 
         res.render('admin/dashboard', {
@@ -210,6 +281,17 @@ const opsPendingGuestBookings = opsPendingVisitors + opsPendingBookings;
                 pendingRoomRequests: opsPendingRoomRequests,
                 pendingMobileLoad:   opsPendingMobileLoad
             },
+            // ── Ride data for the live widget ──
+            rideStats: {
+                totalActive: totalActiveRides,
+                totalDrivers: totalDriversOnRoad,
+                totalOnlineDrivers,
+                countByStatus: rideCountByStatus
+            },
+            recentRides,
+            // ── Completed ride fare data ──
+            completedFareStats,
+            recentCompletedRides: completedRides,
             successMessage: req.query.success || null,
             errorMessage  : req.query.error   || null,
             recentActivities: [{
@@ -1258,20 +1340,20 @@ exports.getPendingDrivers = async (req, res) => {
     try {
         if (!req.user || req.user.role !== 'admin') return res.status(403).send('Access Denied');
 
-        // Fetch all pending driver users
-        const pendingUsers = await User.find({ role: 'driver', status: 'pending' })
-            .select('userId fullname email phoneNumber gender dateOfBirth profileImage createdAt')
+        // Fetch ALL driver users (pending, approved, rejected, suspended)
+        const allDriverUsers = await User.find({ role: 'driver' })
+            .select('userId fullname email phoneNumber gender dateOfBirth profileImage status approvedAt createdAt')
             .sort({ createdAt: -1 })
             .lean();
 
         // Fetch their Driver records with all documents
-        const userIds = pendingUsers.map(u => u._id);
+        const userIds = allDriverUsers.map(u => u._id);
         const driverRecords = await Driver.find({ user: { $in: userIds } }).lean();
         const driverMap = {};
         driverRecords.forEach(d => { driverMap[String(d.user)] = d; });
 
         // Merge user + driver data
-        const drivers = pendingUsers.map(u => {
+        const drivers = allDriverUsers.map(u => {
             const driver = driverMap[String(u._id)] || {};
             return {
                 _id: u._id,
@@ -1281,7 +1363,9 @@ exports.getPendingDrivers = async (req, res) => {
                 phoneNumber: u.phoneNumber || '—',
                 gender: u.gender || '—',
                 dateOfBirth: u.dateOfBirth || null,
+                status: u.status || 'pending',
                 registeredAt: u.createdAt,
+                approvedAt: u.approvedAt || null,
                 profileImage: u.profileImage,
                 // Driver-specific
                 cnic: driver.cnic || '—',
@@ -1302,6 +1386,12 @@ exports.getPendingDrivers = async (req, res) => {
                 additionalDoc: driver.additionalDoc || null
             };
         });
+
+        // Counts by status
+        const pendingCount  = drivers.filter(d => d.status === 'pending').length;
+        const approvedCount = drivers.filter(d => d.status === 'approved').length;
+        const rejectedCount = drivers.filter(d => d.status === 'rejected').length;
+        const suspendedCount = drivers.filter(d => d.status === 'suspended').length;
 
         // ── Notifications for topbar bell ──
         const unreadCount = await Notification.countDocuments({
@@ -1324,10 +1414,14 @@ exports.getPendingDrivers = async (req, res) => {
         res.render('admin/pendingDrivers', {
             user: req.user,
             activePage: 'pending-drivers',
-            pageTitle: 'Pending Driver Registrations',
-            pageSubtitle: `Review and approve ${drivers.length} pending driver(s)`,
+            pageTitle: 'All Drivers',
+            pageSubtitle: `${drivers.length} total driver${drivers.length !== 1 ? 's' : ''} — ${pendingCount} pending, ${approvedCount} approved, ${rejectedCount} rejected, ${suspendedCount} suspended`,
             drivers,
-            totalPending: drivers.length,
+            totalPending: pendingCount,
+            pendingCount,
+            approvedCount,
+            rejectedCount,
+            suspendedCount,
             unreadCount,
             recentNotifs,
             ...badges,
@@ -1340,6 +1434,110 @@ exports.getPendingDrivers = async (req, res) => {
     }
 };
 
+
+// ═══════════════════════════════════════════════════════════════════
+// DASHBOARD RIDE STATUS — JSON data endpoint for live auto-refresh
+// GET /admin/dashboard/ride-status.json
+// ═══════════════════════════════════════════════════════════════════
+exports.getDashboardRideStatus = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).json({ ok: false, error: 'Access Denied' });
+        }
+
+        const activeRides = await CabBooking.find({ status: { $in: ASSIGNED_GROUP } })
+            .populate({
+                path: 'student',
+                select: 'guardianName guardianContact',
+                populate: { path: 'user', select: 'fullname userId phoneNumber' }
+            })
+            .sort({ pickupDate: 1, createdAt: -1 })
+            .lean();
+
+        const pendingAssigned = await CabBooking.find({ status: 'Pending', driver: { $ne: null } })
+            .populate({
+                path: 'student',
+                select: 'guardianName guardianContact',
+                populate: { path: 'user', select: 'fullname userId phoneNumber' }
+            })
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const allActive = [...activeRides, ...pendingAssigned];
+
+        const driverUserIds = allActive.filter(b => b.driver).map(b => b.driver);
+        const uniqueDriverUserIds = [...new Set(driverUserIds.map(id => id.toString()))];
+        const driverDocs = await Driver.find({ user: { $in: uniqueDriverUserIds } })
+            .select('user isOnline')
+            .lean();
+        const driverOnlineMap = {};
+        driverDocs.forEach(d => { driverOnlineMap[d.user.toString()] = d.isOnline; });
+
+        const countByStatus = {};
+        allActive.forEach(b => {
+            countByStatus[b.status] = (countByStatus[b.status] || 0) + 1;
+            b._driverOnline = b.driver ? !!driverOnlineMap[b.driver.toString()] : false;
+        });
+
+        // ── Completed ride fare stats for the Finance section ──
+        const completedFareAgg = await CabBooking.aggregate([
+            { $match: { status: 'Ride Completed', fare: { $ne: null } } },
+            { $group: { _id: null, totalFare: { $sum: '$fare' }, count: { $sum: 1 }, avgFare: { $avg: '$fare' } } }
+        ]);
+        const completedFareStats = completedFareAgg[0] || { totalFare: 0, count: 0, avgFare: 0 };
+
+        const recentCompleted = await CabBooking.find({ status: 'Ride Completed' })
+            .populate({
+                path: 'student',
+                select: 'guardianName guardianContact',
+                populate: { path: 'user', select: 'fullname userId phoneNumber' }
+            })
+            .sort({ completedAt: -1 })
+            .limit(5)
+            .lean();
+
+        return res.json({
+            ok: true,
+            totalActive: allActive.length,
+            totalDrivers: uniqueDriverUserIds.length,
+            totalOnlineDrivers: driverDocs.filter(d => d.isOnline).length,
+            countByStatus,
+            rides: allActive.map(b => ({
+                _id: b._id,
+                studentName: b.student?.user?.fullname || 'Unknown',
+                studentId: b.student?.user?.userId || '—',
+                driverName: b.driverName || '—',
+                driverPhone: b.driverPhone || '—',
+                driverOnline: b._driverOnline,
+                pickupLocation: b.pickupLocation,
+                dropoffLocation: b.dropoffLocation,
+                status: b.status,
+                fare: b.fare,
+                paymentStatus: b.paymentStatus,
+                vehicleType: b.vehicleType
+            })),
+            completedFare: {
+                totalFare: completedFareStats.totalFare,
+                count: completedFareStats.count,
+                avgFare: Math.round(completedFareStats.avgFare),
+                recentCompleted: recentCompleted.map(b => ({
+                    _id: b._id,
+                    studentName: b.student?.user?.fullname || 'Unknown',
+                    studentId: b.student?.user?.userId || '—',
+                    driverName: b.driverName || '—',
+                    pickupLocation: b.pickupLocation,
+                    dropoffLocation: b.dropoffLocation,
+                    fare: b.fare,
+                    completedAt: b.completedAt
+                }))
+            }
+        });
+
+    } catch (err) {
+        console.error('getDashboardRideStatus Error:', err);
+        res.status(500).json({ ok: false, error: 'Server Error' });
+    }
+};
 
 // ============================================================
 // WARDEN ACTIVITY LOG

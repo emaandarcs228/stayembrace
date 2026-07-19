@@ -1,0 +1,833 @@
+<%
+  const badgeCls = (s) => (typeof statusClass !== 'undefined' && statusClass[s]) || 'badge-neutral';
+  const fmtDt = d => d ? new Date(d).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+  const fmtTime = d => d ? new Date(d).toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit' }) : '—';
+  const statusIcon = (s) => ({
+    'Ride Confirmed'  : 'ti ti-circle-check',
+    'Driver On the Way': 'ti ti-steering-wheel',
+    'Driver Arrived'  : 'ti ti-map-pin-check',
+    'Student Coming'  : 'ti ti-user-check',
+    'Ride Started'    : 'ti ti-car',
+    'Ride Completed'  : 'ti ti-circle-check-filled',
+    'Pending'         : 'ti ti-clock'
+  }[s] || 'ti ti-circle');
+
+  const statusSortOrder = [
+    'Ride Started', 'Driver Arrived', 'Student Coming',
+    'Ride Confirmed', 'Driver On the Way', 'Pending'
+  ];
+  const sortedRides = [...(rides || [])].sort((a, b) => {
+    const ai = statusSortOrder.indexOf(a.status);
+    const bi = statusSortOrder.indexOf(b.status);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+%>
+<%- include('admin-header') %>
+
+<!-- ── Styles ── -->
+<style>
+  .rm-stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: .85rem;
+    margin-bottom: 1.2rem;
+  }
+  .rm-stat-card {
+    background: white;
+    padding: .9rem 1rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    transition: transform .25s, box-shadow .25s;
+  }
+  .rm-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+  .rm-stat-icon {
+    width: 38px; height: 38px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .95rem;
+    flex-shrink: 0;
+  }
+  .rm-stat-icon.blue   { background: #E3F2FD; color: #1565C0; }
+  .rm-stat-icon.green  { background: #E8F5E9; color: #2E7D32; }
+  .rm-stat-icon.orange { background: #FFF3E0; color: #E65100; }
+  .rm-stat-icon.purple { background: #F3E5F5; color: #7B1FA2; }
+  .rm-stat-icon.teal   { background: #E0F7FA; color: #00838F; }
+
+  .rm-stat-info h4 {
+    font-size: .62rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    font-weight: 500;
+    margin-bottom: .1rem;
+  }
+  .rm-stat-info h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+  .rm-stat-info p {
+    font-size: .6rem;
+    color: var(--text-muted);
+    margin-top: .12rem;
+  }
+
+  /* ── Ride Cards ── */
+  .rm-card-grid {
+    display: flex;
+    flex-direction: column;
+    gap: .7rem;
+  }
+  .rm-ride-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: white;
+    overflow: hidden;
+    transition: box-shadow .25s, transform .2s;
+    position: relative;
+  }
+  .rm-ride-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+  .rm-ride-card-body {
+    padding: 1rem 1.2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    align-items: center;
+  }
+  .rm-ride-left {
+    display: flex;
+    align-items: center;
+    gap: .9rem;
+    flex: 1;
+    min-width: 240px;
+  }
+  .rm-status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: .15rem;
+    align-self: flex-start;
+  }
+  .rm-status-indicator.status-pending    { background: #F9A825; box-shadow: 0 0 6px #F9A82566; animation: rm-pulse 2s infinite; }
+  .rm-status-indicator.status-confirmed  { background: #42A5F5; box-shadow: 0 0 6px #42A5F566; }
+  .rm-status-indicator.status-enroute    { background: #FF9800; box-shadow: 0 0 6px #FF980066; animation: rm-pulse 2s infinite; }
+  .rm-status-indicator.status-arrived    { background: #AB47BC; box-shadow: 0 0 6px #AB47BC66; animation: rm-pulse 1.5s infinite; }
+  .rm-status-indicator.status-started    { background: #66BB6A; box-shadow: 0 0 6px #66BB6A66; }
+  .rm-status-indicator.status-coming     { background: #26C6DA; box-shadow: 0 0 6px #26C6DA66; }
+
+  @keyframes rm-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: .6; transform: scale(1.4); }
+  }
+
+  .rm-ride-students {
+    min-width: 0;
+  }
+  .rm-student-name {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+  }
+  .rm-student-id {
+    font-size: .65rem;
+    color: var(--text-muted);
+    font-family: monospace;
+  }
+  .rm-driver-info {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .78rem;
+    color: var(--text-primary);
+  }
+  .rm-driver-avatar {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: #FFF3E0;
+    color: #E65100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .65rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .rm-driver-online-dot {
+    position: absolute;
+    bottom: -1px; right: -1px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 2px solid white;
+    background: #4CAF50;
+  }
+  .rm-driver-online-dot.offline { background: #BDBDBD; }
+  .rm-route {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    min-width: 160px;
+    font-size: .75rem;
+    position: relative;
+    padding-left: 1rem;
+  }
+  .rm-route::before {
+    content: '';
+    position: absolute;
+    left: 0; top: .25rem; bottom: .25rem;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--green), #E65100);
+    border-radius: 1px;
+  }
+  .rm-route-stop {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+  }
+  .rm-route-stop i {
+    font-size: .6rem;
+    color: var(--text-muted);
+    width: 10px;
+    text-align: center;
+  }
+  .rm-route-stop .rm-dot-green { color: var(--green); }
+  .rm-route-stop .rm-dot-red { color: #E65100; }
+
+  .rm-meta {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    min-width: 100px;
+    font-size: .72rem;
+    color: var(--text-muted);
+  }
+  .rm-meta-item {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+  }
+  .rm-meta-item i { font-size: .65rem; width: 14px; color: var(--text-muted); }
+
+  .rm-actions {
+    display: flex;
+    gap: .35rem;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+
+  .rm-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .2rem .65rem;
+    border-radius: var(--radius-pill);
+    font-size: .68rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .rm-status-badge i { font-size: .65rem; }
+
+  .rm-fare-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--green-dark);
+    background: var(--green-light);
+    padding: .15rem .55rem;
+    border-radius: var(--radius-pill);
+  }
+
+  .rm-ride-card-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem .8rem;
+    padding: .5rem 1.2rem;
+    background: #fafafa;
+    border-top: 1px solid #f0f0f0;
+    font-size: .68rem;
+    color: var(--text-muted);
+  }
+  .rm-footer-item {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+  }
+  .rm-footer-item i { font-size: .6rem; }
+
+  /* ── Status pills row ── */
+  .rm-status-pills {
+    display: flex;
+    gap: .35rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  .rm-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .25rem .65rem;
+    border-radius: var(--radius-pill);
+    font-size: .65rem;
+    font-weight: 600;
+    white-space: nowrap;
+    background: #f5f5f5;
+    color: #666;
+    border: 1px solid transparent;
+    transition: all .15s;
+  }
+  .rm-status-pill i { font-size: .6rem; }
+  .rm-status-pill.active {
+    border-color: var(--green);
+    background: var(--green-light);
+    color: var(--green-dark);
+  }
+  .rm-status-pill .rm-count {
+    font-weight: 400;
+    opacity: .7;
+    margin-left: .15rem;
+  }
+
+  .rm-card-head-actions {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+  }
+  .rm-refresh-btn {
+    width: 32px; height: 32px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-mid);
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: .82rem;
+    transition: all .2s;
+  }
+  .rm-refresh-btn:hover {
+    background: var(--green-light);
+    color: var(--green);
+    border-color: #b8d9c0;
+  }
+  .rm-refresh-btn.spinning i {
+    animation: rm-spin .6s linear;
+  }
+  @keyframes rm-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ── Empty state ── */
+  .rm-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+  }
+  .rm-empty i {
+    font-size: 2.5rem;
+    opacity: .2;
+    display: block;
+    margin-bottom: .6rem;
+    color: var(--text-primary);
+  }
+  .rm-empty h4 {
+    font-size: .9rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .rm-empty p {
+    font-size: .75rem;
+    color: var(--text-muted);
+    margin-top: .2rem;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .rm-ride-card-body {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .rm-actions {
+      margin-left: 0;
+      width: 100%;
+    }
+  }
+</style>
+
+<!-- ══════════════════════════════════════
+     STATS CARDS
+══════════════════════════════════════ -->
+<div class="rm-stats-row">
+  <div class="rm-stat-card">
+    <div class="rm-stat-icon blue"><i class="ti ti-car"></i></div>
+    <div class="rm-stat-info">
+      <h4>Active Rides</h4>
+      <h3><%= totalActive %></h3>
+      <p>Currently in progress</p>
+    </div>
+  </div>
+  <div class="rm-stat-card">
+    <div class="rm-stat-icon green"><i class="ti ti-users"></i></div>
+    <div class="rm-stat-info">
+      <h4>Assigned Drivers</h4>
+      <h3><%= totalDrivers %></h3>
+      <p>On the road right now</p>
+    </div>
+  </div>
+  <div class="rm-stat-card">
+    <div class="rm-stat-icon <%= totalOnlineDrivers > 0 ? 'orange' : 'purple' %>"><i class="ti ti-wifi"></i></div>
+    <div class="rm-stat-info">
+      <h4>Drivers Online</h4>
+      <h3><%= totalOnlineDrivers %></h3>
+      <p><%= totalDrivers - totalOnlineDrivers %> offline</p>
+    </div>
+  </div>
+  <div class="rm-stat-card">
+    <div class="rm-stat-icon teal"><i class="ti ti-map-pin"></i></div>
+    <div class="rm-stat-info">
+      <h4>Active Routes</h4>
+      <h3><%= Object.keys(countByStatus).length %></h3>
+      <p>Unique status stages</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Status filter pills ── -->
+<div class="rm-status-pills">
+  <span class="rm-status-pill active" data-filter="all" onclick="filterRides('all')">
+    <i class="ti ti-list"></i> All <span class="rm-count"><%= totalActive %></span>
+  </span>
+  <% const statusColors = {
+    'Pending': 'badge-warning',
+    'Ride Confirmed': 'badge-info',
+    'Driver On the Way': 'badge-primary',
+    'Driver Arrived': 'badge-purple',
+    'Student Coming': 'badge-teal',
+    'Ride Started': 'badge-primary'
+  }; %>
+  <% Object.keys(countByStatus).sort().forEach(function(s) { %>
+    <span class="rm-status-pill" data-filter="<%= s %>" onclick="filterRides('<%= s %>')">
+      <i class="ti <%= statusIcon(s) %>"></i> <%= s %> <span class="rm-count"><%= countByStatus[s] %></span>
+    </span>
+  <% }); %>
+</div>
+
+<!-- ══════════════════════════════════════
+     RIDE CARDS
+══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-head">
+    <div>
+      <h3><i class="ti ti-radar"></i> Active Ride Monitor</h3>
+    </div>
+    <div class="rm-card-head-actions">
+      <span style="font-size:.68rem;color:var(--text-muted)">
+        <i class="ti ti-refresh"></i> Refreshes every 15s
+      </span>
+      <button class="rm-refresh-btn" id="rmRefreshBtn" onclick="refreshRides()" title="Refresh now">
+        <i class="ti ti-refresh"></i>
+      </button>
+    </div>
+  </div>
+
+  <% if (sortedRides.length > 0) { %>
+  <div class="rm-card-grid" style="padding:.8rem 1.2rem 1.2rem" id="rmRideList">
+    <% sortedRides.forEach(function(b) {
+      const studentUser = b.student?.user;
+      const studentName = studentUser ? studentUser.fullname : 'Unknown';
+      const studentId   = studentUser ? studentUser.userId : '—';
+      const initial     = studentName.charAt(0).toUpperCase();
+      const pickupDate  = new Date(b.pickupDate);
+      const dateStr     = pickupDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' });
+      const timeStr     = b.pickupTime || '—';
+
+      let pulseClass = 'status-pending';
+      if (b.status === 'Ride Confirmed') pulseClass = 'status-confirmed';
+      else if (b.status === 'Driver On the Way') pulseClass = 'status-enroute';
+      else if (b.status === 'Driver Arrived') pulseClass = 'status-arrived';
+      else if (b.status === 'Student Coming') pulseClass = 'status-coming';
+      else if (b.status === 'Ride Started') pulseClass = 'status-started';
+    %>
+    <div class="rm-ride-card" data-status="<%= b.status %>">
+      <div class="rm-ride-card-body">
+        <!-- Left: status indicator + student info -->
+        <div class="rm-ride-left">
+          <div class="rm-status-indicator <%= pulseClass %>"></div>
+
+          <div class="rm-ride-students">
+            <div class="rm-student-name">
+              <div class="u-av s" style="width:28px;height:28px;font-size:.65rem"><%= initial %></div>
+              <%= studentName %>
+              <span class="rm-student-id"><%= studentId %></span>
+            </div>
+            <div class="rm-driver-info" style="margin-top:.3rem">
+              <div class="rm-driver-avatar">
+                <%= (b.driverName || '?').charAt(0).toUpperCase() %>
+                <div class="rm-driver-online-dot <%= b._driverOnline ? 'online' : 'offline' %>"></div>
+              </div>
+              <span><%= b.driverName || 'Unassigned' %></span>
+              <% if (b.driverPhone) { %>
+                <span style="font-size:.65rem;color:var(--text-muted)"><%= b.driverPhone %></span>
+              <% } %>
+            </div>
+          </div>
+
+          <!-- Route -->
+          <div class="rm-route">
+            <div class="rm-route-stop">
+              <i class="ti ti-circle-filled rm-dot-green"></i>
+              <span style="font-weight:500;color:var(--text-primary)"><%= b.pickupLocation %></span>
+            </div>
+            <div class="rm-route-stop">
+              <i class="ti ti-map-pin rm-dot-red"></i>
+              <span><%= b.dropoffLocation %></span>
+            </div>
+          </div>
+
+          <!-- Meta -->
+          <div class="rm-meta">
+            <div class="rm-meta-item">
+              <i class="ti ti-calendar"></i>
+              <span><%= dateStr %></span>
+            </div>
+            <div class="rm-meta-item">
+              <i class="ti ti-clock"></i>
+              <span><%= timeStr %></span>
+            </div>
+            <% if (b.passengerCount && b.passengerCount > 1) { %>
+            <div class="rm-meta-item">
+              <i class="ti ti-users"></i>
+              <span><%= b.passengerCount %> passengers</span>
+            </div>
+            <% } %>
+          </div>
+
+          <!-- Fare & payment -->
+          <% if (b.fare) { %>
+          <div style="display:flex;flex-direction:column;gap:.15rem;min-width:90px">
+            <div class="rm-fare-tag">
+              <i class="ti ti-currency-rupee"></i> <%= b.fare.toLocaleString() %>
+            </div>
+            <span class="badge <%= b.paymentStatus === 'Paid' ? 'badge-success' : (b.paymentStatus === 'Refund Pending' ? 'badge-danger' : 'badge-warning') %>" style="font-size:.6rem">
+              <%= b.paymentStatus %>
+            </span>
+          </div>
+          <% } %>
+        </div>
+
+        <!-- Right: status badge + actions -->
+        <div class="rm-actions">
+          <span class="rm-status-badge <%= badgeCls(b.status) %>">
+            <i class="<%= statusIcon(b.status) %>"></i> <%= b.status %>
+          </span>
+          <button class="act-btn btn-view" onclick="openBookingModal('<%= b._id %>')">
+            <i class="ti ti-eye"></i>
+          </button>
+          <% if (b.status === 'Ride Confirmed' || b.status === 'Pending' && b.driver) { %>
+          <form action="/admin/operations/cab-bookings/confirm/<%= b._id %>" method="POST" style="display:inline"
+                onsubmit="return confirm('Confirm this booking? The guardian will be notified via email.')">
+            <button type="submit" class="act-btn btn-approve"><i class="ti ti-check"></i> Confirm</button>
+          </form>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Footer: stage timestamps -->
+      <div class="rm-ride-card-footer">
+        <span class="rm-footer-item">
+          <i class="ti ti-calendar-check"></i> Booked: <%= fmtTime(b.createdAt) %>
+        </span>
+        <% if (b.confirmedAt) { %>
+        <span class="rm-footer-item">
+          <i class="ti ti-circle-check"></i> Confirmed: <%= fmtTime(b.confirmedAt) %>
+        </span>
+        <% } %>
+        <% if (b.driverOnWayAt) { %>
+        <span class="rm-footer-item">
+          <i class="ti ti-steering-wheel"></i> En route: <%= fmtTime(b.driverOnWayAt) %>
+        </span>
+        <% } %>
+        <% if (b.driverArrivedAt) { %>
+        <span class="rm-footer-item">
+          <i class="ti ti-map-pin-check"></i> Arrived: <%= fmtTime(b.driverArrivedAt) %>
+        </span>
+        <% } %>
+        <% if (b.rideStartedAt) { %>
+        <span class="rm-footer-item">
+          <i class="ti ti-car"></i> Started: <%= fmtTime(b.rideStartedAt) %>
+        </span>
+        <% } %>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+
+  <% } else { %>
+  <div class="rm-empty">
+    <i class="ti ti-car-off"></i>
+    <h4>No active rides</h4>
+    <p>All cab bookings have been completed or none are currently in progress.</p>
+    <a href="/admin/operations/cab-bookings" class="act-btn btn-view" style="margin-top:.6rem;text-decoration:none">
+      <i class="ti ti-list"></i> View all bookings
+    </a>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══════════════════════════════════════
+     AUTO-REFRESH & FILTER
+══════════════════════════════════════ -->
+<script>
+// ── Status filter ──
+function filterRides(status) {
+  document.querySelectorAll('.rm-status-pill').forEach(function(p) {
+    p.classList.toggle('active', p.dataset.filter === status);
+  });
+  document.querySelectorAll('.rm-ride-card').forEach(function(card) {
+    if (status === 'all') {
+      card.style.display = '';
+    } else {
+      card.style.display = card.dataset.status === status ? '' : 'none';
+    }
+  });
+}
+
+// ── Manual refresh ──
+function refreshRides() {
+  var btn = document.getElementById('rmRefreshBtn');
+  btn.classList.add('spinning');
+  setTimeout(function() { btn.classList.remove('spinning'); }, 600);
+  fetch('/admin/operations/ride-monitoring?format=json')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) return;
+      window.location.reload();
+    })
+    .catch(function() {});
+}
+
+// ── Auto-refresh every 15s ──
+setInterval(function() {
+  fetch('/admin/operations/ride-monitoring?format=json')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) return;
+      // Update stats silently
+      var totalEl = document.querySelector('.rm-stat-card:first-child h3');
+      if (totalEl && data.counts) totalEl.textContent = data.counts.totalActive || 0;
+
+      var driverCountEl = document.querySelector('.rm-stat-card:nth-child(2) h3');
+      if (driverCountEl && data.totalDrivers !== undefined) driverCountEl.textContent = data.totalDrivers;
+
+      var onlineEl = document.querySelector('.rm-stat-card:nth-child(3) h3');
+      if (onlineEl && data.totalOnlineDrivers !== undefined) onlineEl.textContent = data.totalOnlineDrivers;
+
+      // Full reload if stats change significantly (new ride appeared/completed)
+      // Simple approach: reload the page if any content changed
+    })
+    .catch(function() {});
+}, 15000);
+
+// Helper: format timestamps
+function fmtDt(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+</script>
+
+<!-- ══════════════════════════════════════════
+     BOOKING DETAIL MODAL (reused from cabBookings)
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="bookingModal" onclick="if(event.target===this) closeBookingModal()">
+  <div class="modal-box modal-box-wide">
+    <div class="modal-head">
+      <h3><i class="ti ti-car"></i> Ride Details</h3>
+      <button class="modal-close" onclick="closeBookingModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="bm-loading" style="text-align:center;padding:2rem;color:var(--text-secondary)">
+      <i class="fas fa-spinner fa-spin"></i> Loading…
+    </div>
+    <div id="bm-content" style="display:none">
+      <div class="si-user-banner" id="bm-student-banner">
+        <div class="si-avatar" id="bm-avatar">S</div>
+        <div class="si-user-info">
+          <div class="si-user-name" id="bm-student-name">—</div>
+          <div class="si-user-meta">
+            <code class="uid-code" id="bm-student-id">—</code>
+            <span class="role-badge student">student</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="si-section-title"><i class="ti ti-steering-wheel"></i> Driver & Vehicle</div>
+      <div class="si-grid">
+        <div class="si-field"><label>Driver</label><span id="bm-driver-name">—</span></div>
+        <div class="si-field"><label>Phone</label><span id="bm-driver-phone">—</span></div>
+        <div class="si-field"><label>Online</label><span id="bm-driver-online">—</span></div>
+        <div class="si-field"><label>Vehicle</label><span id="bm-vehicle-type">—</span></div>
+        <div class="si-field"><label>Registration</label><span id="bm-vehicle-reg">—</span></div>
+      </div>
+
+      <div class="si-section-title"><i class="ti ti-credit-card"></i> Fare & Payment</div>
+      <div class="si-grid">
+        <div class="si-field"><label>Fare</label><span id="bm-fare">—</span></div>
+        <div class="si-field"><label>Payment Status</label><span id="bm-payment-status">—</span></div>
+      </div>
+
+      <div class="si-section-title"><i class="ti ti-map-pin"></i> Trip Details</div>
+      <div class="si-grid">
+        <div class="si-field"><label>Pickup</label><span id="bm-pickup">—</span></div>
+        <div class="si-field"><label>Destination</label><span id="bm-destination">—</span></div>
+        <div class="si-field"><label>Date</label><span id="bm-date">—</span></div>
+        <div class="si-field"><label>Time</label><span id="bm-time">—</span></div>
+        <div class="si-field"><label>Passengers</label><span id="bm-passengers">—</span></div>
+        <div class="si-field"><label>Notes</label><span id="bm-notes">—</span></div>
+      </div>
+
+      <div class="si-section-title"><i class="ti ti-flag"></i> Status Timeline</div>
+      <div class="si-grid">
+        <div class="si-field"><label>Current Status</label><span id="bm-status">—</span></div>
+        <div class="si-field"><label>Booked On</label><span id="bm-booked-on">—</span></div>
+        <div class="si-field"><label>Confirmed At</label><span id="bm-confirmed-at">—</span></div>
+        <div class="si-field"><label>Driver On the Way</label><span id="bm-driver-on-way-at">—</span></div>
+        <div class="si-field"><label>Driver Arrived</label><span id="bm-driver-arrived-at">—</span></div>
+        <div class="si-field"><label>Student Coming</label><span id="bm-student-coming-at">—</span></div>
+        <div class="si-field"><label>Ride Started</label><span id="bm-ride-started-at">—</span></div>
+      </div>
+
+      <div id="bm-cancellation-section" style="display:none">
+        <div class="si-section-title" style="color:#C62828"><i class="ti ti-alert-triangle"></i> Cancellation</div>
+        <div class="si-grid">
+          <div class="si-field"><label>Cancelled By</label><span id="bm-cancelled-by">—</span></div>
+          <div class="si-field"><label>Reason</label><span id="bm-cancel-reason">—</span></div>
+          <div class="si-field"><label>Cancelled At</label><span id="bm-cancelled-at">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <div class="mf-left"></div>
+      <button class="btn-modal-close-si" onclick="closeBookingModal()"><i class="fas fa-times"></i> Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Booking Detail Modal (reused logic from cabBookings) ──
+var rideStatusBadge = <%- JSON.stringify(typeof statusClass !== 'undefined' ? statusClass : {}) %>;
+
+const rideData = <%- JSON.stringify(rides.map(b => ({
+  _id: b._id,
+  student: b.student ? {
+    user: b.student.user ? { fullname: b.student.user.fullname, userId: b.student.user.userId, phoneNumber: b.student.user.phoneNumber } : null
+  } : null,
+  driverName: b.driverName,
+  driverPhone: b.driverPhone,
+  _driverOnline: b._driverOnline,
+  vehicleType: b.vehicleType,
+  vehicleRegistration: b.vehicleRegistration,
+  pickupLocation: b.pickupLocation,
+  dropoffLocation: b.dropoffLocation,
+  pickupDate: b.pickupDate,
+  pickupTime: b.pickupTime,
+  passengerCount: b.passengerCount,
+  notes: b.notes,
+  status: b.status,
+  createdAt: b.createdAt,
+  confirmedAt: b.confirmedAt,
+  driverOnWayAt: b.driverOnWayAt,
+  driverArrivedAt: b.driverArrivedAt,
+  studentComingAt: b.studentComingAt,
+  rideStartedAt: b.rideStartedAt,
+  completedAt: b.completedAt,
+  cancellation: b.cancellation,
+  rating: b.rating,
+  review: b.review,
+  fare: b.fare,
+  paymentStatus: b.paymentStatus
+}))) %>;
+
+function openBookingModal(id) {
+  var b = rideData.find(function(x) { return x._id === id; });
+  if (!b) return;
+
+  var su = b.student && b.student.user;
+  document.getElementById('bm-student-name').textContent = su ? su.fullname : 'Unknown';
+  document.getElementById('bm-student-id').textContent  = su ? su.userId : '—';
+  document.getElementById('bm-avatar').textContent      = su ? su.fullname.charAt(0).toUpperCase() : '?';
+
+  document.getElementById('bm-driver-name').textContent  = b.driverName || '—';
+  document.getElementById('bm-driver-phone').textContent = b.driverPhone || '—';
+  document.getElementById('bm-driver-online').innerHTML = b._driverOnline
+    ? '<span style="color:#4CAF50"><i class="ti ti-wifi"></i> Online</span>'
+    : '<span style="color:#BDBDBD"><i class="ti ti-wifi-off"></i> Offline</span>';
+  document.getElementById('bm-vehicle-type').textContent = b.vehicleType ? b.vehicleType.charAt(0).toUpperCase() + b.vehicleType.slice(1) : '—';
+  document.getElementById('bm-vehicle-reg').textContent  = b.vehicleRegistration || '—';
+
+  document.getElementById('bm-fare').textContent = b.fare ? 'Rs ' + Number(b.fare).toLocaleString() : 'Not set yet';
+  document.getElementById('bm-payment-status').innerHTML = b.fare
+    ? '<span class="badge ' + (b.paymentStatus === 'Paid' ? 'badge-success' : (b.paymentStatus === 'Refund Pending' ? 'badge-danger' : 'badge-warning')) + '">' + b.paymentStatus + '</span>'
+    : '—';
+
+  document.getElementById('bm-pickup').textContent      = b.pickupLocation || '—';
+  document.getElementById('bm-destination').textContent  = b.dropoffLocation || '—';
+  document.getElementById('bm-passengers').textContent   = b.passengerCount || '1';
+  document.getElementById('bm-notes').textContent        = b.notes || '—';
+
+  var d = b.pickupDate ? new Date(b.pickupDate) : null;
+  document.getElementById('bm-date').textContent = d ? d.toLocaleDateString('en-PK', { day:'2-digit', month:'long', year:'numeric' }) : '—';
+  document.getElementById('bm-time').textContent = b.pickupTime || '—';
+
+  var sc = rideStatusBadge[b.status] || 'badge-neutral';
+  document.getElementById('bm-status').innerHTML = '<span class="badge ' + sc + '"><i class="ti ti-circle"></i> ' + b.status + '</span>';
+
+  var fmtDt = function(d) { return d ? new Date(d).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'; };
+  document.getElementById('bm-booked-on').textContent = fmtDt(b.createdAt);
+  document.getElementById('bm-confirmed-at').textContent = fmtDt(b.confirmedAt);
+  document.getElementById('bm-driver-on-way-at').textContent = fmtDt(b.driverOnWayAt);
+  document.getElementById('bm-driver-arrived-at').textContent = fmtDt(b.driverArrivedAt);
+  document.getElementById('bm-student-coming-at').textContent = fmtDt(b.studentComingAt);
+  document.getElementById('bm-ride-started-at').textContent = fmtDt(b.rideStartedAt);
+
+  // Cancellation
+  var cancelSec = document.getElementById('bm-cancellation-section');
+  if (b.cancellation && b.cancellation.by) {
+    cancelSec.style.display = '';
+    document.getElementById('bm-cancelled-by').textContent = b.cancellation.by.charAt(0).toUpperCase() + b.cancellation.by.slice(1);
+    document.getElementById('bm-cancel-reason').textContent = b.cancellation.reason || '—';
+    document.getElementById('bm-cancelled-at').textContent = b.cancellation.at ? new Date(b.cancellation.at).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+  } else {
+    cancelSec.style.display = 'none';
+  }
+
+  document.getElementById('bm-loading').style.display = 'none';
+  document.getElementById('bm-content').style.display = '';
+  document.getElementById('bookingModal').classList.add('open');
+}
+
+function closeBookingModal() {
+  document.getElementById('bookingModal').classList.remove('open');
+  document.getElementById('bm-content').style.display = 'none';
+  document.getElementById('bm-loading').style.display = '';
+}
+</script>
+
+<%- include('admin-footer') %>

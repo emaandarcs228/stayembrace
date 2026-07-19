@@ -366,7 +366,7 @@
          const hasNotes = b.notes && b.notes.trim();
          const hasBudget = b.budget && b.budget > 0;
          const expireAt = b.reservationExpiresAt ? new Date(b.reservationExpiresAt) : null;
-         const isAwaiting = b.status === 'Awaiting Student';
+         const isAwaiting = b.status === 'Waiting for Student Confirmation';
     %>
     <div class="ride-card reserved">
       <div class="ride-card-body">
@@ -472,14 +472,14 @@
          const studentName = b.student?.user?.fullname || '—';
          const studentPhone = b.student?.user?.phoneNumber || '';
          const pickupDate = new Date(b.pickupDate);
-         const statusColor = b.status === 'Confirmed' ? 'badge-info' : 'badge-purple';
+         const statusColor = (rideStatusBadgeClass && rideStatusBadgeClass[b.status]) || 'badge-neutral';
     %>
     <div class="ride-card active-ride">
       <div class="ride-card-body">
         <!-- Status -->
         <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
           <span class="badge <%= statusColor %>" style="font-size:.62rem">
-            <i class="ti ti-<%= b.status === 'Confirmed' ? 'calendar-check' : 'steering-wheel' %>" style="font-size:.55rem"></i>
+            <i class="ti ti-<%= b.status === 'Ride Confirmed' ? 'calendar-check' : 'steering-wheel' %>" style="font-size:.55rem"></i>
             <%= b.status %>
           </span>
           <% if (b.fare) { %>
@@ -529,23 +529,19 @@
             <% } %>
           </div>
           <div style="display:flex;gap:.35rem;flex-wrap:wrap">
-            <% if (b.status === 'Confirmed') { %>
+            <% if (nextStageLabel && nextStageLabel[b.status]) { %>
             <form action="/driver/bookings/status/<%= b._id %>" method="POST" style="display:inline">
-              <input type="hidden" name="newStatus" value="In Progress">
-              <input type="hidden" name="currentStatus" value="Confirmed">
               <button type="submit" class="act-btn btn-approve" style="padding:.3rem .65rem;font-size:.68rem"
-                onclick="return confirm('Start this ride?')">
-                <i class="ti ti-steering-wheel"></i> Start Ride
+                onclick="return confirm('Advance this ride to the next stage?')">
+                <i class="ti ti-arrow-right"></i> <%= nextStageLabel[b.status] %>
               </button>
             </form>
-            <% } else if (b.status === 'In Progress') { %>
-            <form action="/driver/bookings/status/<%= b._id %>" method="POST" style="display:inline">
-              <input type="hidden" name="newStatus" value="Completed">
-              <button type="submit" class="act-btn btn-approve" style="padding:.3rem .65rem;font-size:.68rem"
-                onclick="return confirm('Mark this ride as completed?')">
-                <i class="ti ti-check"></i> Mark Completed
-              </button>
-            </form>
+            <% } %>
+            <% if ((driverCancellableFrom || []).includes(b.status)) { %>
+            <button type="button" class="act-btn btn-reject" style="padding:.3rem .65rem;font-size:.68rem"
+              onclick="openDriverCancelModal('<%= b._id %>', '<%= b.pickupLocation.replace(/'/g, "\\'") %>', '<%= b.dropoffLocation.replace(/'/g, "\\'") %>')">
+              <i class="ti ti-x"></i> Cancel Ride
+            </button>
             <% } %>
           </div>
         </div>
@@ -660,6 +656,34 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════
+     CANCEL RIDE MODAL — driver must enter a reason before cancelling
+     a confirmed ride (before reaching the pickup location)
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="driverCancelModal" onclick="if(event.target===this) closeModal('driverCancelModal')">
+  <div class="modal-box modal-box-sm">
+    <div class="modal-head">
+      <h3><i class="ti ti-x" style="color:#C62828"></i> Cancel Ride</h3>
+      <button class="modal-close" onclick="closeModal('driverCancelModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="driverCancelForm" method="POST">
+      <div class="modal-body">
+        <p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:.9rem" id="driverCancelRoute"></p>
+        <div class="form-group">
+          <label>Reason for cancelling <span class="req">*</span></label>
+          <textarea name="reason" id="driverCancelReason" rows="3" maxlength="500" required
+            placeholder="e.g. vehicle breakdown, emergency, traffic — the student will see this"
+            style="resize:vertical;font-size:.78rem"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="submit" class="btn-modal-save" style="background:#C62828"><i class="ti ti-x"></i> Confirm Cancellation</button>
+        <button type="button" class="btn-modal-cancel" onclick="closeModal('driverCancelModal')">Keep Ride</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 
 <script src="/js/driver-realtime.js"></script>
 
@@ -672,6 +696,14 @@ function openQuoteModal(bookingId, pickup, dropoff) {
   document.getElementById('quoteEta').value = '';
   document.getElementById('quoteComments').value = '';
   openModal('quoteModal');
+}
+
+// ── Cancel-ride modal: require a reason before cancelling ──
+function openDriverCancelModal(bookingId, pickup, dropoff) {
+  document.getElementById('driverCancelForm').action = '/driver/bookings/cancel/' + bookingId;
+  document.getElementById('driverCancelRoute').textContent = (pickup || '') + ' → ' + (dropoff || '');
+  document.getElementById('driverCancelReason').value = '';
+  openModal('driverCancelModal');
 }
 
 // ── Reservation countdown timers ──

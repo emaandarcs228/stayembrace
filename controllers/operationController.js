@@ -38,6 +38,8 @@ const MobileLoad       = require('../models/mobileLoad');
 const mobileLoadActions = require('../services/mobileLoadActions');
 const { getSidebarBadges } = require('../utils/sidebarBadges');
 const CabBooking          = require('../models/cabBooking');
+const Driver              = require('../models/driver');
+const { STATUS_ORDER: RIDE_STATUS_ORDER, BADGE_CLASS: RIDE_STATUS_BADGE_CLASS, ASSIGNED_GROUP } = require('../utils/rideStatus');
 // const Student             = require('../models/student');
 const sendCabBookingEmail = require('../utils/sendCabBookingEmail');
 
@@ -1106,15 +1108,11 @@ exports.getCabBookings = async (req, res) => {
             );
         }
 
-        // ── Counts —─
-        const totalAll    = allBookings.length;
-        const totalPending    = allBookings.filter(b => b.status === 'Pending').length;
-        const totalReserved   = allBookings.filter(b => b.status === 'Reserved').length;
-        const totalAwaiting   = allBookings.filter(b => b.status === 'Awaiting Student').length;
-        const totalConfirmed  = allBookings.filter(b => b.status === 'Confirmed').length;
-        const totalInProgress = allBookings.filter(b => b.status === 'In Progress').length;
-        const totalCompleted  = allBookings.filter(b => b.status === 'Completed').length;
-        const totalCancelled  = allBookings.filter(b => b.status === 'Cancelled').length;
+        // ── Counts — one entry per status, keyed by the exact status string ──
+        const counts = { all: allBookings.length };
+        RIDE_STATUS_ORDER.forEach(s => {
+            counts[s] = allBookings.filter(b => b.status === s).length;
+        });
 
         // ── Unique drivers for filter dropdown ──
         const driverMap = {};
@@ -1129,20 +1127,19 @@ exports.getCabBookings = async (req, res) => {
         const uniqueDrivers = Object.values(driverMap).sort((a, b) => a.name.localeCompare(b.name));
 
         // ── Paginate ──
+        const totalAll   = allBookings.length;
         const totalPages = Math.max(1, Math.ceil(totalAll / limit));
         const safePage   = Math.min(page, totalPages);
         const paginated  = allBookings.slice((safePage - 1) * limit, safePage * limit);
 
-        // ── Helper: status badge class ──
-        const statusClass = {
-            'Pending'          : 'badge-warning',
-            'Reserved'         : 'badge-info',
-            'Awaiting Student' : 'badge-purple',
-            'Confirmed'        : 'badge-info',
-            'In Progress'      : 'badge-primary',
-            'Completed'        : 'badge-success',
-            'Cancelled'        : 'badge-danger'
-        };
+        // ── Precompute whether admin can confirm each booking, mirroring
+        // confirmCabBooking's exact accepted-state condition — keeps the
+        // view from maintaining its own (previously out-of-sync) copy. ──
+        paginated.forEach(b => {
+            b._canConfirm = b.status === 'Waiting for Student Confirmation' ||
+                b.status === 'Ride Confirmed' ||
+                (b.status === 'Pending' && !!b.driver);
+        });
 
         res.render('admin/cabBookings', {
             ...base,
@@ -1159,23 +1156,621 @@ exports.getCabBookings = async (req, res) => {
             statusF,
             driverF,
             uniqueDrivers,
-            counts: {
-                all        : totalAll,
-                pending    : totalPending,
-                reserved   : totalReserved,
-                awaiting   : totalAwaiting,
-                confirmed  : totalConfirmed,
-                inProgress : totalInProgress,
-                completed  : totalCompleted,
-                cancelled  : totalCancelled
-            },
-            statusClass,
+            counts,
+            statusOrder: RIDE_STATUS_ORDER,
+            statusClass: RIDE_STATUS_BADGE_CLASS,
             successMessage: req.query.success || null,
             errorMessage  : req.query.error   || null
         });
 
     } catch (err) {
         console.error('getCabBookings Error:', err);
+        res.status(500).send('Server Error');
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// RIDE MONITORING — Live view of all active rides
+// Route: /admin/operations/ride-monitoring
+//
+// Shows only rides that are in the ASSIGNED_GROUP (Ride Confirmed through
+// Ride Started), plus Pending rides that were direct-assigned to a driver.
+// Real-time-friendly: auto-refreshing data endpoint available at
+// /admin/operations/ride-monitoring/data (JSON).
+// ═══════════════════════════════════════════════════════════════════
+exports.getRideMonitoring = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).send('Access Denied');
+        }
+
+        const base = await buildAdminOpsLocals(req);
+        const badges = await getSidebarBadges(req.user);
+
+        // ── Active rides: any status that means a driver is en route or on-site ──
+        const activeRides = await CabBooking.find({ status: { $in: ASSIGNED_GROUP } })
+            .populate({
+                path: 'student',
+                select: 'guardianName guardianContact',
+                populate: { path: 'user', select: 'fullname userId phoneNumber profileImage' }
+            })
+            .sort({ pickupDate: 1, createdAt: -1 })
+            .lean();
+
+        // Also include Pending rides that have a driver pre-assigned (direct-assign)
+        const pendingAssigned = await CabBooking.find({ status: 'Pending', driver: { $ne: null } })
+            .populate({
+                path: 'student',
+                select: 'guardianName guardianContact',
+                populate: { path: 'user', select: 'fullname userId phoneNumber profileImage' }
+            })
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const allActive = [...activeRides, ...pendingAssigned];
+
+        // ── Enrich with driver online status ──
+        const driverUserIds = allActive
+            .filter(b => b.driver)
+            .map(b => b.driver);
+        const uniqueDriverUserIds = [...new Set(driverUserIds.map(id => id.toString()))];
+        const driverDocs = await Driver.find({ user: { $in: uniqueDriverUserIds } })
+            .select('user isOnline')
+            .lean();
+        const driverOnlineMap = {};
+        driverDocs.forEach(d => { driverOnlineMap[d.user.toString()] = d.isOnline; });
+
+        allActive.forEach(b => {
+            b._driverOnline = b.driver ? !!driverOnlineMap[b.driver.toString()] : false;
+        });
+
+        // ── Totals by status for summary cards ──
+        const countByStatus = {};
+        allActive.forEach(b => {
+            countByStatus[b.status] = (countByStatus[b.status] || 0) + 1;
+        });
+
+        // ── Totals for header stats ──
+        const totalActive = allActive.length;
+        const totalDrivers = uniqueDriverUserIds.length;
+        const totalOnlineDrivers = driverDocs.filter(d => d.isOnline).length;
+
+        // ── JSON endpoint? ──
+        const wantsJson = req.xhr || req.query.format === 'json';
+        if (wantsJson) {
+            return res.json({
+                ok: true,
+                rides: allActive.map(b => ({
+                    _id: b._id,
+                    studentName: b.student?.user?.fullname || 'Unknown',
+                    studentId: b.student?.user?.userId || '—',
+                    driverName: b.driverName || '—',
+                    driverPhone: b.driverPhone || '—',
+                    driverOnline: b._driverOnline,
+                    vehicleType: b.vehicleType,
+                    pickupLocation: b.pickupLocation,
+                    dropoffLocation: b.dropoffLocation,
+                    pickupDate: b.pickupDate,
+                    pickupTime: b.pickupTime,
+                    status: b.status,
+                    fare: b.fare,
+                    paymentStatus: b.paymentStatus,
+                    passengerCount: b.passengerCount,
+                    confirmedAt: b.confirmedAt,
+                    driverOnWayAt: b.driverOnWayAt,
+                    driverArrivedAt: b.driverArrivedAt,
+                    rideStartedAt: b.rideStartedAt,
+                    completedAt: b.completedAt
+                })),
+                counts: { totalActive, ...countByStatus },
+                totalDrivers,
+                totalOnlineDrivers
+            });
+        }
+
+        res.render('admin/rideMonitoring', {
+            ...base,
+            ...badges,
+            activePage    : 'ops-ride-monitoring',
+            pageTitle     : 'Ride Monitoring',
+            pageSubtitle  : 'Live view of all active cab rides in progress',
+            rides         : allActive,
+            totalActive,
+            totalDrivers,
+            totalOnlineDrivers,
+            countByStatus,
+            statusOrder: RIDE_STATUS_ORDER,
+            statusClass: RIDE_STATUS_BADGE_CLASS,
+            successMessage: req.query.success || null,
+            errorMessage  : req.query.error   || null
+        });
+
+    } catch (err) {
+        console.error('getRideMonitoring Error:', err);
+        res.status(500).send('Server Error');
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// COMPLETED RIDES — Search, filter, sort, and browse past/completed
+// and cancelled cab bookings.
+// Route: /admin/operations/completed-rides
+// ═══════════════════════════════════════════════════════════════════
+exports.getCompletedRides = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).send('Access Denied');
+        }
+
+        const base = await buildAdminOpsLocals(req);
+        const badges = await getSidebarBadges(req.user);
+
+        const page       = Math.max(1, parseInt(req.query.page) || 1);
+        const limit      = Math.min(100, Math.max(10, parseInt(req.query.limit) || 20));
+        const skip       = (page - 1) * limit;
+
+        // ── Filters ──
+        const search     = (req.query.search || '').trim();
+        const statusF    = req.query.status || 'completed'; // 'completed', 'cancelled', 'all'
+        const driverF    = req.query.driver || 'all';
+        const paymentF   = req.query.payment || 'all';
+        const sortBy     = req.query.sortBy || 'completedAt';
+        const sortOrder  = req.query.sortOrder === 'asc' ? 1 : -1;
+
+        // ── Build query: only terminal statuses ──
+        const match = { status: { $in: ['Ride Completed', 'Cancelled'] } };
+        if (statusF === 'completed') match.status = 'Ride Completed';
+        if (statusF === 'cancelled') match.status = 'Cancelled';
+
+        // ── Build sort object ──
+        const sortFieldMap = {
+            'completedAt': 'completedAt',
+            'createdAt': 'createdAt',
+            'pickupDate': 'pickupDate',
+            'fare': 'fare',
+            'studentName': null, // handled client-side
+            'driverName': null    // handled client-side
+        };
+        const sortField = sortFieldMap[sortBy] || 'completedAt';
+        const sortObj = sortField ? { [sortField]: sortOrder } : { completedAt: -1 };
+
+        // ── Fetch bookings ──
+        let query = CabBooking.find(match)
+            .populate({
+                path: 'student',
+                select: 'guardianName guardianContact',
+                populate: { path: 'user', select: 'fullname userId phoneNumber profileImage' }
+            })
+            .sort(sortObj)
+            .lean();
+
+        let allBookings = await query;
+
+        // ── Client-side search ──
+        if (search) {
+            const q = search.toLowerCase();
+            allBookings = allBookings.filter(b => {
+                const studentName = b.student?.user?.fullname?.toLowerCase() || '';
+                const studentId   = b.student?.user?.userId?.toLowerCase() || '';
+                const driverName  = (b.driverName || '').toLowerCase();
+                const pickup      = (b.pickupLocation || '').toLowerCase();
+                const dest        = (b.dropoffLocation || '').toLowerCase();
+                return studentName.includes(q) || studentId.includes(q) ||
+                       driverName.includes(q) || pickup.includes(q) || dest.includes(q);
+            });
+        }
+
+        // ── Driver filter ──
+        if (driverF !== 'all') {
+            allBookings = allBookings.filter(b =>
+                b.driver?.toString() === driverF || b.driverName === driverF
+            );
+        }
+
+        // ── Payment filter ──
+        if (paymentF !== 'all') {
+            allBookings = allBookings.filter(b => b.paymentStatus === paymentF);
+        }
+
+        // ── Client-side sort for name fields ──
+        if (sortBy === 'studentName') {
+            allBookings.sort((a, b) => {
+                const na = (a.student?.user?.fullname || '').toLowerCase();
+                const nb = (b.student?.user?.fullname || '').toLowerCase();
+                return sortOrder === 1 ? na.localeCompare(nb) : nb.localeCompare(na);
+            });
+        } else if (sortBy === 'driverName') {
+            allBookings.sort((a, b) => {
+                const na = (a.driverName || '').toLowerCase();
+                const nb = (b.driverName || '').toLowerCase();
+                return sortOrder === 1 ? na.localeCompare(nb) : nb.localeCompare(na);
+            });
+        }
+
+        // ── Counts ──
+        const counts = {
+            all: allBookings.length,
+            completed: allBookings.filter(b => b.status === 'Ride Completed').length,
+            cancelled: allBookings.filter(b => b.status === 'Cancelled').length
+        };
+
+        // ── Unique drivers for filter dropdown ──
+        const driverMap = {};
+        allBookings.forEach(b => {
+            if (b.driver && !driverMap[b.driver.toString()]) {
+                driverMap[b.driver.toString()] = {
+                    id: b.driver.toString(),
+                    name: b.driverName || 'Unknown'
+                };
+            }
+        });
+        const uniqueDrivers = Object.values(driverMap).sort((a, b) => a.name.localeCompare(b.name));
+
+        // ── Paginate ──
+        const totalAll   = allBookings.length;
+        const totalPages = Math.max(1, Math.ceil(totalAll / limit));
+        const safePage   = Math.min(page, totalPages);
+        const paginated  = allBookings.slice((safePage - 1) * limit, safePage * limit);
+
+        res.render('admin/completedRides', {
+            ...base,
+            ...badges,
+            activePage    : 'ops-completed-rides',
+            pageTitle     : 'Completed Rides',
+            pageSubtitle  : 'Browse past, completed, and cancelled cab bookings',
+            bookings      : paginated,
+            total         : totalAll,
+            page          : safePage,
+            totalPages,
+            limit,
+            search,
+            statusF,
+            driverF,
+            paymentF,
+            sortBy,
+            sortOrder,
+            uniqueDrivers,
+            counts,
+            statusClass: RIDE_STATUS_BADGE_CLASS,
+            successMessage: req.query.success || null,
+            errorMessage  : req.query.error   || null
+        });
+
+    } catch (err) {
+        console.error('getCompletedRides Error:', err);
+        res.status(500).send('Server Error');
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// CANCELLED RIDES — Browse all cancelled bookings with full
+// cancellation details (reason, who cancelled, when).
+// Route: /admin/operations/cancelled-rides
+// ═══════════════════════════════════════════════════════════════════
+exports.getCancelledRides = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).send('Access Denied');
+        }
+
+        const base = await buildAdminOpsLocals(req);
+        const badges = await getSidebarBadges(req.user);
+
+        const page       = Math.max(1, parseInt(req.query.page) || 1);
+        const limit      = Math.min(100, Math.max(10, parseInt(req.query.limit) || 20));
+        const skip       = (page - 1) * limit;
+
+        const search     = (req.query.search || '').trim();
+        const cancelBy   = req.query.cancelBy || 'all';   // 'student', 'driver', 'admin', 'system', 'all'
+        const driverF    = req.query.driver || 'all';
+        const paymentF   = req.query.payment || 'all';
+        const sortBy     = req.query.sortBy || 'cancelledAt';
+        const sortOrder  = req.query.sortOrder === 'asc' ? 1 : -1;
+
+        // ── Build query: only Cancelled status ──
+        const match = { status: 'Cancelled' };
+        if (cancelBy !== 'all') {
+            match['cancellation.by'] = cancelBy;
+        }
+
+        // ── Build sort object ──
+        const sortFieldMap = {
+            'cancelledAt': 'cancellation.at',
+            'createdAt': 'createdAt',
+            'pickupDate': 'pickupDate',
+            'fare': 'fare',
+            'studentName': null, // client-side
+            'driverName': null    // client-side
+        };
+        const sortField = sortFieldMap[sortBy] || 'cancellation.at';
+        const sortObj = sortField ? { [sortField]: sortOrder } : { 'cancellation.at': -1 };
+
+        // ── Fetch bookings ──
+        let allBookings = await CabBooking.find(match)
+            .populate({
+                path: 'student',
+                select: 'guardianName guardianContact',
+                populate: { path: 'user', select: 'fullname userId phoneNumber profileImage' }
+            })
+            .sort(sortObj)
+            .lean();
+
+        // ── Client-side search ──
+        if (search) {
+            const q = search.toLowerCase();
+            allBookings = allBookings.filter(b => {
+                const studentName = b.student?.user?.fullname?.toLowerCase() || '';
+                const studentId   = b.student?.user?.userId?.toLowerCase() || '';
+                const driverName  = (b.driverName || '').toLowerCase();
+                const pickup      = (b.pickupLocation || '').toLowerCase();
+                const dest        = (b.dropoffLocation || '').toLowerCase();
+                const reason      = (b.cancellation?.reason || '').toLowerCase();
+                return studentName.includes(q) || studentId.includes(q) ||
+                       driverName.includes(q) || pickup.includes(q) || dest.includes(q) || reason.includes(q);
+            });
+        }
+
+        // ── Driver filter ──
+        if (driverF !== 'all') {
+            allBookings = allBookings.filter(b =>
+                b.driver?.toString() === driverF || b.driverName === driverF
+            );
+        }
+
+        // ── Payment filter ──
+        if (paymentF !== 'all') {
+            allBookings = allBookings.filter(b => b.paymentStatus === paymentF);
+        }
+
+        // ── Client-side sort for name fields ──
+        if (sortBy === 'studentName') {
+            allBookings.sort((a, b) => {
+                const na = (a.student?.user?.fullname || '').toLowerCase();
+                const nb = (b.student?.user?.fullname || '').toLowerCase();
+                return sortOrder === 1 ? na.localeCompare(nb) : nb.localeCompare(na);
+            });
+        } else if (sortBy === 'driverName') {
+            allBookings.sort((a, b) => {
+                const na = (a.driverName || '').toLowerCase();
+                const nb = (b.driverName || '').toLowerCase();
+                return sortOrder === 1 ? na.localeCompare(nb) : nb.localeCompare(na);
+            });
+        }
+
+        // ── Counts ──
+        const counts = { all: allBookings.length };
+
+        // ── Unique drivers for filter dropdown ──
+        const driverMap = {};
+        allBookings.forEach(b => {
+            if (b.driver && !driverMap[b.driver.toString()]) {
+                driverMap[b.driver.toString()] = {
+                    id: b.driver.toString(),
+                    name: b.driverName || 'Unknown'
+                };
+            }
+        });
+        const uniqueDrivers = Object.values(driverMap).sort((a, b) => a.name.localeCompare(b.name));
+
+        // ── Enrich with a readable time ago for cancellation ──
+        allBookings.forEach(b => {
+            if (b.cancellation?.at) {
+                b._cancelTimeAgo = timeAgo(b.cancellation.at);
+            }
+        });
+
+        // ── Paginate ──
+        const totalAll   = allBookings.length;
+        const totalPages = Math.max(1, Math.ceil(totalAll / limit));
+        const safePage   = Math.min(page, totalPages);
+        const paginated  = allBookings.slice((safePage - 1) * limit, safePage * limit);
+
+        res.render('admin/cancelledRides', {
+            ...base,
+            ...badges,
+            activePage    : 'ops-cancelled-rides',
+            pageTitle     : 'Cancelled Rides',
+            pageSubtitle  : 'Browse all cancelled cab bookings and review cancellation reasons',
+            bookings      : paginated,
+            total         : totalAll,
+            page          : safePage,
+            totalPages,
+            limit,
+            search,
+            cancelBy,
+            driverF,
+            paymentF,
+            sortBy,
+            sortOrder,
+            uniqueDrivers,
+            counts,
+            statusClass: RIDE_STATUS_BADGE_CLASS,
+            successMessage: req.query.success || null,
+            errorMessage  : req.query.error   || null
+        });
+
+    } catch (err) {
+        console.error('getCancelledRides Error:', err);
+        res.status(500).send('Server Error');
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// DRIVER RIDE HISTORY — View a specific driver's completed rides,
+// cancelled rides, total earnings, and ride statistics.
+// Route: /admin/operations/driver-ride-history
+// ═══════════════════════════════════════════════════════════════════
+exports.getDriverRideHistory = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).send('Access Denied');
+        }
+
+        const base = await buildAdminOpsLocals(req);
+        const badges = await getSidebarBadges(req.user);
+
+        const selectedDriverId = req.query.driver || '';
+        const search     = (req.query.search || '').trim();
+        const statusF    = req.query.status || 'all'; // 'completed', 'cancelled', 'all'
+        const sortBy     = req.query.sortBy || 'completedAt';
+        const sortOrder  = req.query.sortOrder === 'asc' ? 1 : -1;
+        const page       = Math.max(1, parseInt(req.query.page) || 1);
+        const limit      = Math.min(100, Math.max(10, parseInt(req.query.limit) || 20));
+        const skip       = (page - 1) * limit;
+
+        // ── Fetch all approved drivers for the dropdown ──
+        const driverUsers = await User.find({ role: 'driver', status: 'approved' })
+            .select('_id fullname userId phoneNumber')
+            .sort({ fullname: 1 })
+            .lean();
+
+        // Merge with Driver record for vehicle/online info
+        const driverUserIds = driverUsers.map(u => u._id);
+        const driverRecords = await Driver.find({ user: { $in: driverUserIds } })
+            .select('user vehicleType isOnline isActive')
+            .lean();
+        const driverRecordMap = {};
+        driverRecords.forEach(d => { driverRecordMap[d.user.toString()] = d; });
+
+        const driverList = driverUsers.map(u => ({
+            _id: u._id,
+            fullname: u.fullname,
+            userId: u.userId,
+            phoneNumber: u.phoneNumber,
+            vehicleType: driverRecordMap[u._id.toString()]?.vehicleType || null,
+            isOnline: driverRecordMap[u._id.toString()]?.isOnline || false,
+            isActive: driverRecordMap[u._id.toString()]?.isActive !== false
+        }));
+
+        // ── Stats and rides for the selected driver ──
+        let driverStats = null;
+        let rides = [];
+        let total = 0;
+        let totalPages = 1;
+        let safePage = 1;
+        let selectedDriverName = '';
+
+        if (selectedDriverId) {
+            const driverUser = driverUsers.find(u => u._id.toString() === selectedDriverId);
+            selectedDriverName = driverUser?.fullname || 'Unknown Driver';
+
+            // ── All terminal rides for this driver ──
+            const match = {
+                driver: selectedDriverId,
+                status: { $in: ['Ride Completed', 'Cancelled'] }
+            };
+            if (statusF === 'completed') match.status = 'Ride Completed';
+            if (statusF === 'cancelled') match.status = 'Cancelled';
+
+            const sortFieldMap = {
+                'completedAt': 'completedAt',
+                'cancelledAt': 'cancellation.at',
+                'createdAt': 'createdAt',
+                'pickupDate': 'pickupDate',
+                'fare': 'fare'
+            };
+            const sortField = sortFieldMap[sortBy] || 'completedAt';
+            const sortObj = { [sortField]: sortOrder };
+
+            let allRides = await CabBooking.find(match)
+                .populate({
+                    path: 'student',
+                    select: 'guardianName guardianContact',
+                    populate: { path: 'user', select: 'fullname userId phoneNumber' }
+                })
+                .sort(sortObj)
+                .lean();
+
+            // Client-side search
+            if (search) {
+                const q = search.toLowerCase();
+                allRides = allRides.filter(b => {
+                    const studentName = b.student?.user?.fullname?.toLowerCase() || '';
+                    const studentId   = b.student?.user?.userId?.toLowerCase() || '';
+                    const pickup      = (b.pickupLocation || '').toLowerCase();
+                    const dest        = (b.dropoffLocation || '').toLowerCase();
+                    return studentName.includes(q) || studentId.includes(q) || pickup.includes(q) || dest.includes(q);
+                });
+            }
+
+            total = allRides.length;
+            totalPages = Math.max(1, Math.ceil(total / limit));
+            safePage = Math.min(page, totalPages);
+            rides = allRides.slice((safePage - 1) * limit, safePage * limit);
+
+            // ── Compute driver stats ──
+            const completedRides = allRides.filter(b => b.status === 'Ride Completed');
+            const cancelledRides = allRides.filter(b => b.status === 'Cancelled');
+            const totalEarnings = completedRides.reduce((sum, b) => sum + (b.fare || 0), 0);
+            const completedWithRating = completedRides.filter(b => b.rating);
+            const avgRating = completedWithRating.length > 0
+                ? Math.round(completedWithRating.reduce((sum, b) => sum + b.rating, 0) / completedWithRating.length * 10) / 10
+                : 0;
+            const totalFares = completedRides.filter(b => b.fare).length;
+
+            // Payment stats for completed rides
+            const paidCount = completedRides.filter(b => b.paymentStatus === 'Paid').length;
+            const unpaidCount = completedRides.filter(b => b.paymentStatus === 'Unpaid').length;
+            const refundPendingCount = completedRides.filter(b => b.paymentStatus === 'Refund Pending').length;
+
+            // Cancellation breakdown
+            const cancelledByStudent = cancelledRides.filter(b => b.cancellation?.by === 'student').length;
+            const cancelledByDriver = cancelledRides.filter(b => b.cancellation?.by === 'driver').length;
+            const cancelledByAdmin = cancelledRides.filter(b => b.cancellation?.by === 'admin').length;
+            const cancelledBySystem = cancelledRides.filter(b => b.cancellation?.by === 'system').length;
+
+            // Enrich with timeAgo
+            rides.forEach(b => {
+                if (b.cancellation?.at) b._cancelTimeAgo = timeAgo(b.cancellation.at);
+            });
+
+            driverStats = {
+                totalRides: allRides.length,
+                completedCount: completedRides.length,
+                cancelledCount: cancelledRides.length,
+                totalEarnings,
+                avgRating,
+                totalRatings: completedWithRating.length,
+                totalFares,
+                paidCount,
+                unpaidCount,
+                refundPendingCount,
+                cancelledByStudent,
+                cancelledByDriver,
+                cancelledByAdmin,
+                cancelledBySystem
+            };
+        }
+
+        const counts = { all: total };
+
+        res.render('admin/driverRideHistory', {
+            ...base,
+            ...badges,
+            activePage      : 'ops-driver-ride-history',
+            pageTitle       : 'Driver Ride History',
+            pageSubtitle    : selectedDriverId ? `Ride history for ${selectedDriverName}` : 'Select a driver to view their ride history',
+            driverList,
+            selectedDriverId,
+            selectedDriverName,
+            driverStats,
+            rides,
+            total,
+            page: safePage,
+            totalPages,
+            limit,
+            search,
+            statusF,
+            sortBy,
+            sortOrder,
+            counts,
+            statusClass: RIDE_STATUS_BADGE_CLASS,
+            successMessage: req.query.success || null,
+            errorMessage  : req.query.error   || null
+        });
+
+    } catch (err) {
+        console.error('getDriverRideHistory Error:', err);
         res.status(500).send('Server Error');
     }
 };
@@ -1191,21 +1786,25 @@ exports.confirmCabBooking = async (req, res) => {
         }
 
         // ── Atomic confirm: admin can confirm bookings that are in
-        // 'Awaiting Student' (student hasn't responded yet) or 'Confirmed'
-        // (already accepted by student, just needs admin final sign-off).
+        // 'Waiting for Student Confirmation' (student hasn't responded yet)
+        // or already 'Ride Confirmed' (just needs admin final sign-off).
         //
         // Also handles legacy 'Pending' bookings from before the reservation
         // workflow was introduced, but only if they have a driver assigned.
+        const now = new Date();
         const booking = await CabBooking.findOneAndUpdate(
             {
                 _id: req.params.id,
                 $or: [
-                    { status: 'Awaiting Student' },
-                    { status: 'Confirmed' },
+                    { status: 'Waiting for Student Confirmation' },
+                    { status: 'Ride Confirmed' },
                     { status: 'Pending', driver: { $ne: null } }
                 ]
             },
-            { $set: { status: 'Confirmed', confirmedAt: new Date() } },
+            {
+                $set: { status: 'Ride Confirmed', confirmedAt: now },
+                $push: { statusHistory: { status: 'Ride Confirmed', changedBy: req.user._id, changedByRole: 'admin', at: now } }
+            },
             { new: true }
         );
 

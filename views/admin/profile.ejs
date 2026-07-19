@@ -190,12 +190,12 @@
           <div class="form-group">
             <label>New Password <span class="req">*</span></label>
             <div class="pw-wrap">
-              <input type="password" name="newPassword" id="newPassword" placeholder="Min 8 characters, uppercase, lowercase, number, special char" required>
+              <input type="password" name="newPassword" id="newPassword" placeholder="Min 8 characters, uppercase, lowercase, number, special char" required oninput="window.updatePasswordHint('newPassword', 'np-hint')">
               <button type="button" class="pw-toggle" onclick="togglePassword('newPassword', this)">
                 <i class="fas fa-eye"></i>
               </button>
             </div>
-            <p class="field-hint">Min 8 chars with at least 3 of: uppercase, lowercase, number, special character.</p>
+            <p class="field-hint" id="np-hint">Min 8 chars with at least 3 of: uppercase, lowercase, number, special character.</p>
           </div>
           <div class="form-group">
             <label>Confirm New Password <span class="req">*</span></label>
@@ -243,6 +243,54 @@
     }
   };
 
+  // ── Shared password helpers (match backend isStrongPassword exactly) ──
+  window.isStrongPassword = window.isStrongPassword || function(pw) {
+    var c = 0;
+    if (/[a-z]/.test(pw)) c++;
+    if (/[A-Z]/.test(pw)) c++;
+    if (/\d/.test(pw)) c++;
+    if (/[^A-Za-z0-9]/.test(pw)) c++;
+    return pw.length >= 8 && c >= 3;
+  };
+  window.getPasswordConditions = window.getPasswordConditions || function(pw) {
+    return { length: pw.length >= 8, lower: /[a-z]/.test(pw), upper: /[A-Z]/.test(pw), digit: /\d/.test(pw), special: /[^A-Za-z0-9]/.test(pw) };
+  };
+  window.getPasswordConditionCount = window.getPasswordConditionCount || function(c) {
+    return (c.lower ? 1 : 0) + (c.upper ? 1 : 0) + (c.digit ? 1 : 0) + (c.special ? 1 : 0);
+  };
+  window.isPasswordFullyValid = window.isPasswordFullyValid || function(pw) {
+    var c = window.getPasswordConditions(pw);
+    return c.length && window.getPasswordConditionCount(c) >= 3;
+  };
+  window.passwordConditionsHTML = window.passwordConditionsHTML || function(pw) {
+    var c = window.getPasswordConditions(pw);
+    var cnt = window.getPasswordConditionCount(c);
+    var ok = c.length && cnt >= 3;
+    var items = [
+      { k: 'length', l: '8+ characters', m: c.length },
+      { k: 'upper',  l: 'Uppercase letter', m: c.upper },
+      { k: 'lower',  l: 'Lowercase letter', m: c.lower },
+      { k: 'digit',  l: 'Digit', m: c.digit },
+      { k: 'special', l: 'Special character', m: c.special },
+      { k: 'count',   l: 'At least 3 of 4 types (upper, lower, digit, special)', m: cnt >= 3 }
+    ];
+    var html = '<div style="font-size:.7rem;line-height:1.6;margin-top:.1rem">';
+    items.forEach(function(it) {
+      html += '<span style="color:' + (ok || it.m ? '#2E7D32' : '#C62828') + '">' + (it.m ? '✓' : '✗') + ' ' + it.l + '</span><br>';
+    });
+    return html + '</div>';
+  };
+  window.updatePasswordHint = window.updatePasswordHint || function(inputId, hintId) {
+    var inp = document.getElementById(inputId);
+    var h = document.getElementById(hintId);
+    if (!inp || !h) return false;
+    var v = inp.value;
+    if (v.length === 0) { h.innerHTML = 'Min 8 chars with at least 3 of: uppercase, lowercase, number, special character.'; h.style.color = '#888'; return false; }
+    if (window.isPasswordFullyValid(v)) { h.innerHTML = '✓ Password meets requirements.'; h.style.color = '#2E7D32'; }
+    else { h.innerHTML = window.passwordConditionsHTML(v); h.style.color = ''; }
+    return window.isPasswordFullyValid(v);
+  };
+
   var pwdForm = document.getElementById('passwordForm');
   if (pwdForm) {
     pwdForm.addEventListener('submit', function(e) {
@@ -259,14 +307,9 @@
         alert('New passwords do not match.');
         return;
       }
-      var hasLower  = /[a-z]/.test(newPwd);
-      var hasUpper  = /[A-Z]/.test(newPwd);
-      var hasDigit  = /\d/.test(newPwd);
-      var hasSpecial = /[^A-Za-z0-9]/.test(newPwd);
-      var strength = (hasLower ? 1 : 0) + (hasUpper ? 1 : 0) + (hasDigit ? 1 : 0) + (hasSpecial ? 1 : 0);
-      if (newPwd.length < 8 || strength < 3) {
+      if (!window.isPasswordFullyValid(newPwd)) {
         e.preventDefault();
-        alert('Password must be at least 8 characters with at least 3 of: uppercase, lowercase, number, special character.');
+        document.getElementById('np-hint').innerHTML = '<span style="color:#C62828">✗ Password does not meet requirements. See conditions above.</span>';
         return;
       }
     });

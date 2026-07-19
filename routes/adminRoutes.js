@@ -171,7 +171,14 @@ router.post('/operations/mobile-load/override/:id',      adminMiddleware, operat
 // TRANSPORT MANAGEMENT
 // ======================
 router.get('/operations/cab-bookings',              adminMiddleware, operationController.getCabBookings);
+router.get('/operations/ride-monitoring',           adminMiddleware, operationController.getRideMonitoring);
+router.get('/operations/completed-rides',            adminMiddleware, operationController.getCompletedRides);
+router.get('/operations/cancelled-rides',            adminMiddleware, operationController.getCancelledRides);
+router.get('/operations/driver-ride-history',        adminMiddleware, operationController.getDriverRideHistory);
 router.post('/operations/cab-bookings/confirm/:id',  adminMiddleware, operationController.confirmCabBooking);
+
+// ── Dashboard Live Ride Status (JSON) ─────────────────────
+router.get('/dashboard/ride-status.json', adminMiddleware, adminController.getDashboardRideStatus);
 
 // ======================
 // WARDEN ACTIVITY LOG

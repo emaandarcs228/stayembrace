@@ -249,13 +249,7 @@
           </thead>
           <tbody>
             <% cabBookings.forEach(function(b, i) {
-                 const statusMap = {
-                   'Pending'     : 'badge-warning',
-                   'Confirmed'   : 'badge-info',
-                   'In Progress' : 'badge-purple',
-                   'Completed'   : 'badge-success',
-                   'Cancelled'   : 'badge-neutral'
-                 };
+                 const statusMap = typeof rideStatusBadgeClass !== 'undefined' ? rideStatusBadgeClass : {};
                  const pickupDate = new Date(b.pickupDate);
             %>
             <tr>

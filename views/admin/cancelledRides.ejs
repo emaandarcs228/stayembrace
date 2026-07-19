@@ -1,28 +1,134 @@
 <%- include('admin-header') %>
 <%
-  const statusCls = typeof statusClass !== 'undefined' ? statusClass : {};
-  const badgeCls = (s) => statusCls[s] || 'badge-neutral';
+  const badgeCls = (s) => (typeof statusClass !== 'undefined' && statusClass[s]) || 'badge-neutral';
+  const sortIcon = (col) => {
+    if (sortBy !== col) return 'ti ti-arrows-sort';
+    return sortOrder === 1 ? 'ti ti-sort-ascending' : 'ti ti-sort-descending';
+  };
 %>
+
+<style>
+  .cx-header-stats {
+    display: flex;
+    gap: .8rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  .cx-stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .35rem .75rem;
+    border-radius: var(--radius-pill);
+    font-size: .72rem;
+    font-weight: 600;
+    border: 1px solid var(--border-mid);
+    background: white;
+  }
+  .cx-stat-chip i { font-size: .65rem; }
+  .cx-stat-chip .num { font-weight: 700; margin-left: .15rem; }
+  .cx-stat-chip.cancelled { border-color: #ef9a9a; background: #FFEBEE; color: #C62828; }
+
+  .sort-th {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .sort-th:hover { color: var(--text-primary); }
+  .sort-th i {
+    font-size: .62rem;
+    margin-left: .25rem;
+    opacity: .5;
+    vertical-align: middle;
+  }
+  .sort-th.active i { opacity: 1; color: #C62828; }
+  .sort-th.active { color: var(--text-primary); }
+
+  /* Cancellation reason chip */
+  .cx-reason-cell {
+    max-width: 220px;
+    min-width: 140px;
+  }
+  .cx-reason-preview {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .72rem;
+    color: var(--text-primary);
+    line-height: 1.3;
+  }
+  .cx-reason-preview .reason-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 140px;
+  }
+  .cx-reason-preview i {
+    font-size: .6rem;
+    flex-shrink: 0;
+  }
+
+  .cx-by-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .15rem .45rem;
+    border-radius: var(--radius-pill);
+    font-size: .6rem;
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+  .cx-by-tag.student { background: #E3F2FD; color: #1565C0; }
+  .cx-by-tag.driver  { background: #FFF3E0; color: #E65100; }
+  .cx-by-tag.admin   { background: #F3E5F5; color: #7B1FA2; }
+  .cx-by-tag.system  { background: #ECEFF1; color: #546E7A; }
+
+  .cx-cancel-fee-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+    font-size: .6rem;
+    font-weight: 600;
+    color: #C62828;
+    background: #FFEBEE;
+    padding: .1rem .4rem;
+    border-radius: var(--radius-pill);
+  }
+</style>
+
+<!-- ── Header Stats ── -->
+<div class="cx-header-stats">
+  <span class="cx-stat-chip cancelled">
+    <i class="ti ti-alert-triangle"></i> Cancelled: <span class="num"><%= counts.all %></span>
+  </span>
+  <span class="cx-stat-chip" style="border-color:var(--border-mid)">
+    <i class="ti ti-list"></i> Total: <span class="num"><%= counts.all %></span>
+  </span>
+</div>
 
 <!-- ── Filters ── -->
 <div style="display:flex;gap:.8rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
-  <div class="search-bar" style="max-width:280px;width:100%;flex:1">
+  <div class="search-bar" style="max-width:260px;width:100%;flex:1">
     <i class="ti ti-search"></i>
-    <form method="GET" action="/admin/operations/cab-bookings" id="filterForm" style="display:contents">
-      <input type="text" name="search" placeholder="Search by student, driver, or location..."
+    <form method="GET" action="/admin/operations/cancelled-rides" id="filterForm" style="display:contents">
+      <input type="text" name="search" placeholder="Search by student, driver, or reason..."
         value="<%= search %>" onchange="this.form.submit()"
         style="border:none;background:transparent;flex:1;font-family:inherit;font-size:.82rem;padding:.6rem 0;outline:none">
-      <input type="hidden" name="status" value="<%= statusF %>">
+      <input type="hidden" name="cancelBy" value="<%= cancelBy %>">
       <input type="hidden" name="driver" value="<%= driverF %>">
+      <input type="hidden" name="payment" value="<%= paymentF %>">
+      <input type="hidden" name="sortBy" value="<%= sortBy %>">
+      <input type="hidden" name="sortOrder" value="<%= sortOrder %>">
       <input type="hidden" name="page" value="1">
     </form>
   </div>
 
-  <select class="filter-sel" name="status" form="filterForm" onchange="document.getElementById('filterForm').submit()">
-    <option value="all" <%= statusF === 'all' ? 'selected' : '' %>>All Statuses</option>
-    <% (typeof statusOrder !== 'undefined' ? statusOrder : []).forEach(function(s) { %>
-    <option value="<%= s %>" <%= statusF === s ? 'selected' : '' %>><%= s %></option>
-    <% }); %>
+  <select class="filter-sel" name="cancelBy" form="filterForm" onchange="document.getElementById('filterForm').submit()">
+    <option value="all" <%= cancelBy === 'all' ? 'selected' : '' %>>Cancelled By — All</option>
+    <option value="student" <%= cancelBy === 'student' ? 'selected' : '' %>>By Student</option>
+    <option value="driver" <%= cancelBy === 'driver' ? 'selected' : '' %>>By Driver</option>
+    <option value="admin" <%= cancelBy === 'admin' ? 'selected' : '' %>>By Admin</option>
+    <option value="system" <%= cancelBy === 'system' ? 'selected' : '' %>>By System</option>
   </select>
 
   <select class="filter-sel" name="driver" form="filterForm" onchange="document.getElementById('filterForm').submit()">
@@ -31,29 +137,20 @@
       <option value="<%= d.id %>" <%= driverF === d.id ? 'selected' : '' %>><%= d.name %></option>
     <% }); %>
   </select>
+
+  <select class="filter-sel" name="payment" form="filterForm" onchange="document.getElementById('filterForm').submit()">
+    <option value="all" <%= paymentF === 'all' ? 'selected' : '' %>>Any Payment</option>
+    <option value="Paid" <%= paymentF === 'Paid' ? 'selected' : '' %>>Paid</option>
+    <option value="Unpaid" <%= paymentF === 'Unpaid' ? 'selected' : '' %>>Unpaid</option>
+    <option value="Refund Pending" <%= paymentF === 'Refund Pending' ? 'selected' : '' %>>Refund Pending</option>
+  </select>
 </div>
 
-<!-- ── Status Count Pills ── -->
-<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
-  <% const pills = [{ key:'all', label:'All', count: counts.all, cls:'badge-neutral' }]
-       .concat((typeof statusOrder !== 'undefined' ? statusOrder : []).map(function(s) {
-         return { key: s, label: s, count: counts[s] || 0, cls: badgeCls(s) };
-       })); %>
-  <% pills.forEach(function(p) { %>
-    <a href="/admin/operations/cab-bookings?status=<%= p.key === 'all' ? 'all' : p.label %>&search=<%= search %>&driver=<%= driverF %>"
-       class="badge <%= p.cls %>"
-       style="text-decoration:none;cursor:pointer;padding:.3rem .7rem;font-size:.72rem;font-weight:600;
-              <%= statusF === (p.key === 'all' ? 'all' : p.label) ? 'box-shadow:0 0 0 2px rgba(0,0,0,0.08);' : '' %>">
-      <%= p.label %> <span style="font-weight:400;opacity:.8"><%= p.count %></span>
-    </a>
-  <% }); %>
-</div>
-
-<!-- ── Bookings Table ── -->
+<!-- ── Rides Table ── -->
 <div class="card">
   <div class="card-head">
-    <h3><i class="ti ti-car"></i> Transport Bookings</h3>
-    <span class="count-pill"><%= total %> total</span>
+    <h3><i class="ti ti-alert-triangle"></i> Cancelled Rides</h3>
+    <span class="count-pill"><%= total %> cancelled</span>
   </div>
 
   <% if (bookings.length > 0) { %>
@@ -61,14 +158,25 @@
     <table>
       <thead>
         <tr>
-          <th>Student</th>
-          <th>Driver</th>
-          <th>Vehicle</th>
-          <th>Pickup</th>
-          <th>Destination</th>
-          <th>Date / Time</th>
-          <th>Status</th>
-          <th>Fare</th>
+          <th class="sort-th <%= sortBy === 'studentName' ? 'active' : '' %>"
+              onclick="sortByField('studentName')">
+            Student <i class="<%= sortIcon('studentName') %>"></i>
+          </th>
+          <th class="sort-th <%= sortBy === 'driverName' ? 'active' : '' %>"
+              onclick="sortByField('driverName')">
+            Driver <i class="<%= sortIcon('driverName') %>"></i>
+          </th>
+          <th>Cancellation Reason</th>
+          <th>Cancelled By</th>
+          <th>Pickup → Destination</th>
+          <th class="sort-th <%= sortBy === 'cancelledAt' ? 'active' : '' %>"
+              onclick="sortByField('cancelledAt')">
+            Cancelled At <i class="<%= sortIcon('cancelledAt') %>"></i>
+          </th>
+          <th class="sort-th <%= sortBy === 'fare' ? 'active' : '' %>"
+              onclick="sortByField('fare')">
+            Fare <i class="<%= sortIcon('fare') %>"></i>
+          </th>
           <th>Payment</th>
           <th class="actions-th">Actions</th>
         </tr>
@@ -79,10 +187,12 @@
           const studentName = studentUser ? studentUser.fullname : 'Unknown';
           const studentId   = studentUser ? studentUser.userId : '—';
           const initial     = studentName.charAt(0).toUpperCase();
-          const pickupDate  = new Date(b.pickupDate);
-          const dateStr     = pickupDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' });
-          const timeStr     = b.pickupTime || '—';
-          const canConfirm  = !!b._canConfirm;
+          const reason      = b.cancellation?.reason || '—';
+          const cancelledBy = b.cancellation?.by || '—';
+          const cancelledAt = b.cancellation?.at ? new Date(b.cancellation.at).toLocaleDateString('en-PK', {
+            day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
+          }) : '—';
+          const cancelFee   = b.cancellationFee || null;
         %>
         <tr>
           <td>
@@ -105,45 +215,54 @@
               </div>
             </div>
           </td>
-          <td style="font-size:.75rem">
-            <% if (b.vehicleType) { %>
-              <div style="text-transform:capitalize"><%= b.vehicleType %></div>
-              <% if (b.vehicleRegistration) { %>
-                <div style="font-size:.65rem;color:var(--text-muted)"><%= b.vehicleRegistration %></div>
-              <% } %>
-            <% } else { %>
-              <span style="color:var(--text-muted)">—</span>
-            <% } %>
-          </td>
-          <td style="font-size:.75rem;max-width:160px"><%= b.pickupLocation %></td>
-          <td style="font-size:.75rem;max-width:160px"><%= b.dropoffLocation %></td>
-          <td style="font-size:.72rem;white-space:nowrap">
-            <div><%= dateStr %></div>
-            <div style="color:var(--text-muted)"><%= timeStr %></div>
+          <td class="cx-reason-cell">
+            <div class="cx-reason-preview" title="<%= reason.replace(/"/g, '&quot;') %>">
+              <i class="ti ti-message"></i>
+              <span class="reason-text"><%= reason %></span>
+            </div>
           </td>
           <td>
-            <span class="badge <%= badgeCls(b.status) %>"><%= b.status %></span>
+            <span class="cx-by-tag <%= cancelledBy %>">
+              <% if (cancelledBy === 'student') { %><i class="ti ti-user"></i><% } %>
+              <% if (cancelledBy === 'driver')  { %><i class="ti ti-steering-wheel"></i><% } %>
+              <% if (cancelledBy === 'admin')   { %><i class="ti ti-shield"></i><% } %>
+              <% if (cancelledBy === 'system')  { %><i class="ti ti-settings"></i><% } %>
+              <% if (cancelledBy === '—') { %><i class="ti ti-circle"></i><% } %>
+              <%= cancelledBy %>
+            </span>
+            <% if (cancelFee) { %>
+              <div class="cx-cancel-fee-tag" style="margin-top:.15rem">
+                <i class="ti ti-currency-rupee"></i> <%= cancelFee.toLocaleString() %> fee
+              </div>
+            <% } %>
+          </td>
+          <td style="font-size:.72rem;max-width:150px">
+            <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<%= b.pickupLocation %> → <%= b.dropoffLocation %>">
+              <%= b.pickupLocation %> → <%= b.dropoffLocation %>
+            </div>
+          </td>
+          <td style="font-size:.7rem;white-space:nowrap">
+            <div><%= cancelledAt %></div>
+            <% if (b._cancelTimeAgo) { %>
+              <div style="color:var(--text-muted);font-size:.62rem"><%= b._cancelTimeAgo %></div>
+            <% } %>
           </td>
           <td style="font-size:.75rem;font-weight:600">
             <%= b.fare ? 'Rs ' + b.fare.toLocaleString() : '—' %>
           </td>
           <td>
             <% if (b.fare) { %>
-              <span class="badge <%= b.paymentStatus === 'Paid' ? 'badge-success' : (b.paymentStatus === 'Refund Pending' ? 'badge-danger' : 'badge-warning') %>"><%= b.paymentStatus %></span>
+              <span class="badge <%= b.paymentStatus === 'Paid' ? 'badge-success' : (b.paymentStatus === 'Refund Pending' ? 'badge-danger' : 'badge-warning') %>" style="font-size:.6rem">
+                <%= b.paymentStatus %>
+              </span>
             <% } else { %>
-              <span style="color:var(--text-muted);font-size:.7rem">—</span>
+              <span style="color:var(--text-muted);font-size:.65rem">—</span>
             <% } %>
           </td>
           <td class="actions-cell">
             <div class="action-cell">
               <button class="act-btn btn-view" onclick="openBookingModal('<%= b._id %>')"
                 data-id="<%= b._id %>"><i class="ti ti-eye"></i> View</button>
-              <% if (canConfirm) { %>
-                <form action="/admin/operations/cab-bookings/confirm/<%= b._id %>" method="POST" style="display:inline"
-                  onsubmit="return confirm('Confirm this booking? The guardian will be notified via email.')">
-                  <button type="submit" class="act-btn btn-approve"><i class="ti ti-check"></i> Confirm</button>
-                </form>
-              <% } %>
             </div>
           </td>
         </tr>
@@ -156,19 +275,19 @@
   <% if (totalPages > 1) { %>
   <div class="pagination">
     <span style="font-size:.75rem;color:var(--text-secondary)">
-      Page <%= page %> of <%= totalPages %> (<%= total %> bookings)
+      Page <%= page %> of <%= totalPages %> (<%= total %> cancelled)
     </span>
     <div class="page-btns">
       <% if (page > 1) { %>
-        <a href="/admin/operations/cab-bookings?page=<%= page - 1 %>&status=<%= statusF %>&search=<%= search %>&driver=<%= driverF %>"
+        <a href="/admin/operations/cancelled-rides?page=<%= page - 1 %>&search=<%= search %>&cancelBy=<%= cancelBy %>&driver=<%= driverF %>&payment=<%= paymentF %>&sortBy=<%= sortBy %>&sortOrder=<%= sortOrder %>"
            class="pg-btn">‹</a>
       <% } %>
       <% for (let i = 1; i <= totalPages; i++) { %>
-        <a href="/admin/operations/cab-bookings?page=<%= i %>&status=<%= statusF %>&search=<%= search %>&driver=<%= driverF %>"
+        <a href="/admin/operations/cancelled-rides?page=<%= i %>&search=<%= search %>&cancelBy=<%= cancelBy %>&driver=<%= driverF %>&payment=<%= paymentF %>&sortBy=<%= sortBy %>&sortOrder=<%= sortOrder %>"
            class="pg-btn <%= i === page ? 'active' : '' %>"><%= i %></a>
       <% } %>
       <% if (page < totalPages) { %>
-        <a href="/admin/operations/cab-bookings?page=<%= page + 1 %>&status=<%= statusF %>&search=<%= search %>&driver=<%= driverF %>"
+        <a href="/admin/operations/cancelled-rides?page=<%= page + 1 %>&search=<%= search %>&cancelBy=<%= cancelBy %>&driver=<%= driverF %>&payment=<%= paymentF %>&sortBy=<%= sortBy %>&sortOrder=<%= sortOrder %>"
            class="pg-btn">›</a>
       <% } %>
     </div>
@@ -177,14 +296,28 @@
 
   <% } else { %>
   <div class="empty-state">
-    <i class="ti ti-car-off"></i>
-    <p>No transport bookings found.</p>
-    <% if (search || statusF !== 'all' || driverF !== 'all') { %>
-      <a href="/admin/operations/cab-bookings" class="act-btn btn-view" style="margin-top:.5rem">Clear filters</a>
+    <i class="ti ti-circle-check"></i>
+    <p>No cancelled rides found.</p>
+    <% if (search || cancelBy !== 'all' || driverF !== 'all' || paymentF !== 'all') { %>
+      <a href="/admin/operations/cancelled-rides" class="act-btn btn-view" style="margin-top:.5rem">Clear filters</a>
     <% } %>
   </div>
   <% } %>
 </div>
+
+<!-- ── Sorting script ── -->
+<script>
+function sortByField(field) {
+  var form = document.getElementById('filterForm');
+  if (!form) return;
+  var currentSort = '<%= sortBy %>';
+  var currentOrder = <%= sortOrder %>;
+  var newOrder = (currentSort === field) ? (currentOrder === 1 ? -1 : 1) : -1;
+  form.querySelector('input[name="sortBy"]').value = field;
+  form.querySelector('input[name="sortOrder"]').value = newOrder;
+  form.submit();
+}
+</script>
 
 <!-- ══════════════════════════════════════════
      BOOKING DETAIL MODAL
@@ -234,9 +367,18 @@
         <div class="si-field"><label>Notes</label><span id="bm-notes">—</span></div>
       </div>
 
-      <div class="si-section-title"><i class="ti ti-flag"></i> Status</div>
+      <!-- ── Cancellation Details (highlighted section) ── -->
+      <div class="si-section-title" style="color:#C62828"><i class="ti ti-alert-triangle"></i> Cancellation Details</div>
+      <div class="si-grid" style="border:1px solid #ffcdd2;border-radius:var(--radius-md);background:#FFF5F5;padding:.8rem;margin-bottom:1rem">
+        <div class="si-field"><label>Cancelled By</label><span id="bm-cancelled-by">—</span></div>
+        <div class="si-field"><label>Reason</label><span id="bm-cancel-reason" style="font-weight:500;color:#C62828">—</span></div>
+        <div class="si-field"><label>Cancelled At</label><span id="bm-cancelled-at">—</span></div>
+        <div class="si-field"><label>Cancellation Fee</label><span id="bm-cancel-fee-amt">—</span></div>
+      </div>
+
+      <div class="si-section-title"><i class="ti ti-flag"></i> Status Timeline</div>
       <div class="si-grid">
-        <div class="si-field"><label>Current Status</label><span id="bm-status">—</span></div>
+        <div class="si-field"><label>Status</label><span id="bm-status">—</span></div>
         <div class="si-field"><label>Booked On</label><span id="bm-booked-on">—</span></div>
         <div class="si-field"><label>Confirmed At</label><span id="bm-confirmed-at">—</span></div>
         <div class="si-field"><label>Driver On the Way</label><span id="bm-driver-on-way-at">—</span></div>
@@ -244,23 +386,6 @@
         <div class="si-field"><label>Student Coming</label><span id="bm-student-coming-at">—</span></div>
         <div class="si-field"><label>Ride Started</label><span id="bm-ride-started-at">—</span></div>
         <div class="si-field"><label>Completed At</label><span id="bm-completed-at">—</span></div>
-      </div>
-
-      <div id="bm-cancellation-section" style="display:none">
-        <div class="si-section-title" style="color:#C62828"><i class="ti ti-alert-triangle"></i> Cancellation</div>
-        <div class="si-grid">
-          <div class="si-field"><label>Cancelled By</label><span id="bm-cancelled-by">—</span></div>
-          <div class="si-field"><label>Reason</label><span id="bm-cancel-reason">—</span></div>
-          <div class="si-field"><label>Cancelled At</label><span id="bm-cancelled-at">—</span></div>
-        </div>
-      </div>
-
-      <div id="bm-rating-section" style="display:none">
-        <div class="si-section-title"><i class="ti ti-star"></i> Rating & Review</div>
-        <div class="si-grid">
-          <div class="si-field"><label>Rating</label><span id="bm-rating">—</span></div>
-          <div class="si-field si-field-full"><label>Review</label><span id="bm-review">—</span></div>
-        </div>
       </div>
     </div>
     <div class="modal-foot">
@@ -272,7 +397,7 @@
 
 <script>
 // ── Booking Detail Modal ──
-var RIDE_STATUS_BADGE = <%- JSON.stringify(typeof rideStatusBadgeClass !== 'undefined' ? rideStatusBadgeClass : {}) %>;
+var RIDE_STATUS_BADGE = <%- JSON.stringify(typeof statusClass !== 'undefined' ? statusClass : {}) %>;
 
 const bookingData = <%- JSON.stringify(bookings.map(b => ({
   _id: b._id,
@@ -298,8 +423,7 @@ const bookingData = <%- JSON.stringify(bookings.map(b => ({
   rideStartedAt: b.rideStartedAt,
   completedAt: b.completedAt,
   cancellation: b.cancellation,
-  rating: b.rating,
-  review: b.review,
+  cancellationFee: b.cancellationFee,
   fare: b.fare,
   paymentStatus: b.paymentStatus
 }))) %>;
@@ -333,7 +457,7 @@ function openBookingModal(id) {
   document.getElementById('bm-time').textContent = b.pickupTime || '—';
 
   var sc = RIDE_STATUS_BADGE[b.status] || 'badge-neutral';
-  document.getElementById('bm-status').innerHTML = '<span class="badge ' + sc + '">' + b.status + '</span>';
+  document.getElementById('bm-status').innerHTML = '<span class="badge ' + sc + '"><i class="ti ti-circle"></i> ' + b.status + '</span>';
 
   var fmtDt = function(d) { return d ? new Date(d).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'; };
   document.getElementById('bm-booked-on').textContent = fmtDt(b.createdAt);
@@ -344,25 +468,12 @@ function openBookingModal(id) {
   document.getElementById('bm-ride-started-at').textContent = fmtDt(b.rideStartedAt);
   document.getElementById('bm-completed-at').textContent = fmtDt(b.completedAt);
 
-  // Cancellation
-  var cancelSec = document.getElementById('bm-cancellation-section');
+  // Cancellation details — always shown since this is the cancelled rides page
   if (b.cancellation && b.cancellation.by) {
-    cancelSec.style.display = '';
     document.getElementById('bm-cancelled-by').textContent = b.cancellation.by.charAt(0).toUpperCase() + b.cancellation.by.slice(1);
     document.getElementById('bm-cancel-reason').textContent = b.cancellation.reason || '—';
     document.getElementById('bm-cancelled-at').textContent = b.cancellation.at ? new Date(b.cancellation.at).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
-  } else {
-    cancelSec.style.display = 'none';
-  }
-
-  // Rating
-  var ratingSec = document.getElementById('bm-rating-section');
-  if (b.rating) {
-    ratingSec.style.display = '';
-    document.getElementById('bm-rating').textContent = '★'.repeat(b.rating) + '☆'.repeat(5 - b.rating) + ' (' + b.rating + '/5)';
-    document.getElementById('bm-review').textContent = b.review || '—';
-  } else {
-    ratingSec.style.display = 'none';
+    document.getElementById('bm-cancel-fee-amt').textContent = b.cancellationFee ? 'Rs ' + Number(b.cancellationFee).toLocaleString() : 'None';
   }
 
   document.getElementById('bm-loading').style.display = 'none';

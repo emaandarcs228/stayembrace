@@ -57,7 +57,7 @@
       <a href="/admin/pending-drivers"
          class="nav-item <%= activePage === 'pending-drivers' ? 'active' : '' %>">
         <i class="fas fa-taxi"></i>
-        <span>Driver Approvals</span>
+        <span>All Drivers</span>
         <% if (typeof totalPending !== 'undefined' && totalPending > 0) { %>
           <span class="nav-badge"><%= totalPending %></span>
         <% } %>
@@ -150,10 +150,37 @@
         <% } %>
       </a>
       
+      <a href="/admin/operations/ride-monitoring"
+        class="nav-item <%= activePage === 'ops-ride-monitoring' ? 'active' : '' %>">
+        <i class="ti ti-radar"></i>
+        <span>Ride Monitoring</span>
+        <% if (typeof totalActive !== 'undefined' && totalActive > 0) { %>
+          <span class="nav-badge"><%= totalActive %></span>
+        <% } %>
+      </a>
+
       <a href="/admin/operations/cab-bookings"
         class="nav-item <%= activePage === 'ops-cab-bookings' ? 'active' : '' %>">
         <i class="ti ti-car"></i>
         <span>Transport Management</span>
+      </a>
+      
+      <a href="/admin/operations/completed-rides"
+        class="nav-item <%= activePage === 'ops-completed-rides' ? 'active' : '' %>">
+        <i class="ti ti-clock-history"></i>
+        <span>Completed Rides</span>
+      </a>
+      
+      <a href="/admin/operations/cancelled-rides"
+        class="nav-item <%= activePage === 'ops-cancelled-rides' ? 'active' : '' %>">
+        <i class="ti ti-alert-triangle"></i>
+        <span>Cancelled Rides</span>
+      </a>
+      
+      <a href="/admin/operations/driver-ride-history"
+        class="nav-item <%= activePage === 'ops-driver-ride-history' ? 'active' : '' %>">
+        <i class="ti ti-users"></i>
+        <span>Driver Ride History</span>
       </a>
       
       <a href="/admin/operations/activity"

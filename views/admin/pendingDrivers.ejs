@@ -1,4 +1,4 @@
-<% const activePage = 'pending-drivers'; const pageTitle = 'Pending Driver Registrations'; const pageSubtitle = 'Review and manage pending driver applications'; %>
+<% const activePage = 'pending-drivers'; const pageTitle = 'All Drivers'; const pageSubtitle = 'View and manage all driver records'; %>
 <%- include('admin-header') %>
 
 <style>
@@ -86,6 +86,49 @@
     font-size: .6rem; font-weight: 700;
     background: #FFF3E0; color: #E65100;
   }
+  .pd-status-pill {
+    display: inline-flex; align-items: center;
+    padding: .15rem .5rem;
+    border-radius: var(--radius-pill);
+    font-size: .55rem; font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+  .pd-status-pill.pending  { background: #FFF8E1; color: #E65100; }
+  .pd-status-pill.approved { background: #E8F5E9; color: #2E7D32; }
+  .pd-status-pill.rejected { background: #FFEBEE; color: #C62828; }
+  .pd-status-pill.suspended { background: #F3E5F5; color: #7B1FA2; }
+
+  /* ── Status filter tabs ── */
+  .pd-filter-bar {
+    display: flex; gap: .4rem; flex-wrap: wrap; align-items: center;
+  }
+  .pd-filter-btn {
+    padding: .3rem .7rem;
+    border-radius: var(--radius-pill);
+    font-size: .62rem; font-weight: 600;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .pd-filter-btn:hover { border-color: #1565C0; color: #1565C0; }
+  .pd-filter-btn.active {
+    background: #1565C0;
+    color: white;
+    border-color: #1565C0;
+  }
+  .pd-filter-btn .count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 16px; height: 16px;
+    font-size: .48rem; font-weight: 700;
+    border-radius: 10px;
+    margin-left: .25rem;
+    padding: 0 .25rem;
+    background: rgba(0,0,0,.1);
+  }
+  .pd-filter-btn.active .count { background: rgba(255,255,255,.2); }
 
   /* ── Document lightbox ── */
   .doc-lightbox {
@@ -111,14 +154,37 @@
   }
 </style>
 
-<!-- ── Stats bar ── -->
-<div style="display:flex;gap:.6rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center">
-  <span style="font-size:.82rem;font-weight:600;color:var(--text-primary)">
-    <i class="ti ti-users" style="color:#E65100"></i>
-    <span id="pdCount"><%= totalPending %></span> pending driver<%= totalPending !== 1 ? 's' : '' %>
-  </span>
-  <span class="pd-count-pill"><i class="ti ti-clock"></i> Awaiting Review</span>
-  <span class="badge badge-info" style="font-size:.58rem"><i class="ti ti-id"></i> All documents</span>
+<!-- ── Stats & filter bar ── -->
+<div style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:1.2rem">
+  <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+    <span style="font-size:.82rem;font-weight:600;color:var(--text-primary)">
+      <i class="fas fa-taxi" style="color:#F57C00"></i>
+      <span id="pdCount"><%= drivers.length %></span> total driver<%= drivers.length !== 1 ? 's' : '' %>
+    </span>
+    <span class="pd-stat-chip"><i class="ti ti-clock"></i> <%= pendingCount %> pending</span>
+    <span class="pd-stat-chip" style="background:#E8F5E9;color:#2E7D32"><i class="ti ti-check"></i> <%= approvedCount %> approved</span>
+    <span class="pd-stat-chip" style="background:#FFEBEE;color:#C62828"><i class="ti ti-x"></i> <%= rejectedCount %> rejected</span>
+    <span class="pd-stat-chip" style="background:#F3E5F5;color:#7B1FA2"><i class="ti ti-lock"></i> <%= suspendedCount %> suspended</span>
+  </div>
+
+  <!-- ── Status filter tabs ── -->
+  <div class="pd-filter-bar" id="pdFilterBar">
+    <button class="pd-filter-btn active" data-filter="all" onclick="filterDrivers('all')">
+      All <span class="count"><%= drivers.length %></span>
+    </button>
+    <button class="pd-filter-btn" data-filter="pending" onclick="filterDrivers('pending')">
+      Pending <span class="count"><%= pendingCount %></span>
+    </button>
+    <button class="pd-filter-btn" data-filter="approved" onclick="filterDrivers('approved')">
+      Approved <span class="count"><%= approvedCount %></span>
+    </button>
+    <button class="pd-filter-btn" data-filter="rejected" onclick="filterDrivers('rejected')">
+      Rejected <span class="count"><%= rejectedCount %></span>
+    </button>
+    <button class="pd-filter-btn" data-filter="suspended" onclick="filterDrivers('suspended')">
+      Suspended <span class="count"><%= suspendedCount %></span>
+    </button>
+  </div>
 </div>
 
 <% if (drivers.length > 0) { %>
@@ -129,6 +195,8 @@
   const registeredDate = new Date(d.registeredAt);
   const dateStr = registeredDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' });
   const timeStr = registeredDate.toLocaleTimeString('en-PK', { hour:'2-digit', minute:'2-digit' });
+  const approvedDate = d.approvedAt ? new Date(d.approvedAt) : null;
+  const approvedStr = approvedDate ? approvedDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) : null;
   const expDate = d.licenseExpiry ? new Date(d.licenseExpiry) : null;
   const expStr = expDate ? expDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' }) : '—';
   const expPast = expDate && expDate < new Date();
@@ -142,9 +210,10 @@
     { name: 'additionalDoc', label: 'Additional', path: d.additionalDoc, type: 'image' },
   ];
   const uploadedCount = docs.filter(doc => doc.path).length;
+  const statusLabel = d.status.charAt(0).toUpperCase() + d.status.slice(1);
 %>
 
-<div class="pd-card" style="animation-delay:<%= idx * 0.04 %>s">
+<div class="pd-card" data-driver-status="<%= d.status %>" style="animation-delay:<%= idx * 0.04 %>s">
 
   <!-- ── HEADER ── -->
   <div class="pd-section" style="display:flex;align-items:center;gap:.9rem;background:#f8f9fa">
@@ -158,11 +227,12 @@
     <div style="flex:1;min-width:0">
       <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
         <span style="font-size:1rem;font-weight:700;color:var(--text-primary)"><%= d.fullname %></span>
-        <span class="badge badge-warning" style="font-size:.48rem">Pending</span>
+        <span class="pd-status-pill <%= d.status %>"><%= statusLabel %></span>
       </div>
       <div style="font-size:.64rem;color:var(--text-muted);margin-top:.1rem">
         <i class="ti ti-id-badge"></i> <%= d.userId %> &nbsp;·&nbsp;
         <i class="ti ti-calendar"></i> Registered <%= dateStr %>
+        <% if (approvedStr) { %> &nbsp;·&nbsp; <i class="ti ti-check"></i> Approved <%= approvedStr %><% } %>
       </div>
     </div>
     <span style="font-size:.58rem;color:var(--text-muted)"><%= timeStr %></span>
@@ -233,12 +303,30 @@
 
   <!-- ── ACTIONS ── -->
   <div class="pd-section" style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;background:#fafafa">
-    <button type="button" class="act-btn btn-approve" onclick="openApproveModal('<%= d._id %>', '<%= d.fullname.replace(/'/g, "\\'") %>')">
-      <i class="ti ti-check"></i> Approve
-    </button>
-    <button type="button" class="act-btn btn-cancel" onclick="openRejectModal('<%= d._id %>', '<%= d.fullname.replace(/'/g, "\\'") %>')">
-      <i class="ti ti-x"></i> Reject
-    </button>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+      <% if (d.status === 'pending') { %>
+        <button type="button" class="act-btn btn-approve" onclick="openApproveModal('<%= d._id %>', '<%= d.fullname.replace(/'/g, "\\'") %>')">
+          <i class="ti ti-check"></i> Approve
+        </button>
+        <button type="button" class="act-btn btn-cancel" onclick="openRejectModal('<%= d._id %>', '<%= d.fullname.replace(/'/g, "\\'") %>')">
+          <i class="ti ti-x"></i> Reject
+        </button>
+      <% } else if (d.status === 'approved') { %>
+        <form action="/admin/suspend-driver/<%= d._id %>" method="POST" style="display:inline"
+          onsubmit="return confirm('Suspend this driver? They will not be able to log in.')">
+          <button type="submit" class="act-btn" style="background:#FFF8E1;color:#E65100"><i class="ti ti-lock"></i> Suspend</button>
+        </form>
+      <% } else if (d.status === 'suspended') { %>
+        <form action="/admin/unsuspend-driver/<%= d._id %>" method="POST" style="display:inline">
+          <button type="submit" class="act-btn" style="background:#E8F5E9;color:#2E7D32"><i class="ti ti-unlock"></i> Reactivate</button>
+        </form>
+      <% } else if (d.status === 'rejected') { %>
+        <span style="font-size:.68rem;color:var(--text-muted)"><i class="ti ti-x"></i> Rejected</span>
+      <% } %>
+      <a href="/admin/users?page=drivers" class="act-btn" style="background:#FFF3E0;color:#F57C00;text-decoration:none;display:inline-flex;align-items:center;gap:.3rem">
+        <i class="fas fa-truck"></i> Full Profile
+      </a>
+    </div>
   </div>
 
 </div>
@@ -251,8 +339,8 @@
 
 <div class="card" style="text-align:center;padding:3rem">
   <i class="ti ti-user-check" style="font-size:3rem;opacity:.2;display:block;margin-bottom:.8rem"></i>
-  <h3>All Clear!</h3>
-  <p style="color:var(--text-muted);font-size:.82rem">There are no pending driver registrations to review.</p>
+  <h3>No Drivers Found</h3>
+  <p style="color:var(--text-muted);font-size:.82rem">There are no driver records to display.</p>
 </div>
 
 <% } %>
@@ -326,6 +414,20 @@ function openRejectModal(id, name) {
   document.getElementById('rejectForm').action = '/admin/reject-driver/' + id + '?redirect=/admin/pending-drivers';
   document.getElementById('rejectForm').querySelector('textarea').value = '';
   openModal('rejectModal');
+}
+
+// ── Status filter ──
+function filterDrivers(status) {
+  document.querySelectorAll('#pdFilterBar .pd-filter-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.filter === status);
+  });
+  document.querySelectorAll('#driverGrid .pd-card').forEach(function(card) {
+    if (status === 'all' || card.dataset.driverStatus === status) {
+      card.style.display = '';
+    } else {
+      card.style.display = 'none';
+    }
+  });
 }
 
 // ── Document lightbox ──

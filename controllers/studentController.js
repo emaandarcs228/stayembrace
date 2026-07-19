@@ -28,6 +28,8 @@ const RoomRequest = require('../models/roomRequest');
 const VisitorRequest      = require('../models/visitorRequest');
 const GuestRoomBooking    = require('../models/guestRoomBooking');
 const CabBooking          = require('../models/cabBooking');
+const { CANCELLABLE_FROM, CANCELLATION_FEE_FROM, cancellationIncursFee, CANCELLATION_FEE_RATE, isTerminal, ASSIGNED_GROUP: RIDE_ASSIGNED_GROUP, BADGE_CLASS: RIDE_STATUS_BADGE_CLASS, getValidPredecessors } = require('../utils/rideStatus');
+const { notifyStudent, notifyDriver } = require('../utils/rideNotifications');
 const visitorActions      = require('../services/visitorActions');
 const guestBookingActions = require('../services/guestBookingActions');
 const path           = require('path');
@@ -208,12 +210,8 @@ exports.getProfile = async (req, res) => {
             .lean();
 
         // Split into active and past
-        const activeCabBookings = cabBookings.filter(
-            b => ['Pending', 'Reserved', 'Awaiting Student', 'Confirmed', 'In Progress'].includes(b.status)
-        );
-        const pastCabBookings = cabBookings.filter(
-            b => ['Completed', 'Cancelled'].includes(b.status)
-        );
+        const activeCabBookings = cabBookings.filter(b => !isTerminal(b.status));
+        const pastCabBookings = cabBookings.filter(b => isTerminal(b.status));
 
         res.render('student/profile', {
             ...base,
@@ -223,6 +221,7 @@ exports.getProfile = async (req, res) => {
             cabBookings,
             activeCabBookings,
             pastCabBookings,
+            rideStatusBadgeClass: RIDE_STATUS_BADGE_CLASS,
             successMessage: req.query.success || null,
             errorMessage  : req.query.error   || null
         });
@@ -1386,7 +1385,23 @@ async function resolveDuesForPayment(student, { dueIds, amount, paymentType, des
         const booking = await CabBooking.findOne({ _id: cabBookingId, student: student._id });
         if (!booking) return { error: 'Cab booking not found.' };
 
-        if (['Pending', 'Cancelled'].includes(booking.status)) {
+        // A cancelled booking can still owe money — the hostel's flat
+        // cancellation fee, if it hasn't been settled yet. Otherwise
+        // there's nothing payable on a cancelled booking.
+        if (booking.status === 'Cancelled') {
+            if (booking.cancellationFee && booking.paymentStatus === 'Unpaid') {
+                return {
+                    totalAmount : booking.cancellationFee,
+                    selectedDues: [],
+                    finalDesc   : `Cab Booking Cancellation Fee - ${booking.pickupLocation} to ${booking.dropoffLocation}`,
+                    finalPayType: 'Cab Booking',
+                    cabBooking  : booking
+                };
+            }
+            return { error: 'This booking was cancelled and no payment is due.' };
+        }
+
+        if (booking.status === 'Pending') {
             return { error: 'Payment is not available for this booking yet — it must be accepted by a driver first.' };
         }
         if (booking.paymentStatus === 'Paid') {
@@ -1968,6 +1983,10 @@ exports.getTransport = async (req, res) => {
             pageTitle    : 'Transport Services',
             pageSubtitle : 'Book a ride',
             myBookings,
+            rideStatusBadgeClass: RIDE_STATUS_BADGE_CLASS,
+            rideAssignedGroup: RIDE_ASSIGNED_GROUP,
+            rideCancellableFrom: CANCELLABLE_FROM,
+            rideCancellationFeeFrom: CANCELLATION_FEE_FROM,
             successMessage: req.query.success || null,
             errorMessage  : req.query.error   || null
         });
@@ -2015,6 +2034,7 @@ exports.postCabBooking = async (req, res) => {
             return res.redirect('/student/transport?error=Budget+must+be+a+positive+number.');
         }
 
+        const now = new Date();
         const booking = await CabBooking.create({
             student            : student._id,
             pickupLocation,
@@ -2025,8 +2045,21 @@ exports.postCabBooking = async (req, res) => {
             purpose            : purpose || '',
             budget             : parsedBudget,
             notes              : notes || '',
-            status             : 'Pending'
+            status             : 'Pending',
+            statusHistory      : [{ status: 'Pending', changedBy: student.user._id, changedByRole: 'student', at: now }]
         });
+
+        // ── Confirm to the student that their request went out ──
+        try {
+            await notifyStudent('RIDE_SUBMITTED', {
+                recipient: student.user._id,
+                actorId  : student.user._id,
+                bookingId: booking._id,
+                ctx: { pickup: pickupLocation, dropoff: dropoffLocation }
+            });
+        } catch (notifErr) {
+            console.error('Cab booking submitted-notification error:', notifErr);
+        }
 
         // ── Notify only online/approved drivers about the new request ──
         try {
@@ -2042,14 +2075,11 @@ exports.postCabBooking = async (req, res) => {
             // Broadcast only to drivers who are both online and approved
             for (const driver of onlineDrivers) {
                 if (!driver.user) continue; // skip if user wasn't populated (not approved)
-                await Notification.create({
-                    title     : 'New Ride Request Available',
-                    message   : `${studentName} needs a ride on ${dateStr} from "${pickupLocation}" to "${dropoffLocation}". Be the first to reserve!`,
-                    recipient : driver.user._id,
-                    category  : 'Requests',
-                    relatedTo : { model: 'CabBooking', docId: booking._id },
-                    createdBy : student.user._id,
-                    priority  : 'Medium'
+                await notifyDriver('NEW_RIDE_REQUEST', {
+                    recipient: driver.user._id,
+                    actorId  : student.user._id,
+                    bookingId: booking._id,
+                    ctx: { studentName, date: dateStr, pickup: pickupLocation, dropoff: dropoffLocation }
                 });
             }
         } catch (notifErr) {
@@ -2085,40 +2115,65 @@ exports.postCabBooking = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// CAB BOOKING — Cancel a pending/reserved booking
+// CAB BOOKING — Cancel a booking, per the hostel cancellation policy:
+// free any time before a driver is confirmed; a flat 50% fee on the
+// agreed fare applies from Ride Confirmed through Student Coming (the
+// driver has already committed); no cancellation once Ride Started.
 // ─────────────────────────────────────────────────────────────
 exports.cancelCabBooking = async (req, res) => {
     try {
-        const base = await buildBaseLocals(req);
+        const base   = await buildBaseLocals(req);
+        const now    = new Date();
+        const reason = req.body.reason || 'Cancelled by student';
 
-        // Allow cancelling Pending, Reserved, or Awaiting Student
+        const existing = await CabBooking.findOne({ _id: req.params.id, student: base.student._id })
+            .select('status fare paymentStatus reservedBy driver pickupLocation dropoffLocation')
+            .lean();
+
+        if (!existing) {
+            return res.redirect('/student/transport?error=Booking+not+found.');
+        }
+        if (!CANCELLABLE_FROM.includes(existing.status)) {
+            return res.redirect('/student/transport?error=' + encodeURIComponent(
+                `This booking is ${existing.status.toLowerCase()} and can no longer be cancelled.`
+            ));
+        }
+
+        const feeApplies = cancellationIncursFee(existing.status) && existing.fare > 0;
+        const fee         = feeApplies ? Math.ceil(existing.fare * CANCELLATION_FEE_RATE) : 0;
+        const wasPaid     = existing.paymentStatus === 'Paid';
+
+        const setFields = {
+            status: 'Cancelled',
+            cancellation: { by: 'student', reason, at: now },
+            reservedBy: null,
+            reservedAt: null,
+            reservationExpiresAt: null,
+            'quote.fare': null,
+            'quote.eta': '',
+            'quote.comments': '',
+            'quote.submittedAt': null
+        };
+        if (feeApplies) {
+            setFields.cancellationFee = fee;
+            if (wasPaid) setFields.paymentStatus = 'Refund Pending';
+        }
+
+        // ── Atomic: guarded on the exact status just read, so this can't
+        // clobber a booking that moved on in the meantime (driver advanced
+        // it, or the reservation expired) out from under that change. ──
         const booking = await CabBooking.findOneAndUpdate(
-            { _id: req.params.id, student: base.student._id, status: { $in: ['Pending', 'Reserved', 'Awaiting Student'] } },
-            { $set: {
-                status: 'Cancelled',
-                cancellation: {
-                    by    : 'student',
-                    reason: req.body.reason || 'Cancelled by student',
-                    at    : new Date()
-                },
-                reservedBy: null,
-                reservedAt: null,
-                reservationExpiresAt: null,
-                'quote.fare': null,
-                'quote.eta': '',
-                'quote.comments': '',
-                'quote.submittedAt': null
-            } },
+            { _id: req.params.id, student: base.student._id, status: existing.status },
+            {
+                $set: setFields,
+                $push: { statusHistory: { status: 'Cancelled', changedBy: base.student.user._id, changedByRole: 'student', at: now, note: reason } }
+            },
             { new: true }
         );
 
         if (!booking) {
-            const existing = await CabBooking.findOne({ _id: req.params.id, student: base.student._id }).select('status').lean();
-            if (!existing) {
-                return res.redirect('/student/transport?error=Booking+not+found.');
-            }
             return res.redirect('/student/transport?error=' + encodeURIComponent(
-                `This booking is ${existing.status.toLowerCase()} and can no longer be cancelled.`
+                'This booking just changed — please refresh and try again.'
             ));
         }
 
@@ -2127,24 +2182,96 @@ exports.cancelCabBooking = async (req, res) => {
             try {
                 const studentName = base.student.user?.fullname || 'A student';
                 const recipientId = booking.driver || booking.reservedBy;
-                await Notification.create({
-                    title     : 'Ride Request Cancelled',
-                    message   : `${studentName} has cancelled their ride request from "${booking.pickupLocation}" to "${booking.dropoffLocation}". Reason: ${req.body.reason || 'No reason provided'}.`,
-                    recipient : recipientId,
-                    category  : 'Requests',
-                    relatedTo : { model: 'CabBooking', docId: booking._id },
-                    createdBy : base.student.user._id,
-                    priority  : 'Low'
+                await notifyDriver('STUDENT_CANCELLED', {
+                    recipient: recipientId,
+                    actorId  : base.student.user._id,
+                    bookingId: booking._id,
+                    ctx: { studentName, pickup: booking.pickupLocation, dropoff: booking.dropoffLocation, reason }
                 });
             } catch (notifErr) {
                 console.error('Cab booking cancel notification error:', notifErr);
             }
         }
 
-        res.redirect('/student/transport?success=Ride+request+cancelled.');
+        let successMsg = 'Ride+request+cancelled.';
+        if (feeApplies) {
+            if (wasPaid) {
+                const refundAmount = existing.fare - fee;
+                // No payment-gateway refund API exists in this codebase —
+                // flag it for an admin/warden to settle manually.
+                try {
+                    const studentName = base.student.user?.fullname || 'A student';
+                    const msg = `${studentName} cancelled a paid ride (${booking.pickupLocation} → ${booking.dropoffLocation}) after the driver was confirmed. Cancellation fee: Rs ${fee.toLocaleString()}. Refund owed: Rs ${refundAmount.toLocaleString()}.`;
+                    await Notification.create({ title: 'Cab Booking Refund Owed', message: msg, target: 'Admins', category: 'Payments', relatedTo: { model: 'CabBooking', docId: booking._id }, createdBy: base.student.user._id, priority: 'Medium' });
+                    await Notification.create({ title: 'Cab Booking Refund Owed', message: msg, target: 'Wardens', category: 'Payments', relatedTo: { model: 'CabBooking', docId: booking._id }, createdBy: base.student.user._id, priority: 'Medium' });
+                } catch (notifErr) {
+                    console.error('Cab booking refund notification error:', notifErr);
+                }
+                successMsg = encodeURIComponent(
+                    `Ride cancelled. A 50% cancellation fee of Rs ${fee.toLocaleString()} applies — a refund of Rs ${refundAmount.toLocaleString()} will be processed by the hostel.`
+                );
+            } else {
+                successMsg = encodeURIComponent(
+                    `Ride cancelled. A 50% cancellation fee of Rs ${fee.toLocaleString()} now applies to this booking.`
+                );
+            }
+        }
+
+        res.redirect('/student/transport?success=' + successMsg);
     } catch (err) {
         console.error('cancelCabBooking:', err);
         res.redirect('/student/transport?error=Failed+to+cancel+request.');
+    }
+};
+
+// ─────────────────────────────────────────────────────────────
+// CAB BOOKING — Student signals they're heading out to meet the driver.
+// Only valid once the driver has marked 'Driver Arrived' — the atomic
+// filter (via getValidPredecessors) enforces that directly.
+// POST /student/transport/coming/:id
+// ─────────────────────────────────────────────────────────────
+exports.markStudentComing = async (req, res) => {
+    try {
+        const base    = await buildBaseLocals(req);
+        const student = base.student;
+        const now     = new Date();
+
+        const booking = await CabBooking.findOneAndUpdate(
+            { _id: req.params.id, student: student._id, status: { $in: getValidPredecessors('Student Coming') } },
+            {
+                $set: { status: 'Student Coming', studentComingAt: now },
+                $push: { statusHistory: { status: 'Student Coming', changedBy: student.user._id, changedByRole: 'student', at: now } }
+            },
+            { new: true }
+        );
+
+        if (!booking) {
+            const existing = await CabBooking.findOne({ _id: req.params.id, student: student._id }).select('status').lean();
+            if (!existing) return res.redirect('/student/transport?error=Booking+not+found.');
+            return res.redirect('/student/transport?error=' + encodeURIComponent(
+                `This booking is ${existing.status.toLowerCase()} and can't be updated right now.`
+            ));
+        }
+
+        // ── Notify the driver that the student is on the way out ──
+        try {
+            if (booking.driver) {
+                const studentName = student.user?.fullname || 'The student';
+                await notifyDriver('STUDENT_COMING', {
+                    recipient: booking.driver,
+                    actorId  : student.user._id,
+                    bookingId: booking._id,
+                    ctx: { studentName, pickup: booking.pickupLocation }
+                });
+            }
+        } catch (notifErr) {
+            console.error('markStudentComing: Driver notification error:', notifErr);
+        }
+
+        res.redirect('/student/transport?success=Driver+notified+that+you+are+on+your+way.');
+    } catch (err) {
+        console.error('markStudentComing:', err);
+        res.redirect('/student/transport?error=Failed+to+update+status.');
     }
 };
 
@@ -2162,74 +2289,107 @@ exports.respondToQuote = async (req, res) => {
             return res.redirect('/student/transport?error=Invalid+response.');
         }
 
-        const booking = await CabBooking.findOne({
+        const existing = await CabBooking.findOne({
             _id: req.params.id,
             student: student._id,
-            status: 'Awaiting Student'
-        });
+            status: 'Waiting for Student Confirmation'
+        }).lean();
 
-        if (!booking) {
-            const existing = await CabBooking.findOne({ _id: req.params.id, student: student._id }).select('status').lean();
-            if (!existing) return res.redirect('/student/transport?error=Booking+not+found.');
+        if (!existing) {
+            const anyBooking = await CabBooking.findOne({ _id: req.params.id, student: student._id }).select('status').lean();
+            if (!anyBooking) return res.redirect('/student/transport?error=Booking+not+found.');
             return res.redirect('/student/transport?error=' + encodeURIComponent(
-                `This booking is ${existing.status.toLowerCase()} and cannot be responded to.`
+                `This booking is ${anyBooking.status.toLowerCase()} and cannot be responded to.`
             ));
         }
 
-        // ── The 2-minute window may have expired right under us, just before
-        // reservationTimeoutJob's next sweep. Release immediately rather than
-        // letting a stale quote be accepted/rejected. ──
         const now = new Date();
-        if (booking.reservationExpiresAt && booking.reservationExpiresAt <= now) {
-            booking.status = 'Pending';
-            booking.reservedBy = null;
-            booking.reservedAt = null;
-            booking.reservationExpiresAt = null;
-            booking.quote.fare = null;
-            booking.quote.eta = '';
-            booking.quote.comments = '';
-            booking.quote.submittedAt = null;
-            booking.studentDecision.status = 'expired';
-            booking.studentDecision.decidedAt = now;
-            await booking.save();
-            return res.redirect('/student/transport?error=' + encodeURIComponent(
-                'That fare quote expired before you responded. The request is now open for other drivers.'
-            ));
-        }
+        const heldBy = existing.reservedBy;
 
         if (studentResponse === 'accepted') {
-            // Student accepts the fare quote → ride is confirmed
-            const driverUser = await User.findById(booking.reservedBy).select('fullname phoneNumber').lean();
-            const driverProfile = await Driver.findOne({ user: booking.reservedBy }).lean();
+            const driverUser = await User.findById(heldBy).select('fullname phoneNumber').lean();
+            const driverProfile = await Driver.findOne({ user: heldBy }).lean();
 
-            booking.status = 'Confirmed';
-            booking.driver = booking.reservedBy;
-            booking.driverName = driverUser?.fullname || null;
-            booking.driverPhone = driverUser?.phoneNumber || null;
-            booking.vehicleType = booking.vehicleType || driverProfile?.vehicleType || null;
-            booking.vehicleRegistration = booking.vehicleRegistration || driverProfile?.vehicleRegistration || null;
-            booking.fare = booking.quote.fare;
-            booking.confirmedAt = new Date();
-            booking.studentDecision.status = 'accepted';
-            booking.studentDecision.decidedAt = new Date();
-            booking.reservationExpiresAt = null; // Clear timer
+            // ── Atomic confirm: only succeeds if the reservation is still held
+            // by this exact driver, still Awaiting Student, and the 2-minute
+            // window hasn't expired. Guarding on reservedBy/status/expiry in the
+            // same write that assigns `driver` means the ride can never be
+            // confirmed to a driver other than the one being responded to here
+            // — if reservationTimeoutJob released it (or anything else changed
+            // it) in the meantime, this update simply matches nothing. ──
+            const booking = await CabBooking.findOneAndUpdate(
+                {
+                    _id: req.params.id,
+                    student: student._id,
+                    status: 'Waiting for Student Confirmation',
+                    reservedBy: heldBy,
+                    reservationExpiresAt: { $gt: now }
+                },
+                {
+                    $set: {
+                        status: 'Ride Confirmed',
+                        driver: heldBy,
+                        driverName: driverUser?.fullname || null,
+                        driverPhone: driverUser?.phoneNumber || null,
+                        vehicleType: existing.vehicleType || driverProfile?.vehicleType || null,
+                        vehicleRegistration: existing.vehicleRegistration || driverProfile?.vehicleRegistration || null,
+                        fare: existing.quote.fare,
+                        confirmedAt: now,
+                        'studentDecision.status': 'accepted',
+                        'studentDecision.decidedAt': now,
+                        reservationExpiresAt: null
+                    },
+                    $push: {
+                        statusHistory: { status: 'Ride Confirmed', changedBy: student.user._id, changedByRole: 'student', at: now }
+                    }
+                },
+                { new: true }
+            );
 
-            await booking.save();
+            if (!booking) {
+                // Lost the race to reservationTimeoutJob (or a duplicate submit) —
+                // make sure a stale Waiting for Student Confirmation doc doesn't
+                // linger untouched.
+                await CabBooking.updateOne(
+                    { _id: req.params.id, student: student._id, status: 'Waiting for Student Confirmation', reservationExpiresAt: { $lte: now } },
+                    { $set: {
+                        status: 'Pending', reservedBy: null, reservedAt: null, reservationExpiresAt: null,
+                        'quote.fare': null, 'quote.eta': '', 'quote.comments': '', 'quote.submittedAt': null,
+                        'studentDecision.status': 'expired', 'studentDecision.decidedAt': now
+                    },
+                    $push: {
+                        statusHistory: { status: 'Pending', changedBy: null, changedByRole: 'system', at: now, note: 'Reservation expired' }
+                    } }
+                );
+                return res.redirect('/student/transport?error=' + encodeURIComponent(
+                    'That fare quote expired or changed before you responded. The request is now open for other drivers.'
+                ));
+            }
 
             // ── Notify the driver that they got the ride ─────────
             try {
                 const studentName = student.user?.fullname || 'A student';
-                await Notification.create({
-                    title     : 'Ride Request Accepted — Booking Confirmed',
-                    message   : `${studentName} accepted your fare quote of Rs ${booking.quote.fare.toLocaleString()} for the ride from "${booking.pickupLocation}" to "${booking.dropoffLocation}".`,
-                    recipient : booking.driver,
-                    category  : 'Requests',
-                    relatedTo : { model: 'CabBooking', docId: booking._id },
-                    createdBy : student.user._id,
-                    priority  : 'Medium'
+                await notifyDriver('STUDENT_ACCEPTED', {
+                    recipient: booking.driver,
+                    actorId  : student.user._id,
+                    bookingId: booking._id,
+                    ctx: { studentName, fare: booking.quote.fare, pickup: booking.pickupLocation, dropoff: booking.dropoffLocation }
                 });
             } catch (notifErr) {
                 console.error('respondToQuote: Driver notification error:', notifErr);
+            }
+
+            // ── Confirm to the student themselves (durable record, not
+            // just the redirect flash message) ──
+            try {
+                await notifyStudent('RIDE_CONFIRMED', {
+                    recipient: student.user._id,
+                    actorId  : student.user._id,
+                    bookingId: booking._id,
+                    ctx: { driverName: booking.driverName, fare: booking.fare, pickup: booking.pickupLocation, dropoff: booking.dropoffLocation }
+                });
+            } catch (notifErr) {
+                console.error('respondToQuote: Student confirmation notification error:', notifErr);
             }
 
             // ── Notify admins & wardens ──────────────────────────
@@ -2245,35 +2405,55 @@ exports.respondToQuote = async (req, res) => {
             res.redirect('/student/transport?success=Ride+confirmed!+Driver+will+be+in+touch.');
 
         } else {
-            // Student rejects the fare → release back to Pending
-            // Capture fare before nulling it
-            const rejectedFare = booking.quote?.fare || 0;
-            const releasedDriver = booking.reservedBy;
+            // Student rejects the fare → release back to Pending.
+            // Capture fare/driver before nulling them.
+            const rejectedFare = existing.quote?.fare || 0;
 
-            booking.status = 'Pending';
-            booking.studentDecision.status = 'rejected';
-            booking.studentDecision.decidedAt = new Date();
-            booking.reservedBy = null;
-            booking.reservedAt = null;
-            booking.reservationExpiresAt = null;
-            booking.quote.fare = null;
-            booking.quote.eta = '';
-            booking.quote.comments = '';
-            booking.quote.submittedAt = null;
+            // ── Atomic release: guarded the same way as accept, so a reject
+            // can't clobber a booking that already moved on (e.g. expired and
+            // was reserved by another driver) out from under that driver. ──
+            const booking = await CabBooking.findOneAndUpdate(
+                {
+                    _id: req.params.id,
+                    student: student._id,
+                    status: 'Waiting for Student Confirmation',
+                    reservedBy: heldBy,
+                    reservationExpiresAt: { $gt: now }
+                },
+                {
+                    $set: {
+                        status: 'Pending',
+                        'studentDecision.status': 'rejected',
+                        'studentDecision.decidedAt': now,
+                        reservedBy: null,
+                        reservedAt: null,
+                        reservationExpiresAt: null,
+                        'quote.fare': null,
+                        'quote.eta': '',
+                        'quote.comments': '',
+                        'quote.submittedAt': null
+                    },
+                    $push: {
+                        statusHistory: { status: 'Pending', changedBy: student.user._id, changedByRole: 'student', at: now, note: 'Student declined fare quote' }
+                    }
+                },
+                { new: true }
+            );
 
-            await booking.save();
+            if (!booking) {
+                return res.redirect('/student/transport?error=' + encodeURIComponent(
+                    'That fare quote already expired. The request is now open for other drivers.'
+                ));
+            }
 
             // ── Notify the driver that their quote was rejected ───
             try {
                 const studentName = student.user?.fullname || 'A student';
-                await Notification.create({
-                    title     : 'Fare Quote Declined',
-                    message   : `${studentName} declined your fare quote of Rs ${(rejectedFare || 0).toLocaleString()} for the ride from "${booking.pickupLocation}" to "${booking.dropoffLocation}". The request is now open for other drivers.`,
-                    recipient : releasedDriver,
-                    category  : 'Requests',
-                    relatedTo : { model: 'CabBooking', docId: booking._id },
-                    createdBy : student.user._id,
-                    priority  : 'Medium'
+                await notifyDriver('STUDENT_REJECTED', {
+                    recipient: heldBy,
+                    actorId  : student.user._id,
+                    bookingId: booking._id,
+                    ctx: { studentName, fare: rejectedFare, pickup: booking.pickupLocation, dropoff: booking.dropoffLocation }
                 });
             } catch (notifErr) {
                 console.error('respondToQuote: Rejection notification error:', notifErr);
@@ -2304,7 +2484,7 @@ exports.rateCabBooking = async (req, res) => {
 
         const booking = await CabBooking.findOne({ _id: req.params.id, student: student._id });
         if (!booking) return res.redirect('/student/transport?error=Booking+not+found.');
-        if (booking.status !== 'Completed') {
+        if (booking.status !== 'Ride Completed') {
             return res.redirect('/student/transport?error=Only+completed+rides+can+be+rated.');
         }
 
@@ -2350,7 +2530,7 @@ exports.getCabBookingStatuses = async (req, res) => {
         if (!student) return res.status(404).json({ error: 'Student record not found.' });
 
         const bookings = await CabBooking.find({ student: student._id })
-            .select('status confirmedAt fare paymentStatus quote reservationExpiresAt reservedBy driverName driverPhone vehicleType vehicleRegistration')
+            .select('status confirmedAt completedAt driverOnWayAt driverArrivedAt studentComingAt rideStartedAt fare paymentStatus quote reservationExpiresAt reservedBy driverName driverPhone vehicleType vehicleRegistration statusHistory')
             .lean();
 
         const statuses = {};
@@ -2358,6 +2538,11 @@ exports.getCabBookingStatuses = async (req, res) => {
             statuses[b._id] = {
                 status                : b.status,
                 confirmedAt           : b.confirmedAt,
+                completedAt           : b.completedAt,
+                driverOnWayAt         : b.driverOnWayAt,
+                driverArrivedAt       : b.driverArrivedAt,
+                studentComingAt       : b.studentComingAt,
+                rideStartedAt         : b.rideStartedAt,
                 fare                  : b.fare,
                 paymentStatus         : b.paymentStatus,
                 quoteFare             : b.quote?.fare || null,
@@ -2366,7 +2551,8 @@ exports.getCabBookingStatuses = async (req, res) => {
                 driverPhone           : b.driverPhone || null,
                 vehicleType           : b.vehicleType || null,
                 vehicleRegistration   : b.vehicleRegistration || null,
-                reservationExpiresAt  : b.reservationExpiresAt
+                reservationExpiresAt  : b.reservationExpiresAt,
+                statusHistory         : b.statusHistory || []
             };
         });
 

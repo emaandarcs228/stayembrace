@@ -32,19 +32,26 @@
 <!-- ── Filters ── -->
 <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
   <div class="filter-tabs">
-    <% ['all','Pending','Confirmed','In Progress','Completed','Cancelled'].forEach(function(s) {
-         const isActive = statusF === s;
-         const colorMap = {
-           'all'         : 'filter-tab-neutral',
-           'Pending'     : 'filter-tab-orange',
-           'Confirmed'   : 'filter-tab-blue',
-           'In Progress' : 'filter-tab-purple',
-           'Completed'   : 'filter-tab-green',
-           'Cancelled'   : 'filter-tab-red'
-         };
+    <% // Map the shared badge-* class to a filter-tab-* color so this filter
+       // bar stays visually consistent with the badge colors used elsewhere,
+       // without hand-maintaining a second color table per status. ──
+       const badgeToFilterTab = {
+         'badge-warning': 'filter-tab-orange',
+         'badge-info'   : 'filter-tab-blue',
+         'badge-purple' : 'filter-tab-purple',
+         'badge-primary': 'filter-tab-purple',
+         'badge-success': 'filter-tab-green',
+         'badge-danger' : 'filter-tab-red',
+         'badge-neutral': 'filter-tab-neutral'
+       };
+       const statusTabs = ['all'].concat(typeof statusOrder !== 'undefined' ? statusOrder : []);
+    %>
+    <% statusTabs.forEach(function(s) {
+         const tabIsActive = statusF === s;
+         const badgeName = s === 'all' ? 'badge-neutral' : ((typeof statusClass !== 'undefined' && statusClass[s]) || 'badge-neutral');
     %>
     <a href="/warden/cab-bookings?status=<%= encodeURIComponent(s) %>&search=<%= search %>"
-       class="filter-tab <%= colorMap[s] || 'filter-tab-neutral' %> <%= isActive ? 'is-active' : '' %>">
+       class="filter-tab <%= badgeToFilterTab[badgeName] || 'filter-tab-neutral' %> <%= tabIsActive ? 'is-active' : '' %>">
       <%= s === 'all' ? 'All Statuses' : s %>
     </a>
     <% }); %>
@@ -96,10 +103,10 @@
           const pickupDate  = new Date(b.pickupDate);
           const dateStr     = pickupDate.toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' });
           const timeStr     = b.pickupTime || '—';
-          const isActive    = ['Pending','Confirmed','In Progress'].includes(b.status);
+          const rowIsActive = typeof b._isActive === 'boolean' ? b._isActive : true;
           const badgeCls    = (s) => (typeof statusClass !== 'undefined' ? statusClass : {})[s] || 'badge-neutral';
         %>
-        <tr data-status-cat="<%= isActive ? 'active' : 'history' %>">
+        <tr data-status-cat="<%= rowIsActive ? 'active' : 'history' %>">
           <td>
             <div class="user-cell">
               <div class="u-av s"><%= initial %></div>
@@ -147,7 +154,7 @@
           </td>
           <td>
             <% if (b.fare) { %>
-              <span class="badge <%= b.paymentStatus === 'Paid' ? 'badge-success' : 'badge-warning' %>"><%= b.paymentStatus %></span>
+              <span class="badge <%= b.paymentStatus === 'Paid' ? 'badge-success' : (b.paymentStatus === 'Refund Pending' ? 'badge-danger' : 'badge-warning') %>"><%= b.paymentStatus %></span>
             <% } else { %>
               <span style="color:var(--text-muted);font-size:.7rem">—</span>
             <% } %>
@@ -224,6 +231,10 @@
         <div class="si-field"><label>Current Status</label><span id="bm-status">—</span></div>
         <div class="si-field"><label>Booked On</label><span id="bm-booked-on">—</span></div>
         <div class="si-field"><label>Confirmed At</label><span id="bm-confirmed-at">—</span></div>
+        <div class="si-field"><label>Driver On the Way</label><span id="bm-driver-on-way-at">—</span></div>
+        <div class="si-field"><label>Driver Arrived</label><span id="bm-driver-arrived-at">—</span></div>
+        <div class="si-field"><label>Student Coming</label><span id="bm-student-coming-at">—</span></div>
+        <div class="si-field"><label>Ride Started</label><span id="bm-ride-started-at">—</span></div>
         <div class="si-field"><label>Completed At</label><span id="bm-completed-at">—</span></div>
       </div>
 
@@ -253,6 +264,8 @@
 
 <script>
 // ── Booking data for modal ──
+var RIDE_STATUS_BADGE = <%- JSON.stringify(typeof statusClass !== 'undefined' ? statusClass : {}) %>;
+
 const tBookings = <%- JSON.stringify(bookings.map(b => ({
   _id: b._id,
   student: b.student ? {
@@ -271,6 +284,10 @@ const tBookings = <%- JSON.stringify(bookings.map(b => ({
   status: b.status,
   createdAt: b.createdAt,
   confirmedAt: b.confirmedAt,
+  driverOnWayAt: b.driverOnWayAt,
+  driverArrivedAt: b.driverArrivedAt,
+  studentComingAt: b.studentComingAt,
+  rideStartedAt: b.rideStartedAt,
   completedAt: b.completedAt,
   cancellation: b.cancellation,
   rating: b.rating,
@@ -295,7 +312,7 @@ function openTModal(id) {
 
   document.getElementById('bm-fare').textContent = b.fare ? 'Rs ' + Number(b.fare).toLocaleString() : 'Not set yet';
   document.getElementById('bm-payment-status').innerHTML = b.fare
-    ? '<span class="badge ' + (b.paymentStatus === 'Paid' ? 'badge-success' : 'badge-warning') + '">' + b.paymentStatus + '</span>'
+    ? '<span class="badge ' + (b.paymentStatus === 'Paid' ? 'badge-success' : (b.paymentStatus === 'Refund Pending' ? 'badge-danger' : 'badge-warning')) + '">' + b.paymentStatus + '</span>'
     : '—';
 
   document.getElementById('bm-pickup').textContent      = b.pickupLocation || '—';
@@ -308,13 +325,16 @@ function openTModal(id) {
   document.getElementById('bm-time').textContent = b.pickupTime || '—';
   document.getElementById('bm-dropoff').textContent = b.completedAt ? new Date(b.completedAt).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
 
-  var sm = { 'Pending':'badge-warning', 'Confirmed':'badge-info', 'In Progress':'badge-primary', 'Completed':'badge-success', 'Cancelled':'badge-danger' };
-  var sc = sm[b.status] || 'badge-neutral';
+  var sc = RIDE_STATUS_BADGE[b.status] || 'badge-neutral';
   document.getElementById('bm-status').innerHTML = '<span class="badge ' + sc + '">' + b.status + '</span>';
 
   var fmt = function(d) { return d ? new Date(d).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'; };
   document.getElementById('bm-booked-on').textContent    = fmt(b.createdAt);
   document.getElementById('bm-confirmed-at').textContent = fmt(b.confirmedAt);
+  document.getElementById('bm-driver-on-way-at').textContent = fmt(b.driverOnWayAt);
+  document.getElementById('bm-driver-arrived-at').textContent = fmt(b.driverArrivedAt);
+  document.getElementById('bm-student-coming-at').textContent = fmt(b.studentComingAt);
+  document.getElementById('bm-ride-started-at').textContent = fmt(b.rideStartedAt);
   document.getElementById('bm-completed-at').textContent = fmt(b.completedAt);
 
   // Cancellation

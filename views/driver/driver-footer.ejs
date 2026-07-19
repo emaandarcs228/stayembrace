@@ -47,18 +47,21 @@ window.closeModal = function (id) { var el = document.getElementById(id); if (el
   }
 })();
 
-// ── Mark all notifications as read (dummy) ──
+// ── Mark all notifications as read ──
 (function() {
   var markAllBtn = document.getElementById('markAllRead');
   if (markAllBtn) {
-    markAllBtn.addEventListener('click', function() {
-      // Hide badge
-      var badge = document.getElementById('notifBadge');
-      if (badge) { badge.style.display = 'none'; badge.dataset.count = '0'; }
-      // Remove unread class from all notif items
-      document.querySelectorAll('.notif-item.unread').forEach(function(el) {
-        el.classList.remove('unread');
-      });
+    markAllBtn.addEventListener('click', async function() {
+      try {
+        await fetch('/driver/notifications/mark-all-read', { method: 'POST' });
+        var badge = document.getElementById('notifBadge');
+        if (badge) { badge.style.display = 'none'; badge.dataset.count = '0'; }
+        document.querySelectorAll('.notif-item.unread').forEach(function(el) {
+          el.classList.remove('unread');
+        });
+      } catch (err) {
+        console.error('Mark all read failed:', err);
+      }
     });
   }
 })();
