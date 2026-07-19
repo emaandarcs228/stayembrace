@@ -222,6 +222,55 @@ body {
 }
 
 /* ══════════════════════════════════════════════════════════════
+   AVAILABILITY TOGGLE (Online / Offline)
+══════════════════════════════════════════════════════════════ */
+.avail-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.avail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .28rem .55rem .28rem .45rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-mid);
+  background: white;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: inherit;
+}
+.avail-toggle:hover { border-color: var(--accent); background: var(--accent-light); }
+
+.avail-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background .3s;
+}
+.avail-toggle[data-online="true"] .avail-dot {
+  background: #2E7D32;
+  box-shadow: 0 0 4px rgba(46,125,50,.4);
+}
+.avail-toggle[data-online="false"] .avail-dot {
+  background: #999;
+}
+
+.avail-label {
+  font-size: .7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: color .3s;
+}
+.avail-toggle[data-online="true"] .avail-label {
+  color: #2E7D32;
+}
+.avail-toggle[data-online="false"] .avail-label {
+  color: #999;
+}
+
+/* ══════════════════════════════════════════════════════════════
    TOPBAR
 ══════════════════════════════════════════════════════════════ */
 .topbar {

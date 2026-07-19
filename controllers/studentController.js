@@ -1977,12 +1977,54 @@ exports.getTransport = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
+        // ── Fetch all approved drivers as transport providers ──
+        const providerUsers = await User.find({ role: 'driver', status: 'approved' })
+            .select('userId fullname email phoneNumber gender profileImage createdAt')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const providerUserIds = providerUsers.map(u => u._id);
+        const driverRecords = await Driver.find({ user: { $in: providerUserIds } }).lean();
+        const driverMap = {};
+        driverRecords.forEach(d => { driverMap[String(d.user)] = d; });
+
+        // Merge user + driver data, compute derived fields
+        const providers = providerUsers.map(u => {
+            const driver = driverMap[String(u._id)] || {};
+            return {
+                _id: u._id,
+                userId: u.userId,
+                fullname: u.fullname,
+                email: u.email || '—',
+                phoneNumber: u.phoneNumber || '—',
+                gender: u.gender || '—',
+                profileImage: u.profileImage || null,
+                isVerified: driver.isVerified || false,
+                vehicleType: driver.vehicleType || '—',
+                vehicleRegistration: driver.vehicleRegistration || '—',
+                vehicleModel: driver.vehicleModel || '—',
+                serviceArea: driver.serviceArea || '—',
+                cnic: driver.cnic || '—',
+                licenseNumber: driver.licenseNumber || '—',
+                licenseExpiry: driver.licenseExpiry || null,
+                experienceYears: driver.experienceYears || null,
+                hasCnicFront: !!driver.cnicFrontImage,
+                hasCnicBack: !!driver.cnicBackImage,
+                hasLicenseImage: !!driver.licenseImage,
+                hasVehicleDoc: !!driver.vehicleDocImage,
+                avgRating: driver.avgRating || 0,
+                reviewCount: driver.reviewCount || 0
+            };
+        });
+
         res.render('student/transport', {
             ...base,
             activePage   : 'transport',
             pageTitle    : 'Transport Services',
             pageSubtitle : 'Book a ride',
             myBookings,
+            providers,
+            totalProviders: providers.length,
             rideStatusBadgeClass: RIDE_STATUS_BADGE_CLASS,
             rideAssignedGroup: RIDE_ASSIGNED_GROUP,
             rideCancellableFrom: CANCELLABLE_FROM,

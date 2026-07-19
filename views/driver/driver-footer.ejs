@@ -9,6 +9,30 @@
 window.openModal  = function (id) { var el = document.getElementById(id); if (el) el.classList.add('open'); };
 window.closeModal = function (id) { var el = document.getElementById(id); if (el) el.classList.remove('open'); };
 
+// ── Availability toggle (Online / Offline) ──
+window.toggleAvailability = async function(event) {
+  var btn = event.currentTarget;
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    var res = await fetch('/driver/availability/toggle', { method: 'POST' });
+    var data = await res.json();
+    if (data.success) {
+      var isOnline = data.isOnline;
+      btn.dataset.online = isOnline ? 'true' : 'false';
+      btn.title = isOnline ? 'You are online' : 'You are offline';
+      var dot = document.getElementById('availDot');
+      var label = document.getElementById('availLabel');
+      if (dot) dot.style.transition = 'background .3s';
+      if (label) label.textContent = isOnline ? 'Online' : 'Offline';
+    }
+  } catch (err) {
+    console.error('Toggle availability failed:', err);
+  } finally {
+    btn.disabled = false;
+  }
+};
+
 // ── Notification dropdown toggle ──
 (function() {
   var notifBtn = document.getElementById('notifBtn');
